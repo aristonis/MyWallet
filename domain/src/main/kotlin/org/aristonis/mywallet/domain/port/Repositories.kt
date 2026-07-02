@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.Flow
 interface AccountRepository {
     fun observeAll(): Flow<List<Account>>
     suspend fun findById(id: Long): Account?
+
+    /** Insert (id == 0) or update; returns the account's id. */
+    suspend fun upsert(account: Account): Long
 }
 
 interface CategoryRepository {
@@ -43,4 +46,5 @@ interface RateRepository {
 interface SettingsRepository {
     fun observe(): Flow<Settings>
     suspend fun get(): Settings
+    suspend fun save(settings: Settings)
 }

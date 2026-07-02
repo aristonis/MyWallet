@@ -32,6 +32,7 @@ import org.aristonis.mywallet.domain.port.TransactionRepository
 class RoomAccountRepository(private val dao: AccountDao) : AccountRepository {
     override fun observeAll(): Flow<List<Account>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
     override suspend fun findById(id: Long): Account? = dao.findById(id)?.toDomain()
+    override suspend fun upsert(account: Account): Long = dao.upsert(account.toEntity())
 }
 
 class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRepository {
@@ -57,4 +58,5 @@ class RoomSettingsRepository(private val dao: SettingsDao) : SettingsRepository 
     override fun observe(): Flow<Settings> = dao.observe().filterNotNull().map { it.toDomain() }
     override suspend fun get(): Settings =
         dao.get()?.toDomain() ?: error("settings not initialized — onboarding must set the base currency first")
+    override suspend fun save(settings: Settings) = dao.upsert(settings.toEntity())
 }

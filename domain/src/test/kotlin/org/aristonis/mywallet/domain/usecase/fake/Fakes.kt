@@ -2,6 +2,7 @@ package org.aristonis.mywallet.domain.usecase.fake
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.Currency
@@ -23,8 +24,14 @@ import org.aristonis.mywallet.domain.port.TransactionRepository
 
 class FakeAccountRepository(initial: List<Account> = emptyList()) : AccountRepository {
     private val items = MutableStateFlow(initial)
+    private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1
     override fun observeAll(): Flow<List<Account>> = items
     override suspend fun findById(id: Long): Account? = items.value.firstOrNull { it.id == id }
+    override suspend fun upsert(account: Account): Long {
+        val id = if (account.id == 0L) nextId++ else account.id
+        items.value = items.value.filterNot { it.id == id } + account.copy(id = id)
+        return id
+    }
 }
 
 class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRepository {
@@ -60,8 +67,11 @@ class FakeRateRepository(initial: List<ExchangeRate> = emptyList()) : RateReposi
         items.value.firstOrNull { it.currencyCode == code }
 }
 
-class FakeSettingsRepository(settings: Settings) : SettingsRepository {
-    private val state = MutableStateFlow(settings)
-    override fun observe(): Flow<Settings> = state
-    override suspend fun get(): Settings = state.value
+class FakeSettingsRepository(initial: Settings? = null) : SettingsRepository {
+    private val state = MutableStateFlow(initial)
+    override fun observe(): Flow<Settings> = state.filterNotNull()
+    override suspend fun get(): Settings = state.value ?: error("settings not initialized")
+    override suspend fun save(settings: Settings) {
+        state.value = settings
+    }
 }
