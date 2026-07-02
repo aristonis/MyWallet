@@ -28,7 +28,7 @@ dependencies {
     implementation(project(":domain"))
     implementation(libs.kotlinx.coroutines.core)
 
-    implementation(libs.androidx.room.runtime)
+    api(libs.androidx.room.runtime) // exposed so :app can reference WalletDatabase (its RoomDatabase supertype)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 

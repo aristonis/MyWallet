@@ -1,0 +1,49 @@
+package org.aristonis.mywallet.di
+
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import org.aristonis.mywallet.data.db.AccountDao
+import org.aristonis.mywallet.data.db.CategoryDao
+import org.aristonis.mywallet.data.db.CurrencyDao
+import org.aristonis.mywallet.data.db.RateDao
+import org.aristonis.mywallet.data.db.SettingsDao
+import org.aristonis.mywallet.data.db.TransactionDao
+import org.aristonis.mywallet.data.repo.RoomAccountRepository
+import org.aristonis.mywallet.data.repo.RoomCategoryRepository
+import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
+import org.aristonis.mywallet.data.repo.RoomRateRepository
+import org.aristonis.mywallet.data.repo.RoomSettingsRepository
+import org.aristonis.mywallet.data.repo.RoomTransactionRepository
+import org.aristonis.mywallet.domain.port.AccountRepository
+import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.port.RateRepository
+import org.aristonis.mywallet.domain.port.SettingsRepository
+import org.aristonis.mywallet.domain.port.TransactionRepository
+import javax.inject.Singleton
+
+/** Binds each domain port to its Room implementation. This is the seam where the app chooses Room. */
+@Module
+@InstallIn(SingletonComponent::class)
+object RepositoryModule {
+
+    @Provides @Singleton
+    fun provideAccountRepository(dao: AccountDao): AccountRepository = RoomAccountRepository(dao)
+
+    @Provides @Singleton
+    fun provideTransactionRepository(dao: TransactionDao): TransactionRepository = RoomTransactionRepository(dao)
+
+    @Provides @Singleton
+    fun provideCategoryRepository(dao: CategoryDao): CategoryRepository = RoomCategoryRepository(dao)
+
+    @Provides @Singleton
+    fun provideCurrencyRepository(dao: CurrencyDao): CurrencyRepository = RoomCurrencyRepository(dao)
+
+    @Provides @Singleton
+    fun provideRateRepository(dao: RateDao): RateRepository = RoomRateRepository(dao)
+
+    @Provides @Singleton
+    fun provideSettingsRepository(dao: SettingsDao): SettingsRepository = RoomSettingsRepository(dao)
+}
