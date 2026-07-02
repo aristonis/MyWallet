@@ -1,0 +1,46 @@
+package org.aristonis.mywallet.domain.port
+
+import org.aristonis.mywallet.domain.model.Account
+import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.ExchangeRate
+import org.aristonis.mywallet.domain.model.Settings
+import org.aristonis.mywallet.domain.model.Transaction
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Ports = the interfaces the domain core depends on. `:data` (Room) implements them; the domain
+ * never sees Room. `suspend` = one-shot I/O (must not block the caller's thread); `Flow` = a live
+ * stream that re-emits whenever the underlying data changes. Grown as use-cases need them (YAGNI).
+ */
+
+interface AccountRepository {
+    fun observeAll(): Flow<List<Account>>
+    suspend fun findById(id: Long): Account?
+}
+
+interface CategoryRepository {
+    suspend fun findById(id: Long): Category?
+}
+
+interface TransactionRepository {
+    fun observeAll(): Flow<List<Transaction>>
+
+    /** Persists a new transaction and returns its generated id. */
+    suspend fun add(transaction: Transaction): Long
+}
+
+interface CurrencyRepository {
+    fun observeAll(): Flow<List<Currency>>
+    suspend fun findByCode(code: String): Currency?
+}
+
+interface RateRepository {
+    fun observeAll(): Flow<List<ExchangeRate>>
+    suspend fun findByCode(code: String): ExchangeRate?
+}
+
+interface SettingsRepository {
+    fun observe(): Flow<Settings>
+    suspend fun get(): Settings
+}
