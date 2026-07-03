@@ -53,6 +53,8 @@ class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : Tran
 
     override fun observeAll(): Flow<List<Transaction>> = items
 
+    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
+
     override suspend fun add(transaction: Transaction): Long {
         items.value = items.value + transaction
         return nextId++

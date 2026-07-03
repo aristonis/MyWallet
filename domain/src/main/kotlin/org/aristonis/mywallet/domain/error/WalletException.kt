@@ -31,4 +31,12 @@ sealed class WalletException(message: String) : Exception(message) {
     /** No exchange rate is set for a non-base currency that a conversion needs (FR-15 fail-loud). */
     class MissingRate(val code: String) :
         WalletException("No exchange rate set for $code")
+
+    /** The transaction being edited no longer exists (e.g. it was deleted since the editor opened). */
+    class TransactionNotFound(val id: Long) :
+        WalletException("Transaction $id not found")
+
+    /** A transfer edit tried to change its currency pair; its stored rate would no longer apply. */
+    class TransferCurrencyPairChanged(val id: Long) :
+        WalletException("Transaction $id is a transfer whose currencies can't change on edit — delete and re-add instead")
 }

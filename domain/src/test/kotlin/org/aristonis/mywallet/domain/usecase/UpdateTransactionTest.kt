@@ -180,4 +180,45 @@ class UpdateTransactionTest {
         )
         update(listOf(account(1)), FakeTransactionRepository(listOf(transfer))).invoke(transfer)
     }
+
+    // --- edit integrity (fail-loud) ---
+
+    @Test(expected = WalletException.TransactionNotFound::class)
+    fun editingAMissingTransaction_throws() = runTest {
+        // the row was deleted since the editor opened — the save must fail loud, not silently no-op
+        val income = Transaction.Income(id = 7, accountId = 1, amount = Money.of("5", "USD"), categoryId = 5, date = today)
+        update(listOf(account(1)), FakeTransactionRepository()).invoke(income)
+    }
+
+    @Test(expected = WalletException.TransferCurrencyPairChanged::class)
+    fun editingATransferToADifferentCurrencyPair_throws() = runTest {
+        // stored USD->EUR at 0.90; moving the destination to a GBP account changes the pair, so its stored rate no longer applies
+        val transfer = Transaction.Transfer(
+            id = 1, sourceAccountId = 1, destAccountId = 2,
+            sourceAmount = Money.of("10", "USD"), destAmount = Money.of("9.00", "EUR"),
+            rateUsed = BigDecimal("0.90"), date = today,
+        )
+        update(
+            accounts = listOf(account(1, "USD"), account(2, "EUR"), account(3, "GBP")),
+            transactions = FakeTransactionRepository(listOf(transfer)),
+            currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2), Currency("GBP", "£", 2)),
+        ).invoke(transfer.copy(destAccountId = 3))
+    }
+
+    @Test
+    fun editingATransferToASameCurrencyAccount_isAllowed() = runTest {
+        // moving the source to another USD account keeps the USD->EUR pair, so the stored rate still applies
+        val transfer = Transaction.Transfer(
+            id = 1, sourceAccountId = 1, destAccountId = 2,
+            sourceAmount = Money.of("10", "USD"), destAmount = Money.of("9.00", "EUR"),
+            rateUsed = BigDecimal("0.90"), date = today,
+        )
+        val transactions = FakeTransactionRepository(listOf(transfer))
+
+        update(listOf(account(1, "USD"), account(2, "EUR"), account(3, "USD")), transactions).invoke(transfer.copy(sourceAccountId = 3))
+
+        val saved = transactions.added.single() as Transaction.Transfer
+        assertEquals(3L, saved.sourceAccountId)
+        assertEquals(Money.of("9.00", "EUR"), saved.destAmount)
+    }
 }

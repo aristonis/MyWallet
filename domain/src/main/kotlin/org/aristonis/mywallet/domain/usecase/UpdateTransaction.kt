@@ -27,6 +27,8 @@ class UpdateTransaction(
     private val transactions: TransactionRepository,
 ) {
     suspend operator fun invoke(transaction: Transaction) {
+        val existing = transactions.findById(transaction.id)
+            ?: throw WalletException.TransactionNotFound(transaction.id)
         when (transaction) {
             is Transaction.Income ->
                 validateAndUpdate(transaction.accountId, transaction.amount, transaction.categoryId, transaction)
@@ -39,6 +41,7 @@ class UpdateTransaction(
                 val dest = accounts.findById(transaction.destAccountId)
                     ?: throw WalletException.AccountNotFound(transaction.destAccountId)
                 if (dest.archived) throw WalletException.AccountArchived(transaction.destAccountId)
+                requireUnchangedCurrencyPair(existing, transaction.sourceAmount.currencyCode, dest.currencyCode)
                 val destAmount = convertAtStoredRate(
                     source = transaction.sourceAmount,
                     rate = transaction.rateUsed,
@@ -68,6 +71,18 @@ class UpdateTransaction(
 
     private suspend fun requireCategory(categoryId: Long) {
         categories.findById(categoryId) ?: throw WalletException.CategoryNotFound(categoryId)
+    }
+
+    /**
+     * A transfer's stored rate is tied to its currency pair, so an edit must keep that pair — change
+     * the accounts or rate by deleting and re-adding. Compares the persisted pair to the edited one.
+     */
+    private fun requireUnchangedCurrencyPair(existing: Transaction, newSource: String, newDest: String) {
+        val storedPair = (existing as? Transaction.Transfer)
+            ?.let { it.sourceAmount.currencyCode to it.destAmount.currencyCode }
+        if (storedPair != (newSource to newDest)) {
+            throw WalletException.TransferCurrencyPairChanged(existing.id)
+        }
     }
 
     /**

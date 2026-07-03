@@ -12,6 +12,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY date DESC, id DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
 
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    suspend fun findById(id: Long): TransactionEntity?
+
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long
 

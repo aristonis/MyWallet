@@ -33,6 +33,9 @@ interface CategoryRepository {
 interface TransactionRepository {
     fun observeAll(): Flow<List<Transaction>>
 
+    /** The transaction with [id], or null if none — used to guard an edit against a stale/deleted row. */
+    suspend fun findById(id: Long): Transaction?
+
     /** Persists a new transaction and returns its generated id. */
     suspend fun add(transaction: Transaction): Long
 

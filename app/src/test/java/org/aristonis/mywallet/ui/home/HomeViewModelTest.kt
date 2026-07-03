@@ -158,6 +158,7 @@ private class FakeAccountRepository(initial: List<Account>) : AccountRepository 
 private class FakeTransactionRepository : TransactionRepository {
     private val items = MutableStateFlow<List<Transaction>>(emptyList())
     override fun observeAll(): Flow<List<Transaction>> = items
+    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
     override suspend fun add(transaction: Transaction): Long = 1
     override suspend fun update(transaction: Transaction) { items.value = items.value.map { if (it.id == transaction.id) transaction else it } }
     override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
