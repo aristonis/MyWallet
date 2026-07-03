@@ -23,6 +23,7 @@ interface AccountRepository {
 }
 
 interface CategoryRepository {
+    fun observeAll(): Flow<List<Category>>
     suspend fun findById(id: Long): Category?
 }
 

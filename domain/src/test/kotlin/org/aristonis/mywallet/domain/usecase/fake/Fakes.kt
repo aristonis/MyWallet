@@ -36,6 +36,7 @@ class FakeAccountRepository(initial: List<Account> = emptyList()) : AccountRepos
 
 class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRepository {
     private val items = MutableStateFlow(initial)
+    override fun observeAll(): Flow<List<Category>> = items
     override suspend fun findById(id: Long): Category? = items.value.firstOrNull { it.id == id }
 }
 

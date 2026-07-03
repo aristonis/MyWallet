@@ -41,6 +41,7 @@ class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRe
 }
 
 class RoomCategoryRepository(private val dao: CategoryDao) : CategoryRepository {
+    override fun observeAll(): Flow<List<Category>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
     override suspend fun findById(id: Long): Category? = dao.findById(id)?.toDomain()
 }
 

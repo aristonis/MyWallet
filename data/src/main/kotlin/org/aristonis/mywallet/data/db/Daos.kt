@@ -17,6 +17,9 @@ interface TransactionDao {
 
 @Dao
 interface CategoryDao {
+    @Query("SELECT * FROM categories ORDER BY name")
+    fun observeAll(): Flow<List<CategoryEntity>>
+
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun findById(id: Long): CategoryEntity?
 }
