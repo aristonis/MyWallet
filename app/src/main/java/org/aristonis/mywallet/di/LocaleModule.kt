@@ -4,8 +4,10 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import java.util.Currency
 import java.util.Locale
+import javax.inject.Singleton
 
 /**
  * Environment defaults derived from the device locale. Wrapped in a type (not a bare String) so it
@@ -23,4 +25,8 @@ object LocaleModule {
         LocaleDefaults(
             runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrNull(),
         )
+
+    @Provides
+    @Singleton
+    fun provideMoneyFormatter(): MoneyFormatter = MoneyFormatter(Locale.getDefault())
 }
