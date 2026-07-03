@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +20,7 @@ import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen
 import org.aristonis.mywallet.ui.transaction.AddTransactionScreen
+import org.aristonis.mywallet.ui.transaction.EditTransactionScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListScreen
 
 /**
@@ -37,15 +39,18 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 /** The screens reachable from Home via the lightweight toggle below. */
-private enum class HomeDestination { HOME, ADD_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, MANAGE_RATES }
+private enum class HomeDestination { HOME, ADD_TRANSACTION, EDIT_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, MANAGE_RATES }
 
 /**
  * Lightweight Home navigation via a `remember`ed destination. With this handful of screens a flag
- * beats pulling in a nav library; when a bottom-nav shell arrives this becomes a real NavHost.
+ * beats pulling in a nav library; when a bottom-nav shell arrives this becomes a real NavHost. The
+ * editor needs one argument (which transaction), so its id rides alongside the destination flag until
+ * that NavHost arrives with real route arguments.
  */
 @Composable
 private fun HomeFlow() {
     var destination by remember { mutableStateOf(HomeDestination.HOME) }
+    var editingTransactionId by remember { mutableStateOf<Long?>(null) }
     val toHome = { destination = HomeDestination.HOME }
     when (destination) {
         HomeDestination.HOME -> HomeScreen(
@@ -57,7 +62,22 @@ private fun HomeFlow() {
             onManageRates = { destination = HomeDestination.MANAGE_RATES },
         )
         HomeDestination.ADD_TRANSACTION -> AddTransactionScreen(onDone = toHome)
-        HomeDestination.TRANSACTIONS -> TransactionsListScreen(onDone = toHome)
+        HomeDestination.TRANSACTIONS -> TransactionsListScreen(
+            onDone = toHome,
+            onEditTransaction = { id ->
+                editingTransactionId = id
+                destination = HomeDestination.EDIT_TRANSACTION
+            },
+        )
+        HomeDestination.EDIT_TRANSACTION -> {
+            val id = editingTransactionId
+            if (id == null) {
+                // No row selected — nothing to edit, so bounce back rather than show a blank editor.
+                LaunchedEffect(Unit) { destination = HomeDestination.HOME }
+            } else {
+                EditTransactionScreen(transactionId = id, onDone = toHome)
+            }
+        }
         HomeDestination.REPORTS -> ReportsScreen(onDone = toHome)
         HomeDestination.MANAGE_ACCOUNTS -> ManageAccountsScreen(onDone = toHome)
         HomeDestination.ADD_ACCOUNT -> AddAccountScreen(onDone = toHome)

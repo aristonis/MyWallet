@@ -4,6 +4,7 @@ package org.aristonis.mywallet.ui.transaction
 // per-currency symbol + locale formatting comes later too.
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,21 +32,26 @@ import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.time.LocalDate
 
 /**
- * The transactions history: a simple newest-first list. Read-only in this slice (edit/delete are
- * backlogged). [onDone] returns to Home via Done or system back — no nav library.
+ * The transactions history: a simple newest-first list. Tapping a row opens it in the editor via
+ * [onEditTransaction]. [onDone] returns to Home via Done or system back — no nav library.
  */
 @Composable
 fun TransactionsListScreen(
     onDone: () -> Unit,
+    onEditTransaction: (Long) -> Unit,
     viewModel: TransactionsListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     BackHandler(onBack = onDone)
-    TransactionsListContent(state = state, onDone = onDone)
+    TransactionsListContent(state = state, onDone = onDone, onEditTransaction = onEditTransaction)
 }
 
 @Composable
-private fun TransactionsListContent(state: TransactionsUiState, onDone: () -> Unit) {
+private fun TransactionsListContent(
+    state: TransactionsUiState,
+    onDone: () -> Unit,
+    onEditTransaction: (Long) -> Unit,
+) {
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
@@ -68,7 +74,9 @@ private fun TransactionsListContent(state: TransactionsUiState, onDone: () -> Un
                 )
 
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(state.rows, key = { it.id }) { row -> TransactionCard(row) }
+                    items(state.rows, key = { it.id }) { row ->
+                        TransactionCard(row, onClick = { onEditTransaction(row.id) })
+                    }
                 }
             }
         }
@@ -76,8 +84,8 @@ private fun TransactionsListContent(state: TransactionsUiState, onDone: () -> Un
 }
 
 @Composable
-private fun TransactionCard(row: TransactionRow) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun TransactionCard(row: TransactionRow, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(accountLine(row), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -132,6 +140,7 @@ private fun TransactionsListPreview() {
                 ),
             ),
             onDone = {},
+            onEditTransaction = {},
         )
     }
 }
