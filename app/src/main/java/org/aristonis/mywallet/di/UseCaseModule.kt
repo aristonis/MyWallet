@@ -24,6 +24,7 @@ import org.aristonis.mywallet.domain.usecase.RecordTransfer
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
+import org.aristonis.mywallet.domain.usecase.UpdateAccount
 import org.aristonis.mywallet.domain.usecase.UpdateTransaction
 import javax.inject.Singleton
 
@@ -56,6 +57,13 @@ object UseCaseModule {
         accounts: AccountRepository,
         transactions: TransactionRepository,
     ): DeleteAccount = DeleteAccount(accounts, transactions)
+
+    @Provides @Singleton
+    fun provideUpdateAccount(
+        currencies: CurrencyRepository,
+        accounts: AccountRepository,
+        transactions: TransactionRepository,
+    ): UpdateAccount = UpdateAccount(currencies, accounts, transactions)
 
     @Provides @Singleton
     fun provideSetExchangeRate(

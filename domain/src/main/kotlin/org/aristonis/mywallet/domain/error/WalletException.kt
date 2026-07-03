@@ -13,6 +13,10 @@ sealed class WalletException(message: String) : Exception(message) {
     class AccountInUse(val id: Long) :
         WalletException("Account $id has transactions and cannot be deleted; archive it instead")
 
+    /** The account has transactions, so its currency is fixed — changing it would re-denominate that recorded money. */
+    class AccountCurrencyLocked(val id: Long) :
+        WalletException("Account $id has transactions; its currency can't be changed")
+
     /** The account is archived, so no new transaction may be recorded against it (unarchive first). */
     class AccountArchived(val id: Long) :
         WalletException("Account $id is archived; unarchive it to record transactions")

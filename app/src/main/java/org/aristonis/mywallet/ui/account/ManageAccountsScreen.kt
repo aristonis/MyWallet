@@ -42,6 +42,7 @@ import org.aristonis.mywallet.ui.theme.MyWalletTheme
 @Composable
 fun ManageAccountsScreen(
     onDone: () -> Unit,
+    onEditAccount: (Long) -> Unit,
     viewModel: ManageAccountsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -51,6 +52,7 @@ fun ManageAccountsScreen(
         onArchive = viewModel::archive,
         onUnarchive = viewModel::unarchive,
         onDelete = viewModel::delete,
+        onEdit = onEditAccount,
         onDone = onDone,
     )
 }
@@ -61,6 +63,7 @@ private fun ManageAccountsContent(
     onArchive: (Long) -> Unit,
     onUnarchive: (Long) -> Unit,
     onDelete: (Long) -> Unit,
+    onEdit: (Long) -> Unit,
     onDone: () -> Unit,
 ) {
     // Deleting an account is destructive, so it goes through a confirm dialog keyed on the pending id.
@@ -95,6 +98,7 @@ private fun ManageAccountsContent(
                     items(state.rows, key = { it.account.id }) { row ->
                         AccountManageCard(
                             row = row,
+                            onEdit = { onEdit(row.account.id) },
                             onArchive = { onArchive(row.account.id) },
                             onUnarchive = { onUnarchive(row.account.id) },
                             onDeleteRequest = { pendingDelete = row },
@@ -124,6 +128,7 @@ private fun ManageAccountsContent(
 @Composable
 private fun AccountManageCard(
     row: ManageAccountRow,
+    onEdit: () -> Unit,
     onArchive: () -> Unit,
     onUnarchive: () -> Unit,
     onDeleteRequest: () -> Unit,
@@ -143,6 +148,9 @@ private fun AccountManageCard(
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Every account can be edited (name/type always; currency only while it has no
+                // transactions — the editor locks that field), so Edit is offered unconditionally.
+                TextButton(onClick = onEdit) { Text("Edit") }
                 if (row.account.archived) {
                     TextButton(onClick = onUnarchive) { Text("Unarchive") }
                 } else {
@@ -188,7 +196,7 @@ private fun ManageAccountsPreview() {
                     ),
                 ),
             ),
-            onArchive = {}, onUnarchive = {}, onDelete = {}, onDone = {},
+            onArchive = {}, onUnarchive = {}, onDelete = {}, onEdit = {}, onDone = {},
         )
     }
 }

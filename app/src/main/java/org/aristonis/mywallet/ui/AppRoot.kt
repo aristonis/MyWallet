@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.ui.account.AddAccountScreen
+import org.aristonis.mywallet.ui.account.EditAccountScreen
 import org.aristonis.mywallet.ui.account.ManageAccountsScreen
 import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
@@ -39,19 +40,21 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 /** The screens reachable from Home via the lightweight toggle below. */
-private enum class HomeDestination { HOME, ADD_TRANSACTION, EDIT_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, MANAGE_RATES }
+private enum class HomeDestination { HOME, ADD_TRANSACTION, EDIT_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, EDIT_ACCOUNT, MANAGE_RATES }
 
 /**
  * Lightweight Home navigation via a `remember`ed destination. With this handful of screens a flag
  * beats pulling in a nav library; when a bottom-nav shell arrives this becomes a real NavHost. The
- * editor needs one argument (which transaction), so its id rides alongside the destination flag until
- * that NavHost arrives with real route arguments.
+ * editors each need one argument (which transaction / which account), so that id rides alongside the
+ * destination flag until that NavHost arrives with real route arguments.
  */
 @Composable
 private fun HomeFlow() {
     var destination by remember { mutableStateOf(HomeDestination.HOME) }
     var editingTransactionId by remember { mutableStateOf<Long?>(null) }
+    var editingAccountId by remember { mutableStateOf<Long?>(null) }
     val toHome = { destination = HomeDestination.HOME }
+    val toManageAccounts = { destination = HomeDestination.MANAGE_ACCOUNTS }
     when (destination) {
         HomeDestination.HOME -> HomeScreen(
             onAddTransaction = { destination = HomeDestination.ADD_TRANSACTION },
@@ -79,7 +82,23 @@ private fun HomeFlow() {
             }
         }
         HomeDestination.REPORTS -> ReportsScreen(onDone = toHome)
-        HomeDestination.MANAGE_ACCOUNTS -> ManageAccountsScreen(onDone = toHome)
+        HomeDestination.MANAGE_ACCOUNTS -> ManageAccountsScreen(
+            onDone = toHome,
+            onEditAccount = { id ->
+                editingAccountId = id
+                destination = HomeDestination.EDIT_ACCOUNT
+            },
+        )
+        HomeDestination.EDIT_ACCOUNT -> {
+            val id = editingAccountId
+            if (id == null) {
+                // No row selected — nothing to edit, so bounce back to the list rather than a blank editor.
+                LaunchedEffect(Unit) { destination = HomeDestination.MANAGE_ACCOUNTS }
+            } else {
+                // The editor is launched from Manage Accounts, so it returns there (not Home) when done.
+                EditAccountScreen(accountId = id, onDone = toManageAccounts)
+            }
+        }
         HomeDestination.ADD_ACCOUNT -> AddAccountScreen(onDone = toHome)
         HomeDestination.MANAGE_RATES -> ManageRatesScreen(onDone = toHome)
     }
