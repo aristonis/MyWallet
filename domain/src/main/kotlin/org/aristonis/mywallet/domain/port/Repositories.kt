@@ -35,6 +35,12 @@ interface TransactionRepository {
 
     /** Persists a new transaction and returns its generated id. */
     suspend fun add(transaction: Transaction): Long
+
+    /** Replaces an existing transaction, matched by id. */
+    suspend fun update(transaction: Transaction)
+
+    /** Removes a transaction by id. A transfer is one row, so both legs go together (atomic). */
+    suspend fun delete(id: Long)
 }
 
 interface CurrencyRepository {

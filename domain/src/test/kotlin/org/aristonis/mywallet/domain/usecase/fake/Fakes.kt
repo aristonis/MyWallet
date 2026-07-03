@@ -46,7 +46,7 @@ class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRe
 
 class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : TransactionRepository {
     private val items = MutableStateFlow(initial)
-    private var nextId = initial.size.toLong() + 1
+    private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1
 
     /** Everything currently persisted, for assertions. */
     val added: List<Transaction> get() = items.value
@@ -56,6 +56,14 @@ class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : Tran
     override suspend fun add(transaction: Transaction): Long {
         items.value = items.value + transaction
         return nextId++
+    }
+
+    override suspend fun update(transaction: Transaction) {
+        items.value = items.value.map { if (it.id == transaction.id) transaction else it }
+    }
+
+    override suspend fun delete(id: Long) {
+        items.value = items.value.filterNot { it.id == id }
     }
 }
 

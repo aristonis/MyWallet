@@ -39,6 +39,8 @@ class RoomAccountRepository(private val dao: AccountDao) : AccountRepository {
 class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRepository {
     override fun observeAll(): Flow<List<Transaction>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
     override suspend fun add(transaction: Transaction): Long = dao.insert(transaction.toEntity())
+    override suspend fun update(transaction: Transaction) = dao.update(transaction.toEntity())
+    override suspend fun delete(id: Long) = dao.deleteById(id)
 }
 
 class RoomCategoryRepository(private val dao: CategoryDao) : CategoryRepository {

@@ -217,6 +217,8 @@ private class FakeTransactionRepository(initial: List<Transaction>) : Transactio
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Transaction>> = items
     override suspend fun add(transaction: Transaction): Long = 1
+    override suspend fun update(transaction: Transaction) { items.value = items.value.map { if (it.id == transaction.id) transaction else it } }
+    override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
 }
 
 private class FakeCategoryRepository(initial: List<Category>) : CategoryRepository {
