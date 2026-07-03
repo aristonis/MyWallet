@@ -6,8 +6,12 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
+import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.CreateAccount
+import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import javax.inject.Singleton
 
@@ -31,4 +35,18 @@ object UseCaseModule {
         currencies: CurrencyRepository,
         accounts: AccountRepository,
     ): CreateAccount = CreateAccount(currencies, accounts)
+
+    @Provides @Singleton
+    fun provideGetAccountBalances(
+        accounts: AccountRepository,
+        transactions: TransactionRepository,
+    ): GetAccountBalances = GetAccountBalances(accounts, transactions)
+
+    @Provides @Singleton
+    fun provideComputeNetWorth(
+        getAccountBalances: GetAccountBalances,
+        currencies: CurrencyRepository,
+        rates: RateRepository,
+        settings: SettingsRepository,
+    ): ComputeNetWorth = ComputeNetWorth(getAccountBalances, currencies, rates, settings)
 }
