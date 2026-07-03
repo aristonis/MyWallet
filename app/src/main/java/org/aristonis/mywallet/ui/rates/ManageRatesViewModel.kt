@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
@@ -51,6 +52,7 @@ class ManageRatesViewModel @Inject constructor(
     rates: RateRepository,
     settings: SettingsRepository,
     private val setExchangeRate: SetExchangeRate,
+    private val moneyParser: MoneyParser,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ManageRatesUiState())
@@ -85,7 +87,7 @@ class ManageRatesViewModel @Inject constructor(
         val row = _state.value.rows.firstOrNull { it.currencyCode == currencyCode } ?: return
         viewModelScope.launch {
             try {
-                val rate = parseRate(row.input)
+                val rate = moneyParser.parseRate(row.input)
                 setExchangeRate(currencyCode, rate)
                 updateRow(currencyCode) { it.copy(error = null) } // currentRate refreshes from the stream
             } catch (e: WalletException.CurrencyNotFound) {
@@ -99,29 +101,6 @@ class ManageRatesViewModel @Inject constructor(
 
     private fun updateRow(currencyCode: String, transform: (RateRow) -> RateRow) = _state.update { s ->
         s.copy(rows = s.rows.map { if (it.currencyCode == currencyCode) transform(it) else it })
-    }
-
-    /**
-     * Parse the typed rate, failing loud with a user-facing message. Rejects blank, non-numeric,
-     * non-positive, and an absurd exponent (which would otherwise blow up toPlainString() to an OOM).
-     */
-    private fun parseRate(input: String): BigDecimal {
-        val trimmed = input.trim()
-        require(trimmed.isNotEmpty()) { "Enter a rate" }
-        val parsed = try {
-            BigDecimal(trimmed)
-        } catch (_: NumberFormatException) {
-            throw IllegalArgumentException("Enter a valid number")
-        }
-        require(parsed.scale() in -MAX_RATE_SCALE..MAX_RATE_SCALE) { "Enter a realistic rate" }
-        require(parsed.signum() > 0) { "Rate must be greater than 0" }
-        return parsed
-    }
-
-    private companion object {
-        // Any real rate sits far inside this scale; an extreme exponent is a typo that would also
-        // OOM toPlainString(), so we reject it at the boundary rather than crash later.
-        private const val MAX_RATE_SCALE = 30
     }
 
     private fun buildRows(snapshot: Snapshot, previous: List<RateRow>): List<RateRow> {
@@ -141,7 +120,7 @@ class ManageRatesViewModel @Inject constructor(
                 symbol = snapshot.currencies.firstOrNull { it.code == code }?.symbol ?: code,
                 currentRate = currentRate,
                 // Sticky: once a row exists, keep the user's text; only seed it from a saved rate on first load.
-                input = prior?.input ?: currentRate?.toPlainString() ?: "",
+                input = prior?.input ?: currentRate?.let { moneyParser.toInputString(it) } ?: "",
                 error = prior?.error,
             )
         }

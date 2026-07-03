@@ -11,18 +11,17 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
-import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.usecase.RecordExpense
 import org.aristonis.mywallet.domain.usecase.RecordIncome
 import org.aristonis.mywallet.domain.usecase.RecordTransfer
-import java.math.BigDecimal
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -82,6 +81,7 @@ class AddTransactionViewModel @Inject constructor(
     private val recordExpense: RecordExpense,
     private val recordTransfer: RecordTransfer,
     private val today: TodayProvider,
+    private val moneyParser: MoneyParser,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AddTransactionUiState(date = today.today()))
@@ -161,7 +161,7 @@ class AddTransactionViewModel @Inject constructor(
     }
 
     private suspend fun record(snapshot: AddTransactionUiState, account: Account) {
-        val amount = parseAmount(snapshot.amountInput, account.currencyCode)
+        val amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode)
         val note = snapshot.note.trim().ifEmpty { null }
         when (snapshot.type) {
             TransactionType.INCOME -> recordIncome(
@@ -193,28 +193,4 @@ class AddTransactionViewModel @Inject constructor(
 
     private fun requireDestAccount(snapshot: AddTransactionUiState): Long =
         snapshot.destAccountId ?: throw IllegalArgumentException("Choose a destination account")
-
-    /**
-     * Parse the typed amount, failing loud with a user-facing message. Rejects blank, non-numeric,
-     * non-positive, and an absurd exponent (which would otherwise blow up toPlainString to an OOM).
-     * Money is built in [currencyCode] so it never touches a float.
-     */
-    private fun parseAmount(input: String, currencyCode: String): Money {
-        val trimmed = input.trim()
-        require(trimmed.isNotEmpty()) { "Enter an amount" }
-        val parsed = try {
-            BigDecimal(trimmed)
-        } catch (_: NumberFormatException) {
-            throw IllegalArgumentException("Enter a valid number")
-        }
-        require(parsed.scale() in -MAX_AMOUNT_SCALE..MAX_AMOUNT_SCALE) { "Enter a realistic amount" }
-        require(parsed.signum() > 0) { "Amount must be greater than 0" }
-        return Money.of(parsed, currencyCode)
-    }
-
-    private companion object {
-        // A real amount sits far inside this scale; an extreme exponent is a paste/typo that would also
-        // OOM toPlainString(), so it is rejected at the boundary rather than crash later (mirrors rates).
-        private const val MAX_AMOUNT_SCALE = 30
-    }
 }

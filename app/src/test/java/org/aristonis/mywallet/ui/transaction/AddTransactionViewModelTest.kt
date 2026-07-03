@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
@@ -28,6 +29,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * The real bar here is NOT "a row was added" — it is that recording a transaction MOVES the balances
@@ -75,6 +77,7 @@ class AddTransactionViewModelTest {
             recordExpense = RecordExpense(accountRepo, categoryRepo, txRepo),
             recordTransfer = RecordTransfer(accountRepo, currencyRepo, rateRepo, settingsRepo, txRepo),
             today = TodayProvider { today },
+            moneyParser = MoneyParser(Locale.US),
         )
 
         suspend fun balanceOf(accountId: Long): Money =
@@ -309,6 +312,7 @@ class AddTransactionViewModelTest {
                 FakeRateRepository(emptyList()), FakeSettingsRepository(Settings(baseCurrencyCode = "USD")), txRepo,
             ),
             today = TodayProvider { todayValue },
+            moneyParser = MoneyParser(Locale.US),
         )
         advanceUntilIdle()
 

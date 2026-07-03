@@ -10,16 +10,15 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.di.LocaleDefaults
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
-import java.math.BigDecimal
 import javax.inject.Inject
 
 /** Immutable snapshot the onboarding screen renders from (unidirectional data flow). */
@@ -49,6 +48,7 @@ class OnboardingViewModel @Inject constructor(
     private val setBaseCurrency: SetBaseCurrency,
     private val createAccount: CreateAccount,
     private val localeDefaults: LocaleDefaults,
+    private val moneyParser: MoneyParser,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingUiState())
@@ -84,7 +84,7 @@ class OnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, error = null) }
             try {
-                val openingBalance = parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
+                val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
                 // Create the account FIRST: it carries all the failure-prone validation (blank name, bad
                 // amount), whereas SetBaseCurrency only fails on an unknown code — impossible from the
                 // picker. So a validation failure writes nothing (no half-onboarded state). Order is
@@ -110,10 +110,4 @@ class OnboardingViewModel @Inject constructor(
     /** Prefer the device-locale currency when it's one of the seeded options, else the first. */
     private fun defaultCurrency(currencies: List<Currency>): String? =
         currencies.firstOrNull { it.code == localeDefaults.currencyCode }?.code ?: currencies.firstOrNull()?.code
-
-    /** MVP plain-decimal parse; blank means zero. Locale-aware parsing ("1,50") lands in SG-5. */
-    private fun parseOpeningBalance(input: String, currencyCode: String): Money {
-        val trimmed = input.trim()
-        return if (trimmed.isEmpty()) Money.zero(currencyCode) else Money.of(BigDecimal(trimmed), currencyCode)
-    }
 }

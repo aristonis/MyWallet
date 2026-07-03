@@ -10,14 +10,13 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.LocaleDefaults
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CreateAccount
-import java.math.BigDecimal
 import javax.inject.Inject
 
 /** Immutable snapshot the add-account screen renders from. */
@@ -44,6 +43,7 @@ class AddAccountViewModel @Inject constructor(
     private val currencies: CurrencyRepository,
     private val createAccount: CreateAccount,
     private val localeDefaults: LocaleDefaults,
+    private val moneyParser: MoneyParser,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AddAccountUiState())
@@ -76,7 +76,7 @@ class AddAccountViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, error = null) }
             try {
-                val openingBalance = parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
+                val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
                 createAccount(
                     name = snapshot.name.trim(),
                     typeKey = snapshot.accountTypeKey,
@@ -104,10 +104,4 @@ class AddAccountViewModel @Inject constructor(
 
     private fun defaultCurrency(currencies: List<Currency>): String? =
         currencies.firstOrNull { it.code == localeDefaults.currencyCode }?.code ?: currencies.firstOrNull()?.code
-
-    /** Plain-decimal parse; blank means zero. Locale-aware parsing comes later. */
-    private fun parseOpeningBalance(input: String, currencyCode: String): Money {
-        val trimmed = input.trim()
-        return if (trimmed.isEmpty()) Money.zero(currencyCode) else Money.of(BigDecimal(trimmed), currencyCode)
-    }
 }

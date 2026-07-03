@@ -5,6 +5,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.data.format.MoneyParser
 import java.util.Currency
 import java.util.Locale
 import javax.inject.Singleton
@@ -29,4 +30,8 @@ object LocaleModule {
     @Provides
     @Singleton
     fun provideMoneyFormatter(): MoneyFormatter = MoneyFormatter(Locale.getDefault())
+
+    @Provides
+    @Singleton
+    fun provideMoneyParser(): MoneyParser = MoneyParser(Locale.getDefault())
 }

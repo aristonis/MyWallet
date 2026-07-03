@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
@@ -20,6 +21,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * The bar for editing an account: load must faithfully re-hydrate the form from the stored row and flag
@@ -61,6 +63,7 @@ class EditAccountViewModelTest {
             currencies = currencyRepo,
             transactions = txRepo,
             updateAccount = UpdateAccount(currencyRepo, accountRepo, txRepo),
+            moneyParser = MoneyParser(Locale.US),
         )
     }
 

@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -24,6 +25,7 @@ import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * The bar for editing: load must faithfully re-hydrate the form from a stored transaction, a save must
@@ -52,6 +54,7 @@ class EditTransactionViewModelTest {
         accounts: List<Account>,
         categories: List<Category>,
         existing: List<Transaction>,
+        locale: Locale = Locale.US,
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val categoryRepo = FakeCategoryRepository(categories)
@@ -63,6 +66,7 @@ class EditTransactionViewModelTest {
             transactions = txRepo,
             updateTransaction = UpdateTransaction(accountRepo, categoryRepo, currencyRepo, txRepo),
             deleteTransaction = DeleteTransaction(txRepo),
+            moneyParser = MoneyParser(locale),
         )
     }
 
@@ -248,5 +252,23 @@ class EditTransactionViewModelTest {
         assertNotNull(f.viewModel.state.value.error)
         assertFalse(f.viewModel.state.value.saved)
         assertEquals(Money.of("50", "USD"), (f.txRepo.findById(5) as Transaction.Income).amount)
+    }
+
+    @Test
+    fun noOpEditAndSave_inACommaDecimalLocale_preservesTheStoredAmount() = runTest {
+        // Regression: the prefill must round-trip through the locale parser (de-DE), not 100x the amount.
+        val precise = Transaction.Income(
+            id = 9, accountId = 1, amount = Money.of("1000.50", "USD"), categoryId = salary.id,
+            date = LocalDate.of(2026, 6, 1), note = "x",
+        )
+        val f = Fixture(listOf(account(1)), listOf(salary), listOf(precise), locale = Locale.GERMANY)
+        f.viewModel.load(9)
+        advanceUntilIdle()
+        assertEquals("1000,50", f.viewModel.state.value.amountInput) // comma-decimal prefill, round-trippable
+
+        f.viewModel.submit() // no field changed
+        advanceUntilIdle()
+
+        assertEquals(Money.of("1000.50", "USD"), (f.txRepo.findById(9) as Transaction.Income).amount)
     }
 }

@@ -13,17 +13,16 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.involvesAccount
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
-import java.math.BigDecimal
 import javax.inject.Inject
 
 /** Immutable snapshot the edit-account screen renders from. */
@@ -59,6 +58,7 @@ class EditAccountViewModel @Inject constructor(
     private val currencies: CurrencyRepository,
     private val transactions: TransactionRepository,
     private val updateAccount: UpdateAccount,
+    private val moneyParser: MoneyParser,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EditAccountUiState())
@@ -115,7 +115,7 @@ class EditAccountViewModel @Inject constructor(
             _state.update { it.copy(isSubmitting = true, error = null) }
             try {
                 // Rebuild the opening balance in the selected currency so it matches when the currency changes.
-                val openingBalance = parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
+                val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
                 updateAccount(
                     id = id,
                     name = snapshot.name.trim(),
@@ -140,28 +140,10 @@ class EditAccountViewModel @Inject constructor(
         name = account.name,
         accountTypeKey = account.typeKey,
         selectedCurrencyCode = account.currencyCode,
-        openingBalanceInput = account.openingBalance.amount.toPlainString(),
+        openingBalanceInput = moneyParser.toInputString(account.openingBalance.amount),
         currencyLocked = locked,
         isSubmitting = false,
         error = null,
         saved = false,
     )
-
-    /**
-     * Plain-decimal parse; blank means zero. Guards an absurd exponent (a paste) that would otherwise
-     * OOM toPlainString at write time — and permanently on every later load. Locale-aware parsing later.
-     */
-    private fun parseOpeningBalance(input: String, currencyCode: String): Money {
-        val trimmed = input.trim()
-        if (trimmed.isEmpty()) return Money.zero(currencyCode)
-        val parsed = BigDecimal(trimmed)
-        require(parsed.scale() in -MAX_AMOUNT_SCALE..MAX_AMOUNT_SCALE) { "Enter a realistic amount" }
-        return Money.of(parsed, currencyCode)
-    }
-
-    private companion object {
-        // A real opening balance sits far inside this scale; an extreme exponent is a paste that would
-        // OOM toPlainString(), so it is rejected at the boundary (mirrors the transaction/rate parsers).
-        private const val MAX_AMOUNT_SCALE = 30
-    }
 }

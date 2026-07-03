@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.LocaleDefaults
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
@@ -23,6 +24,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddAccountViewModelTest {
@@ -43,6 +45,7 @@ class AddAccountViewModelTest {
             currencies = currencyRepo,
             createAccount = CreateAccount(currencyRepo, accountRepo),
             localeDefaults = LocaleDefaults(localeCurrency),
+            moneyParser = MoneyParser(Locale.US),
         )
     }
 

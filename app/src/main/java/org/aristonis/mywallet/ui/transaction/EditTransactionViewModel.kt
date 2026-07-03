@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
@@ -24,7 +25,6 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.DeleteTransaction
 import org.aristonis.mywallet.domain.usecase.UpdateTransaction
-import java.math.BigDecimal
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -87,6 +87,7 @@ class EditTransactionViewModel @Inject constructor(
     private val transactions: TransactionRepository,
     private val updateTransaction: UpdateTransaction,
     private val deleteTransaction: DeleteTransaction,
+    private val moneyParser: MoneyParser,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EditTransactionUiState())
@@ -202,7 +203,7 @@ class EditTransactionViewModel @Inject constructor(
         selectedAccountId = accountId,
         selectedCategoryId = categoryId,
         destAccountId = destAccountId,
-        amountInput = amount.amount.toPlainString(),
+        amountInput = moneyParser.toInputString(amount.amount),
         date = tx.date,
         note = tx.note ?: "",
         isSubmitting = false,
@@ -224,7 +225,7 @@ class EditTransactionViewModel @Inject constructor(
                 val account = requireAccount(snapshot)
                 loaded.copy(
                     accountId = account.id,
-                    amount = parseAmount(snapshot.amountInput, account.currencyCode),
+                    amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode),
                     categoryId = requireCategory(snapshot),
                     date = date,
                     note = note,
@@ -234,7 +235,7 @@ class EditTransactionViewModel @Inject constructor(
                 val account = requireAccount(snapshot)
                 loaded.copy(
                     accountId = account.id,
-                    amount = parseAmount(snapshot.amountInput, account.currencyCode),
+                    amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode),
                     categoryId = requireCategory(snapshot),
                     date = date,
                     note = note,
@@ -242,7 +243,7 @@ class EditTransactionViewModel @Inject constructor(
             }
             is Transaction.Transfer -> loaded.copy(
                 // Currency comes from the locked source leg, so the domain's pair-guard always passes.
-                sourceAmount = parseAmount(snapshot.amountInput, loaded.sourceAmount.currencyCode),
+                sourceAmount = moneyParser.parseAmount(snapshot.amountInput, loaded.sourceAmount.currencyCode),
                 date = date,
                 note = note,
             )
@@ -255,28 +256,4 @@ class EditTransactionViewModel @Inject constructor(
 
     private fun requireCategory(snapshot: EditTransactionUiState): Long =
         snapshot.selectedCategoryId ?: throw IllegalArgumentException("Choose a category")
-
-    /**
-     * Parse the typed amount, failing loud with a user-facing message. Rejects blank, non-numeric,
-     * non-positive, and an absurd exponent (which would otherwise blow up toPlainString to an OOM).
-     * Money is built in [currencyCode] so it never touches a float.
-     */
-    private fun parseAmount(input: String, currencyCode: String): Money {
-        val trimmed = input.trim()
-        require(trimmed.isNotEmpty()) { "Enter an amount" }
-        val parsed = try {
-            BigDecimal(trimmed)
-        } catch (_: NumberFormatException) {
-            throw IllegalArgumentException("Enter a valid number")
-        }
-        require(parsed.scale() in -MAX_AMOUNT_SCALE..MAX_AMOUNT_SCALE) { "Enter a realistic amount" }
-        require(parsed.signum() > 0) { "Amount must be greater than 0" }
-        return Money.of(parsed, currencyCode)
-    }
-
-    private companion object {
-        // A real amount sits far inside this scale; an extreme exponent is a paste/typo that would also
-        // OOM toPlainString(), so it is rejected at the boundary rather than crash later (mirrors add).
-        private const val MAX_AMOUNT_SCALE = 30
-    }
 }

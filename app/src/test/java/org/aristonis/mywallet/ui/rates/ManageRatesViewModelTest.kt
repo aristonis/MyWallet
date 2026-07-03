@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
@@ -28,6 +29,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ManageRatesViewModelTest {
@@ -61,6 +63,7 @@ class ManageRatesViewModelTest {
             rates = rateRepo,
             settings = settingsRepo,
             setExchangeRate = SetExchangeRate(currencyRepo, rateRepo),
+            moneyParser = MoneyParser(Locale.US),
         )
     }
 
