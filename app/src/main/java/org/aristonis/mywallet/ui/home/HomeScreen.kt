@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.AccountBalance
+import org.aristonis.mywallet.domain.model.AccountBalanceInBase
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
@@ -76,12 +76,28 @@ private fun NetWorthHero(netWorth: NetWorthState) {
 }
 
 @Composable
-private fun AccountCard(accountBalance: AccountBalance) {
+private fun AccountCard(row: AccountBalanceInBase) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(accountBalance.account.name, style = MaterialTheme.typography.titleMedium)
-            Text(typeName(accountBalance.account.typeKey), style = MaterialTheme.typography.bodySmall)
-            Text(accountBalance.balance.display(), style = MaterialTheme.typography.titleLarge)
+            Text(row.account.name, style = MaterialTheme.typography.titleMedium)
+            Text(typeName(row.account.typeKey), style = MaterialTheme.typography.bodySmall)
+            Text(row.native.display(), style = MaterialTheme.typography.titleLarge)
+            val base = row.base // local val so Kotlin can smart-cast after the null check
+            when {
+                // Missing rate: show a prompt, not a fabricated number.
+                base == null -> Text(
+                    "Set a rate for ${row.native.currencyCode} to convert",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                // Different currency: show the base-converted amount too.
+                base.currencyCode != row.native.currencyCode -> Text(
+                    "≈ ${base.display()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // Account already in the base currency: native == base, no second line.
+            }
         }
     }
 }
@@ -98,11 +114,17 @@ private fun HomePreview() {
     MyWalletTheme(dynamicColor = false) {
         HomeContent(
             HomeUiState(
-                netWorth = NetWorthState.Amount(Money.of("1250.00", "USD")),
+                netWorth = NetWorthState.Amount(Money.of("1275.00", "USD")),
                 accounts = listOf(
-                    AccountBalance(
-                        Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("1250", "USD")),
-                        Money.of("1250", "USD"),
+                    AccountBalanceInBase(
+                        Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("1000", "USD")),
+                        native = Money.of("1000", "USD"),
+                        base = Money.of("1000", "USD"),
+                    ),
+                    AccountBalanceInBase(
+                        Account(id = 2, name = "Euro Savings", typeKey = "savings", currencyCode = "EUR", openingBalance = Money.of("250", "EUR")),
+                        native = Money.of("250", "EUR"),
+                        base = Money.of("275.00", "USD"),
                     ),
                 ),
                 baseCurrencyCode = "USD",

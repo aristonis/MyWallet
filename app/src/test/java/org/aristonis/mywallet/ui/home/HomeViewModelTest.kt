@@ -24,6 +24,7 @@ import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
+import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -54,8 +55,9 @@ class HomeViewModelTest {
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         val getBalances = GetAccountBalances(accountRepo, txRepo)
+        val getBalancesInBase = GetAccountBalancesInBase(getBalances, currencyRepo, rateRepo, settingsRepo)
         val computeNetWorth = ComputeNetWorth(getBalances, currencyRepo, rateRepo, settingsRepo)
-        return HomeViewModel(getBalances, computeNetWorth, settingsRepo)
+        return HomeViewModel(getBalancesInBase, computeNetWorth, settingsRepo)
     }
 
     @Test
@@ -70,7 +72,8 @@ class HomeViewModelTest {
         val state = vm.state.value
         assertEquals("USD", state.baseCurrencyCode)
         assertEquals(1, state.accounts.size)
-        assertEquals(Money.of("100", "USD"), state.accounts.first().balance)
+        assertEquals(Money.of("100", "USD"), state.accounts.first().native)
+        assertEquals(Money.of("100", "USD"), state.accounts.first().base)
         assertEquals(NetWorthState.Amount(Money.of("100", "USD")), state.netWorth)
     }
 

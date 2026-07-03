@@ -11,11 +11,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import org.aristonis.mywallet.domain.error.WalletException
-import org.aristonis.mywallet.domain.model.AccountBalance
+import org.aristonis.mywallet.domain.model.AccountBalanceInBase
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
-import org.aristonis.mywallet.domain.usecase.GetAccountBalances
+import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import javax.inject.Inject
 
 /** Net-worth hero state. Missing rate is fail-loud (FR-15) — a warning, never a wrong total. */
@@ -25,10 +25,10 @@ sealed interface NetWorthState {
     data class MissingRate(val currencyCode: String) : NetWorthState
 }
 
-/** Home renders from this. Holds domain objects; display formatting is SG-5's job. */
+/** Home renders from this. Holds domain objects; display formatting is done later at render time. */
 data class HomeUiState(
     val netWorth: NetWorthState = NetWorthState.Loading,
-    val accounts: List<AccountBalance> = emptyList(),
+    val accounts: List<AccountBalanceInBase> = emptyList(),
     val baseCurrencyCode: String? = null,
 )
 
@@ -37,7 +37,7 @@ data class HomeUiState(
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    getAccountBalances: GetAccountBalances,
+    getAccountBalancesInBase: GetAccountBalancesInBase,
     computeNetWorth: ComputeNetWorth,
     settings: SettingsRepository,
 ) : ViewModel() {
@@ -56,7 +56,7 @@ class HomeViewModel @Inject constructor(
 
     val state: StateFlow<HomeUiState> =
         combine(
-            getAccountBalances(),
+            getAccountBalancesInBase(),
             netWorth,
             settings.observe(),
         ) { accounts, netWorthState, currentSettings ->

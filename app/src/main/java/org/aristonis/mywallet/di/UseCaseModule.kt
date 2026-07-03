@@ -12,6 +12,7 @@ import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
+import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import javax.inject.Singleton
 
@@ -49,4 +50,12 @@ object UseCaseModule {
         rates: RateRepository,
         settings: SettingsRepository,
     ): ComputeNetWorth = ComputeNetWorth(getAccountBalances, currencies, rates, settings)
+
+    @Provides @Singleton
+    fun provideGetAccountBalancesInBase(
+        getAccountBalances: GetAccountBalances,
+        currencies: CurrencyRepository,
+        rates: RateRepository,
+        settings: SettingsRepository,
+    ): GetAccountBalancesInBase = GetAccountBalancesInBase(getAccountBalances, currencies, rates, settings)
 }
