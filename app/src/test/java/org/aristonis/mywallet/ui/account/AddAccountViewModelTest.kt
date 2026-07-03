@@ -89,6 +89,28 @@ class AddAccountViewModelTest {
     }
 
     @Test
+    fun acknowledgeCreated_clearsCreatedFlagAndResetsForm() = runTest {
+        // The VM is Activity-scoped (no nav back-stack), so a retained created==true would bounce a
+        // re-opened AddAccount straight back to Home — blocking a second account. acknowledgeCreated
+        // resets the flag (and clears the form) after the screen has navigated away.
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        f.viewModel.setName("Cash")
+        f.viewModel.setOpeningBalance("100")
+        f.viewModel.submit()
+        advanceUntilIdle()
+        assertTrue(f.viewModel.state.value.created)
+
+        f.viewModel.acknowledgeCreated()
+
+        val s = f.viewModel.state.value
+        assertFalse(s.created)
+        assertEquals("", s.name)
+        assertEquals("", s.openingBalanceInput)
+    }
+
+    @Test
     fun submit_invalidOpeningBalance_failsLoud() = runTest {
         val f = Fixture(listOf(usd))
         advanceUntilIdle()

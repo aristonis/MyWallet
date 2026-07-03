@@ -45,7 +45,10 @@ fun AddAccountScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.created) {
-        if (state.created) onDone()
+        if (state.created) {
+            onDone()
+            viewModel.acknowledgeCreated() // reset the retained flag so a re-open doesn't bounce back
+        }
     }
     BackHandler(onBack = onDone)
     AddAccountContent(

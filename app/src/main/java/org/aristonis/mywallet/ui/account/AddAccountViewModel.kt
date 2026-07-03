@@ -93,6 +93,15 @@ class AddAccountViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Clear the one-shot `created` signal and reset the form once the screen has navigated away. The
+     * view model is Activity-scoped (no nav back-stack), so a stale `created == true` would otherwise
+     * bounce a re-opened screen straight back to Home before the user could add a second account.
+     */
+    fun acknowledgeCreated() = _state.update {
+        it.copy(created = false, name = "", openingBalanceInput = "", error = null)
+    }
+
     private fun defaultCurrency(currencies: List<Currency>): String? =
         currencies.firstOrNull { it.code == localeDefaults.currencyCode }?.code ?: currencies.firstOrNull()?.code
 
