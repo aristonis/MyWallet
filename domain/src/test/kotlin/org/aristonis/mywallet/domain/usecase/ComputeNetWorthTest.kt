@@ -2,7 +2,6 @@ package org.aristonis.mywallet.domain.usecase
 
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
@@ -47,7 +46,7 @@ class ComputeNetWorthTest {
             currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)),
             rates = listOf(ExchangeRate("EUR", BigDecimal("1.10"))),
         )
-        assertEquals(Money.of("155.00", "USD"), nw().first())
+        assertEquals(NetWorth.Amount(Money.of("155.00", "USD")), nw().first())
     }
 
     @Test
@@ -57,16 +56,40 @@ class ComputeNetWorthTest {
             accounts = listOf(acct(1, "USD", "100"), archived),
             currencies = listOf(Currency("USD", "$", 2)),
         )
-        assertEquals(Money.of("100", "USD"), nw().first())
+        assertEquals(NetWorth.Amount(Money.of("100", "USD")), nw().first())
     }
 
-    @Test(expected = WalletException.MissingRate::class)
-    fun missingRate_failsLoud() = runTest {
+    @Test
+    fun missingRate_reportsTheMissingCurrency() = runTest {
         val nw = netWorth(
             accounts = listOf(acct(1, "USD", "100"), acct(2, "EUR", "50")),
             currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)),
-            rates = emptyList(), // no EUR rate → must fail loud, not silently wrong
+            rates = emptyList(), // no EUR rate → a MissingRate result, never a silently wrong total
         )
-        nw().first()
+        assertEquals(NetWorth.MissingRate("EUR"), nw().first())
+    }
+
+    @Test
+    fun addingTheMissingRateResolvesTheTotal() = runTest {
+        // Because a missing rate is a returned value (not a thrown error that would end the flow), once
+        // the rate exists the use-case recomputes to a total instead of staying stuck on MissingRate.
+        // (That a single LIVE subscription re-emits on the change is pinned by HomeViewModelTest.)
+        val rates = FakeRateRepository()
+        val getBalances = GetAccountBalances(
+            FakeAccountRepository(listOf(acct(1, "USD", "100"), acct(2, "EUR", "50"))),
+            FakeTransactionRepository(),
+        )
+        val nw = ComputeNetWorth(
+            getAccountBalances = getBalances,
+            currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2))),
+            rates = rates,
+            settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD")),
+        )
+
+        assertEquals(NetWorth.MissingRate("EUR"), nw().first())
+
+        rates.upsert(ExchangeRate("EUR", BigDecimal("1.10")))
+
+        assertEquals(NetWorth.Amount(Money.of("155.00", "USD")), nw().first())
     }
 }

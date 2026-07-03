@@ -6,19 +6,18 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.AccountBalanceInBase
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
+import org.aristonis.mywallet.domain.usecase.NetWorth
 import javax.inject.Inject
 
-/** Net-worth hero state. Missing rate is fail-loud (FR-15) — a warning, never a wrong total. */
+/** Net-worth hero state. A missing rate becomes a warning, never a silently wrong total. */
 sealed interface NetWorthState {
     data object Loading : NetWorthState
     data class Amount(val total: Money) : NetWorthState
@@ -33,7 +32,7 @@ data class HomeUiState(
 )
 
 /**
- * Home: total net worth (base currency, fail-loud on a missing rate) + per-account native balances.
+ * Home: total net worth (base currency, warns on a missing rate) + per-account native balances.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -42,17 +41,15 @@ class HomeViewModel @Inject constructor(
     settings: SettingsRepository,
 ) : ViewModel() {
 
-    // ComputeNetWorth THROWS MissingRate through the flow (FR-15). catch turns it into a warning
-    // state so the account list still renders — never a silently wrong total. (Note: catch also
-    // terminates this flow, so net worth won't auto-recover when a rate is later added — acceptable
-    // until rate-management UI exists; a reactive result type is the eventual fix.)
+    // ComputeNetWorth emits a live sealed result: a missing rate is a value, not a thrown error, so
+    // this flow stays alive and net worth re-resolves the moment the user sets the rate.
     private val netWorth: Flow<NetWorthState> =
-        computeNetWorth()
-            .map<Money, NetWorthState> { NetWorthState.Amount(it) }
-            .catch { cause ->
-                if (cause is WalletException.MissingRate) emit(NetWorthState.MissingRate(cause.code))
-                else throw cause
+        computeNetWorth().map { result ->
+            when (result) {
+                is NetWorth.Amount -> NetWorthState.Amount(result.total)
+                is NetWorth.MissingRate -> NetWorthState.MissingRate(result.currencyCode)
             }
+        }
 
     val state: StateFlow<HomeUiState> =
         combine(

@@ -103,6 +103,31 @@ class HomeViewModelTest {
         assertEquals(NetWorthState.MissingRate("EUR"), vm.state.value.netWorth)
         assertEquals(1, vm.state.value.accounts.size) // accounts still shown
     }
+
+    @Test
+    fun netWorthReResolvesLive_whenRateIsAddedWhileSubscribed() = runTest {
+        // The regression this guards: net worth must recover from MissingRate to a total once the rate
+        // is set, on the SAME live state subscription (the old .catch terminated the flow and never did).
+        val accountRepo = FakeAccountRepository(listOf(account("EUR", "50")))
+        val currencyRepo = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)))
+        val rateRepo = FakeRateRepository(emptyList())
+        val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
+        val getBalances = GetAccountBalances(accountRepo, FakeTransactionRepository())
+        val vm = HomeViewModel(
+            GetAccountBalancesInBase(getBalances, currencyRepo, rateRepo, settingsRepo),
+            ComputeNetWorth(getBalances, currencyRepo, rateRepo, settingsRepo),
+            settingsRepo,
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertEquals(NetWorthState.MissingRate("EUR"), vm.state.value.netWorth)
+
+        rateRepo.upsert(ExchangeRate("EUR", BigDecimal("1.10")))
+        advanceUntilIdle()
+
+        assertEquals(NetWorthState.Amount(Money.of("55.00", "USD")), vm.state.value.netWorth)
+    }
 }
 
 // --- Minimal in-memory ports (domain fakes live in :domain's test source set). ---
@@ -130,6 +155,9 @@ private class FakeRateRepository(initial: List<ExchangeRate>) : RateRepository {
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<ExchangeRate>> = items
     override suspend fun findByCode(code: String): ExchangeRate? = items.value.firstOrNull { it.currencyCode == code }
+    override suspend fun upsert(rate: ExchangeRate) {
+        items.value = items.value.filterNot { it.currencyCode == rate.currencyCode } + rate
+    }
 }
 
 private class FakeSettingsRepository(initial: Settings) : SettingsRepository {
