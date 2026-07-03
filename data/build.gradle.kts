@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
 
@@ -27,6 +28,7 @@ kotlin {
 dependencies {
     implementation(project(":domain"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json)
 
     api(libs.androidx.room.runtime) // exposed so :app can reference WalletDatabase (its RoomDatabase supertype)
     implementation(libs.androidx.room.ktx)
