@@ -17,6 +17,7 @@ import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
+import org.aristonis.mywallet.di.LocaleDefaults
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.junit.After
@@ -42,7 +43,7 @@ class OnboardingViewModelTest {
     private val usd = Currency("USD", "$", 2)
     private val eur = Currency("EUR", "€", 2)
 
-    private class Fixture(currencies: List<Currency>) {
+    private class Fixture(currencies: List<Currency>, localeCurrency: String? = null) {
         val currencyRepo = FakeCurrencyRepository(currencies)
         val settingsRepo = FakeSettingsRepository()
         val accountRepo = FakeAccountRepository()
@@ -50,15 +51,24 @@ class OnboardingViewModelTest {
             currencies = currencyRepo,
             setBaseCurrency = SetBaseCurrency(currencyRepo, settingsRepo),
             createAccount = CreateAccount(currencyRepo, accountRepo),
+            localeDefaults = LocaleDefaults(localeCurrency),
         )
     }
 
     @Test
-    fun init_defaultsSelectedCurrencyToFirstSeeded() = runTest {
-        val f = Fixture(listOf(usd, eur))
+    fun init_defaultsToDeviceLocaleCurrency_whenSeeded() = runTest {
+        val f = Fixture(listOf(usd, eur), localeCurrency = "EUR")
         advanceUntilIdle()
 
         assertEquals(listOf(usd, eur), f.viewModel.state.value.currencies)
+        assertEquals("EUR", f.viewModel.state.value.selectedCurrencyCode)
+    }
+
+    @Test
+    fun init_fallsBackToFirstSeeded_whenDeviceCurrencyNotAvailable() = runTest {
+        val f = Fixture(listOf(usd, eur), localeCurrency = "JPY") // not in the seeded list
+        advanceUntilIdle()
+
         assertEquals("USD", f.viewModel.state.value.selectedCurrencyCode)
     }
 

@@ -15,6 +15,7 @@ import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.ThemePreference
+import org.aristonis.mywallet.di.LocaleDefaults
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
@@ -47,6 +48,7 @@ class OnboardingViewModel @Inject constructor(
     currencies: CurrencyRepository,
     private val setBaseCurrency: SetBaseCurrency,
     private val createAccount: CreateAccount,
+    private val localeDefaults: LocaleDefaults,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingUiState())
@@ -59,7 +61,7 @@ class OnboardingViewModel @Inject constructor(
                 _state.update { current ->
                     current.copy(
                         currencies = list,
-                        selectedCurrencyCode = current.selectedCurrencyCode ?: list.firstOrNull()?.code,
+                        selectedCurrencyCode = current.selectedCurrencyCode ?: defaultCurrency(list),
                     )
                 }
             }
@@ -104,6 +106,10 @@ class OnboardingViewModel @Inject constructor(
             }
         }
     }
+
+    /** Prefer the device-locale currency when it's one of the seeded options, else the first. */
+    private fun defaultCurrency(currencies: List<Currency>): String? =
+        currencies.firstOrNull { it.code == localeDefaults.currencyCode }?.code ?: currencies.firstOrNull()?.code
 
     /** MVP plain-decimal parse; blank means zero. Locale-aware parsing ("1,50") lands in SG-5. */
     private fun parseOpeningBalance(input: String, currencyCode: String): Money {
