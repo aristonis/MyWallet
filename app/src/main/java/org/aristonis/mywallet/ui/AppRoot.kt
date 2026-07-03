@@ -16,6 +16,8 @@ import org.aristonis.mywallet.ui.account.AddAccountScreen
 import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
+import org.aristonis.mywallet.ui.transaction.AddTransactionScreen
+import org.aristonis.mywallet.ui.transaction.TransactionsListScreen
 
 /**
  * Top-level routing gate: shows onboarding until settings exist, then Home. Because it observes the
@@ -33,7 +35,7 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 /** The screens reachable from Home via the lightweight toggle below. */
-private enum class HomeDestination { HOME, ADD_ACCOUNT, MANAGE_RATES }
+private enum class HomeDestination { HOME, ADD_TRANSACTION, TRANSACTIONS, ADD_ACCOUNT, MANAGE_RATES }
 
 /**
  * Lightweight Home navigation via a `remember`ed destination. With this handful of screens a flag
@@ -42,13 +44,18 @@ private enum class HomeDestination { HOME, ADD_ACCOUNT, MANAGE_RATES }
 @Composable
 private fun HomeFlow() {
     var destination by remember { mutableStateOf(HomeDestination.HOME) }
+    val toHome = { destination = HomeDestination.HOME }
     when (destination) {
         HomeDestination.HOME -> HomeScreen(
+            onAddTransaction = { destination = HomeDestination.ADD_TRANSACTION },
+            onTransactions = { destination = HomeDestination.TRANSACTIONS },
             onAddAccount = { destination = HomeDestination.ADD_ACCOUNT },
             onManageRates = { destination = HomeDestination.MANAGE_RATES },
         )
-        HomeDestination.ADD_ACCOUNT -> AddAccountScreen(onDone = { destination = HomeDestination.HOME })
-        HomeDestination.MANAGE_RATES -> ManageRatesScreen(onDone = { destination = HomeDestination.HOME })
+        HomeDestination.ADD_TRANSACTION -> AddTransactionScreen(onDone = toHome)
+        HomeDestination.TRANSACTIONS -> TransactionsListScreen(onDone = toHome)
+        HomeDestination.ADD_ACCOUNT -> AddAccountScreen(onDone = toHome)
+        HomeDestination.MANAGE_RATES -> ManageRatesScreen(onDone = toHome)
     }
 }
 

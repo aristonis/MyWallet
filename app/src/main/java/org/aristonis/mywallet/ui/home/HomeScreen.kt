@@ -6,6 +6,7 @@ package org.aristonis.mywallet.ui.home
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,8 +19,10 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -33,28 +36,44 @@ import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
 @Composable
 fun HomeScreen(
+    onAddTransaction: () -> Unit,
+    onTransactions: () -> Unit,
     onAddAccount: () -> Unit,
     onManageRates: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    HomeContent(state, onAddAccount, onManageRates)
+    HomeContent(state, onAddTransaction, onTransactions, onAddAccount, onManageRates)
 }
 
 @Composable
-private fun HomeContent(state: HomeUiState, onAddAccount: () -> Unit, onManageRates: () -> Unit) {
+private fun HomeContent(
+    state: HomeUiState,
+    onAddTransaction: () -> Unit,
+    onTransactions: () -> Unit,
+    onAddAccount: () -> Unit,
+    onManageRates: () -> Unit,
+) {
     Scaffold(
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onAddAccount) { Text("Add account") }
+            // Recording a transaction is the primary action, so it gets the FAB. Adding an account is
+            // a rarer, setup-time action, so it moves to a text button by the accounts list.
+            ExtendedFloatingActionButton(onClick = onAddTransaction) { Text("Add transaction") }
         },
     ) { innerPadding ->
         Column(
             modifier = Modifier.padding(innerPadding).fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("My Wallet", style = MaterialTheme.typography.headlineMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("My Wallet", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = onTransactions) { Text("History") }
+            }
             NetWorthHero(state.netWorth, onManageRates)
-            Text("Accounts", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Accounts", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = onAddAccount) { Text("Add account") }
+            }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(state.accounts) { accountBalance -> AccountCard(accountBalance, onManageRates) }
             }
@@ -124,6 +143,8 @@ private fun Money.display(): String = "${amount.toPlainString()} $currencyCode"
 private fun HomePreview() {
     MyWalletTheme(dynamicColor = false) {
         HomeContent(
+            onAddTransaction = {},
+            onTransactions = {},
             onAddAccount = {},
             onManageRates = {},
             state = HomeUiState(

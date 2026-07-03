@@ -5,6 +5,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import org.aristonis.mywallet.domain.port.AccountRepository
+import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
@@ -13,6 +14,9 @@ import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
+import org.aristonis.mywallet.domain.usecase.RecordExpense
+import org.aristonis.mywallet.domain.usecase.RecordIncome
+import org.aristonis.mywallet.domain.usecase.RecordTransfer
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import javax.inject.Singleton
@@ -65,4 +69,27 @@ object UseCaseModule {
         rates: RateRepository,
         settings: SettingsRepository,
     ): GetAccountBalancesInBase = GetAccountBalancesInBase(getAccountBalances, currencies, rates, settings)
+
+    @Provides @Singleton
+    fun provideRecordIncome(
+        accounts: AccountRepository,
+        categories: CategoryRepository,
+        transactions: TransactionRepository,
+    ): RecordIncome = RecordIncome(accounts, categories, transactions)
+
+    @Provides @Singleton
+    fun provideRecordExpense(
+        accounts: AccountRepository,
+        categories: CategoryRepository,
+        transactions: TransactionRepository,
+    ): RecordExpense = RecordExpense(accounts, categories, transactions)
+
+    @Provides @Singleton
+    fun provideRecordTransfer(
+        accounts: AccountRepository,
+        currencies: CurrencyRepository,
+        rates: RateRepository,
+        settings: SettingsRepository,
+        transactions: TransactionRepository,
+    ): RecordTransfer = RecordTransfer(accounts, currencies, rates, settings, transactions)
 }
