@@ -45,6 +45,12 @@ class RecordIncomeTest {
             .invoke(accountId = 99, amount = Money.of("1", "USD"), categoryId = 5, date = today)
     }
 
+    @Test(expected = WalletException.AccountArchived::class)
+    fun archivedAccount_throws() = runTest {
+        RecordIncome(FakeAccountRepository(listOf(account(1).copy(archived = true))), FakeCategoryRepository(listOf(salary)), FakeTransactionRepository())
+            .invoke(accountId = 1, amount = Money.of("100", "USD"), categoryId = 5, date = today)
+    }
+
     @Test(expected = WalletException.CurrencyMismatch::class)
     fun amountInWrongCurrency_throws() = runTest {
         RecordIncome(FakeAccountRepository(listOf(account(1, "USD"))), FakeCategoryRepository(listOf(salary)), FakeTransactionRepository())

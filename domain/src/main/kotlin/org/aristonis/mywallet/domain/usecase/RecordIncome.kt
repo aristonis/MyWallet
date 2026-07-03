@@ -31,6 +31,7 @@ class RecordIncome(
     ): Long {
         val account = accounts.findById(accountId)
             ?: throw WalletException.AccountNotFound(accountId)
+        if (account.archived) throw WalletException.AccountArchived(accountId)
         if (amount.currencyCode != account.currencyCode) {
             throw WalletException.CurrencyMismatch(amount.currencyCode, account.currencyCode)
         }

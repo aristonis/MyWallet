@@ -36,6 +36,8 @@ class RecordTransfer(
             ?: throw WalletException.AccountNotFound(sourceAccountId)
         val dest = accounts.findById(destAccountId)
             ?: throw WalletException.AccountNotFound(destAccountId)
+        if (source.archived) throw WalletException.AccountArchived(sourceAccountId)
+        if (dest.archived) throw WalletException.AccountArchived(destAccountId)
         if (amount.currencyCode != source.currencyCode) {
             throw WalletException.CurrencyMismatch(amount.currencyCode, source.currencyCode)
         }

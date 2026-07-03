@@ -39,6 +39,22 @@ class RecordTransferTest {
         transactions = transactions,
     )
 
+    @Test(expected = WalletException.AccountArchived::class)
+    fun archivedSource_throws() = runTest {
+        usecase(
+            accounts = listOf(account(1, "USD").copy(archived = true), account(2, "USD")),
+            currencies = listOf(Currency("USD", "$", 2)),
+        ).invoke(sourceAccountId = 1, destAccountId = 2, amount = Money.of("10", "USD"), date = today)
+    }
+
+    @Test(expected = WalletException.AccountArchived::class)
+    fun archivedDestination_throws() = runTest {
+        usecase(
+            accounts = listOf(account(1, "USD"), account(2, "USD").copy(archived = true)),
+            currencies = listOf(Currency("USD", "$", 2)),
+        ).invoke(sourceAccountId = 1, destAccountId = 2, amount = Money.of("10", "USD"), date = today)
+    }
+
     @Test
     fun sameCurrency_copiesAmountOneToOne() = runTest {
         val tx = FakeTransactionRepository()

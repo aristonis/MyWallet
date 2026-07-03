@@ -98,6 +98,22 @@ class AddTransactionViewModelTest {
     }
 
     @Test
+    fun archivedAccounts_areExcludedFromThePickers_andNeverPreSelected() = runTest {
+        // Archived account listed FIRST so a naive firstOrNull() pre-select would pick it. Recording
+        // against an archived account would move money the rest of the app excludes from net worth.
+        val f = Fixture(
+            accounts = listOf(account(1, "USD").copy(archived = true), account(2, "USD")),
+            currencies = listOf(usd),
+        )
+        advanceUntilIdle()
+
+        val state = f.viewModel.state.value
+        assertEquals(listOf(2L), state.accounts.map { it.id }) // archived source hidden
+        assertFalse(state.destAccounts.any { it.id == 1L })    // archived not a transfer destination
+        assertEquals(2L, state.selectedAccountId)              // pre-select skips the archived account
+    }
+
+    @Test
     fun recordExpense_lowersThatAccountsBalance() = runTest {
         val f = Fixture(accounts = listOf(account(1, "USD", opening = "100")), categories = listOf(food))
         advanceUntilIdle()
