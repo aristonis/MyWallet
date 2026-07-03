@@ -10,13 +10,17 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.ui.format.display
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -24,8 +28,9 @@ import javax.inject.Inject
 enum class TransactionRowType { INCOME, EXPENSE, TRANSFER }
 
 /**
- * A display-ready transaction row: ids already resolved to names. Amounts stay as [Money] (the screen
- * formats them) so tests assert on values, not on formatted strings. Transfer rows carry BOTH legs.
+ * A display-ready transaction row: ids already resolved to names, amounts pre-formatted per currency
+ * + locale in [amountDisplay]/[destAmountDisplay]. The raw [Money] stays too so tests assert on exact
+ * values and the screen keeps applying its own +/−/→ sign prefixes. Transfer rows carry BOTH legs.
  */
 data class TransactionRow(
     val id: Long,
@@ -36,6 +41,8 @@ data class TransactionRow(
     val categoryName: String?,
     val amount: Money,
     val destAmount: Money?,
+    val amountDisplay: String,
+    val destAmountDisplay: String?,
     val note: String?,
 )
 
@@ -56,6 +63,8 @@ class TransactionsListViewModel @Inject constructor(
     transactions: TransactionRepository,
     accounts: AccountRepository,
     categories: CategoryRepository,
+    currencies: CurrencyRepository,
+    private val moneyFormatter: MoneyFormatter,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TransactionsUiState())
@@ -66,8 +75,9 @@ class TransactionsListViewModel @Inject constructor(
             transactions.observeAll(),
             accounts.observeAll(),
             categories.observeAll(),
-        ) { transactionList, accountList, categoryList ->
-            buildRows(transactionList, accountList, categoryList)
+            currencies.observeAll(),
+        ) { transactionList, accountList, categoryList, currencyList ->
+            buildRows(transactionList, accountList, categoryList, currencyList)
         }
             .onEach { rows -> _state.update { it.copy(rows = rows, isLoading = false) } }
             .launchIn(viewModelScope)
@@ -77,18 +87,25 @@ class TransactionsListViewModel @Inject constructor(
         transactions: List<Transaction>,
         accounts: List<Account>,
         categories: List<Category>,
+        currencies: List<Currency>,
     ): List<TransactionRow> = transactions
         .sortedWith(compareByDescending<Transaction> { it.date }.thenByDescending { it.id })
-        .map { it.toRow(accounts, categories) }
+        .map { it.toRow(accounts, categories, currencies) }
 
-    private fun Transaction.toRow(accounts: List<Account>, categories: List<Category>): TransactionRow =
+    private fun Transaction.toRow(
+        accounts: List<Account>,
+        categories: List<Category>,
+        currencies: List<Currency>,
+    ): TransactionRow =
         when (this) { // exhaustive over the sealed Transaction — no `else`
             is Transaction.Income -> TransactionRow(
                 id = id, date = date, type = TransactionRowType.INCOME,
                 accountName = accountName(accountId, accounts),
                 destAccountName = null,
                 categoryName = categoryName(categoryId, categories),
-                amount = amount, destAmount = null, note = note,
+                amount = amount, destAmount = null,
+                amountDisplay = moneyFormatter.display(amount, currencies), destAmountDisplay = null,
+                note = note,
             )
 
             is Transaction.Expense -> TransactionRow(
@@ -96,7 +113,9 @@ class TransactionsListViewModel @Inject constructor(
                 accountName = accountName(accountId, accounts),
                 destAccountName = null,
                 categoryName = categoryName(categoryId, categories),
-                amount = amount, destAmount = null, note = note,
+                amount = amount, destAmount = null,
+                amountDisplay = moneyFormatter.display(amount, currencies), destAmountDisplay = null,
+                note = note,
             )
 
             is Transaction.Transfer -> TransactionRow(
@@ -104,7 +123,10 @@ class TransactionsListViewModel @Inject constructor(
                 accountName = accountName(sourceAccountId, accounts),
                 destAccountName = accountName(destAccountId, accounts),
                 categoryName = null,
-                amount = sourceAmount, destAmount = destAmount, note = note,
+                amount = sourceAmount, destAmount = destAmount,
+                amountDisplay = moneyFormatter.display(sourceAmount, currencies),
+                destAmountDisplay = moneyFormatter.display(destAmount, currencies),
+                note = note,
             )
         }
 

@@ -3,31 +3,47 @@ package org.aristonis.mywallet.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.AccountBalanceInBase
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.NetWorth
+import org.aristonis.mywallet.ui.format.display
 import javax.inject.Inject
 
 /** Net-worth hero state. A missing rate becomes a warning, never a silently wrong total. */
 sealed interface NetWorthState {
     data object Loading : NetWorthState
-    data class Amount(val total: Money) : NetWorthState
+    data class Amount(val totalDisplay: String) : NetWorthState
     data class MissingRate(val currencyCode: String) : NetWorthState
 }
 
-/** Home renders from this. Holds domain objects; display formatting is done later at render time. */
+/**
+ * One account card. Keeps the native/base [Money] so the screen can still decide which line to show
+ * (missing rate vs. a converted "≈" line vs. same currency); [nativeDisplay]/[baseDisplay] are the
+ * amounts pre-formatted per currency + locale so no formatting happens in Compose.
+ */
+data class AccountRow(
+    val account: Account,
+    val native: Money,
+    val base: Money?,
+    val nativeDisplay: String,
+    val baseDisplay: String?,
+)
+
+/** Home renders from this. Amounts arrive pre-formatted; the screen never touches a formatter. */
 data class HomeUiState(
     val netWorth: NetWorthState = NetWorthState.Loading,
-    val accounts: List<AccountBalanceInBase> = emptyList(),
+    val accounts: List<AccountRow> = emptyList(),
     val baseCurrencyCode: String? = null,
 )
 
@@ -38,31 +54,45 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     getAccountBalancesInBase: GetAccountBalancesInBase,
     computeNetWorth: ComputeNetWorth,
+    currencies: CurrencyRepository,
     settings: SettingsRepository,
+    private val moneyFormatter: MoneyFormatter,
 ) : ViewModel() {
-
-    // ComputeNetWorth emits a live sealed result: a missing rate is a value, not a thrown error, so
-    // this flow stays alive and net worth re-resolves the moment the user sets the rate.
-    private val netWorth: Flow<NetWorthState> =
-        computeNetWorth().map { result ->
-            when (result) {
-                is NetWorth.Amount -> NetWorthState.Amount(result.total)
-                is NetWorth.MissingRate -> NetWorthState.MissingRate(result.currencyCode)
-            }
-        }
 
     val state: StateFlow<HomeUiState> =
         combine(
             getAccountBalancesInBase(),
-            netWorth,
+            // ComputeNetWorth emits a live sealed result: a missing rate is a value, not a thrown
+            // error, so this flow stays alive and net worth re-resolves the moment the rate is set.
+            computeNetWorth(),
+            currencies.observeAll(),
             settings.observe(),
-        ) { accounts, netWorthState, currentSettings ->
+        ) { accounts, netWorthResult, currencyList, currentSettings ->
             HomeUiState(
+                netWorth = netWorthState(netWorthResult, currencyList),
                 // Archived accounts drop out of the active list (they're already out of net worth);
                 // they stay reachable + unarchivable on the Manage Accounts screen.
-                netWorth = netWorthState,
-                accounts = accounts.filterNot { it.account.archived },
+                accounts = accounts.filterNot { it.account.archived }.map { it.toRow(currencyList) },
                 baseCurrencyCode = currentSettings.baseCurrencyCode,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HomeUiState())
+
+    private fun netWorthState(result: NetWorth, currencies: List<Currency>): NetWorthState =
+        when (result) {
+            is NetWorth.Amount -> NetWorthState.Amount(moneyFormatter.display(result.total, currencies))
+            is NetWorth.MissingRate -> NetWorthState.MissingRate(result.currencyCode)
+        }
+
+    private fun AccountBalanceInBase.toRow(currencies: List<Currency>): AccountRow =
+        AccountRow(
+            account = account,
+            native = native,
+            base = base,
+            nativeDisplay = moneyFormatter.display(native, currencies),
+            baseDisplay = base?.let { moneyFormatter.display(it, currencies) },
+        )
+
+    private companion object {
+        private const val STOP_TIMEOUT_MS = 5_000L
+    }
 }

@@ -1,7 +1,7 @@
 package org.aristonis.mywallet.ui.transaction
 
-// UI copy hardcoded; localizing strings (RTL/i18n) comes later. Amounts shown as "amount CODE";
-// per-currency symbol + locale formatting comes later too.
+// UI copy hardcoded; localizing strings (RTL/i18n) comes later. Amounts arrive pre-formatted from
+// the view-model (per currency + locale); this screen only prepends the +/−/→ sign prefixes.
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -104,10 +104,10 @@ private fun accountLine(row: TransactionRow): String = when (row.type) {
 }
 
 private fun amountLine(row: TransactionRow): String = when (row.type) {
-    TransactionRowType.INCOME -> "+${row.amount.display()}"
-    TransactionRowType.EXPENSE -> "−${row.amount.display()}"
+    TransactionRowType.INCOME -> "+${row.amountDisplay}"
+    TransactionRowType.EXPENSE -> "−${row.amountDisplay}"
     // Transfer shows both legs (they differ for a cross-currency move).
-    TransactionRowType.TRANSFER -> "−${row.amount.display()} → +${row.destAmount?.display() ?: ""}"
+    TransactionRowType.TRANSFER -> "−${row.amountDisplay} → +${row.destAmountDisplay ?: ""}"
 }
 
 @Composable
@@ -115,9 +115,6 @@ private fun amountColor(row: TransactionRow) = when (row.type) {
     TransactionRowType.INCOME -> MaterialTheme.colorScheme.primary
     else -> MaterialTheme.colorScheme.onSurface
 }
-
-/** Placeholder formatting: amount + ISO code. Per-currency symbol + locale formatting comes later. */
-private fun Money.display(): String = "${amount.toPlainString()} $currencyCode"
 
 @Preview(showBackground = true)
 @Composable
@@ -130,12 +127,14 @@ private fun TransactionsListPreview() {
                     TransactionRow(
                         id = 1, date = LocalDate.of(2026, 7, 3), type = TransactionRowType.EXPENSE,
                         accountName = "Cash", destAccountName = null, categoryName = "Food",
-                        amount = Money.of("12.50", "USD"), destAmount = null, note = "Lunch",
+                        amount = Money.of("12.50", "USD"), destAmount = null,
+                        amountDisplay = "12.50 USD", destAmountDisplay = null, note = "Lunch",
                     ),
                     TransactionRow(
                         id = 2, date = LocalDate.of(2026, 7, 2), type = TransactionRowType.TRANSFER,
                         accountName = "Cash", destAccountName = "Euro Savings", categoryName = null,
-                        amount = Money.of("11", "USD"), destAmount = Money.of("10.00", "EUR"), note = null,
+                        amount = Money.of("11", "USD"), destAmount = Money.of("10.00", "EUR"),
+                        amountDisplay = "11.00 USD", destAmountDisplay = "10.00 EUR", note = null,
                     ),
                 ),
             ),

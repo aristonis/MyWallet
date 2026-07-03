@@ -10,22 +10,26 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.model.Category
-import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CategoryBreakdownResult
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.aristonis.mywallet.domain.usecase.PeriodSummaryResult
+import org.aristonis.mywallet.ui.format.display
 import javax.inject.Inject
 
 /**
  * One row of the spending-by-category list: [id] is the category id (a stable list key — names are
- * not unique and unknown ids all render as a dash), [name] is already resolved for display.
+ * not unique and unknown ids all render as a dash), [name] is already resolved for display, and
+ * [totalDisplay] is the total pre-formatted per currency + locale.
  */
-data class CategoryRow(val id: Long, val name: String, val total: Money)
+data class CategoryRow(val id: Long, val name: String, val totalDisplay: String)
 
 /**
  * The report body. A missing rate is a first-class value (not a spinner and not a wrong number), so
@@ -36,9 +40,9 @@ sealed interface ReportsData {
     data object Loading : ReportsData
     data class MissingRate(val currencyCode: String) : ReportsData
     data class Ready(
-        val income: Money,
-        val expense: Money,
-        val net: Money,
+        val incomeDisplay: String,
+        val expenseDisplay: String,
+        val netDisplay: String,
         val categories: List<CategoryRow>,
     ) : ReportsData
 }
@@ -61,6 +65,8 @@ class ReportsViewModel @Inject constructor(
     private val computePeriodSummary: ComputePeriodSummary,
     private val computeCategoryBreakdown: ComputeCategoryBreakdown,
     private val categories: CategoryRepository,
+    private val currencies: CurrencyRepository,
+    private val moneyFormatter: MoneyFormatter,
     private val today: TodayProvider,
 ) : ViewModel() {
 
@@ -73,8 +79,12 @@ class ReportsViewModel @Inject constructor(
                 computePeriodSummary(selected, reference),
                 computeCategoryBreakdown(selected, reference),
                 categories.observeAll(),
-            ) { summary, breakdown, categoryList ->
-                ReportsUiState(selectedPeriod = selected, data = toData(summary, breakdown, categoryList))
+                currencies.observeAll(),
+            ) { summary, breakdown, categoryList, currencyList ->
+                ReportsUiState(
+                    selectedPeriod = selected,
+                    data = toData(summary, breakdown, categoryList, currencyList),
+                )
             }
         }.stateIn(
             viewModelScope,
@@ -90,6 +100,7 @@ class ReportsViewModel @Inject constructor(
         summary: PeriodSummaryResult,
         breakdown: CategoryBreakdownResult,
         categoryList: List<Category>,
+        currencyList: List<Currency>,
     ): ReportsData {
         // Exhaustive matching (not casts) so adding a result variant later is a compile error; a
         // missing rate from EITHER use-case surfaces as the prompt.
@@ -101,14 +112,21 @@ class ReportsViewModel @Inject constructor(
             is CategoryBreakdownResult.MissingRate -> return ReportsData.MissingRate(breakdown.currencyCode)
             is CategoryBreakdownResult.Resolved -> breakdown.totals
         }
+        // Sort by the exact Money (all totals are in the base currency) BEFORE formatting to strings.
         val rows = totals
-            .map { CategoryRow(id = it.categoryId, name = categoryName(it.categoryId, categoryList), total = it.total) }
             .sortedByDescending { it.total } // biggest spend first
+            .map {
+                CategoryRow(
+                    id = it.categoryId,
+                    name = categoryName(it.categoryId, categoryList),
+                    totalDisplay = moneyFormatter.display(it.total, currencyList),
+                )
+            }
 
         return ReportsData.Ready(
-            income = periodSummary.income,
-            expense = periodSummary.expense,
-            net = periodSummary.net,
+            incomeDisplay = moneyFormatter.display(periodSummary.income, currencyList),
+            expenseDisplay = moneyFormatter.display(periodSummary.expense, currencyList),
+            netDisplay = moneyFormatter.display(periodSummary.net, currencyList),
             categories = rows,
         )
     }

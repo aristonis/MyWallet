@@ -1,7 +1,7 @@
 package org.aristonis.mywallet.ui.home
 
-// UI copy hardcoded; localizing strings (RTL/i18n) comes later. Money shown as "amount CODE";
-// proper per-currency symbol + locale formatting comes later too.
+// UI copy hardcoded; localizing strings (RTL/i18n) comes later. Amounts arrive pre-formatted from
+// the view-model (per currency + locale), so this screen never formats money itself.
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.AccountBalanceInBase
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
@@ -94,7 +93,7 @@ private fun NetWorthHero(netWorth: NetWorthState, onManageRates: () -> Unit) {
 
         is NetWorthState.Amount -> Column {
             Text("Net worth", style = MaterialTheme.typography.labelMedium)
-            Text(netWorth.total.display(), style = MaterialTheme.typography.headlineLarge)
+            Text(netWorth.totalDisplay, style = MaterialTheme.typography.headlineLarge)
         }
 
         is NetWorthState.MissingRate -> Card(
@@ -111,12 +110,12 @@ private fun NetWorthHero(netWorth: NetWorthState, onManageRates: () -> Unit) {
 }
 
 @Composable
-private fun AccountCard(row: AccountBalanceInBase, onManageRates: () -> Unit) {
+private fun AccountCard(row: AccountRow, onManageRates: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(row.account.name, style = MaterialTheme.typography.titleMedium)
             Text(typeName(row.account.typeKey), style = MaterialTheme.typography.bodySmall)
-            Text(row.native.display(), style = MaterialTheme.typography.titleLarge)
+            Text(row.nativeDisplay, style = MaterialTheme.typography.titleLarge)
             val base = row.base // local val so Kotlin can smart-cast after the null check
             when {
                 // Missing rate: show a tappable prompt (opens the rates screen), not a fabricated number.
@@ -128,7 +127,7 @@ private fun AccountCard(row: AccountBalanceInBase, onManageRates: () -> Unit) {
                 )
                 // Different currency: show the base-converted amount too.
                 base.currencyCode != row.native.currencyCode -> Text(
-                    "≈ ${base.display()}",
+                    "≈ ${row.baseDisplay}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -140,9 +139,6 @@ private fun AccountCard(row: AccountBalanceInBase, onManageRates: () -> Unit) {
 
 private fun typeName(typeKey: String): String =
     AccountTypeRegistry.BuiltIns.all.firstOrNull { it.key == typeKey }?.displayName ?: typeKey
-
-/** Placeholder formatting: amount + ISO code. Per-currency symbol + locale formatting comes later. */
-private fun Money.display(): String = "${amount.toPlainString()} $currencyCode"
 
 @Preview(showBackground = true)
 @Composable
@@ -156,17 +152,21 @@ private fun HomePreview() {
             onManageAccounts = {},
             onManageRates = {},
             state = HomeUiState(
-                netWorth = NetWorthState.Amount(Money.of("1275.00", "USD")),
+                netWorth = NetWorthState.Amount("1,275.00 USD"),
                 accounts = listOf(
-                    AccountBalanceInBase(
-                        Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("1000", "USD")),
+                    AccountRow(
+                        account = Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("1000", "USD")),
                         native = Money.of("1000", "USD"),
                         base = Money.of("1000", "USD"),
+                        nativeDisplay = "1,000.00 USD",
+                        baseDisplay = "1,000.00 USD",
                     ),
-                    AccountBalanceInBase(
-                        Account(id = 2, name = "Euro Savings", typeKey = "savings", currencyCode = "EUR", openingBalance = Money.of("250", "EUR")),
+                    AccountRow(
+                        account = Account(id = 2, name = "Euro Savings", typeKey = "savings", currencyCode = "EUR", openingBalance = Money.of("250", "EUR")),
                         native = Money.of("250", "EUR"),
                         base = Money.of("275.00", "USD"),
+                        nativeDisplay = "250.00 EUR",
+                        baseDisplay = "275.00 USD",
                     ),
                 ),
                 baseCurrencyCode = "USD",

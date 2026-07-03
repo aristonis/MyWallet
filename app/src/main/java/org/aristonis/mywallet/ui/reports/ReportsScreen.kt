@@ -1,7 +1,7 @@
 package org.aristonis.mywallet.ui.reports
 
-// UI copy hardcoded; localizing strings (RTL/i18n) comes later. Amounts shown as "amount CODE";
-// per-currency symbol + locale formatting comes later too.
+// UI copy hardcoded; localizing strings (RTL/i18n) comes later. Amounts arrive pre-formatted from
+// the view-model (per currency + locale), so this screen never formats money itself.
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
@@ -30,7 +30,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
@@ -123,9 +122,9 @@ private fun SummaryCard(data: ReportsData.Ready) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SummaryLine("Income", data.income.display(), MaterialTheme.colorScheme.primary)
-            SummaryLine("Expenses", data.expense.display(), MaterialTheme.colorScheme.onSurface)
-            SummaryLine("Net", data.net.display(), MaterialTheme.colorScheme.onSurface)
+            SummaryLine("Income", data.incomeDisplay, MaterialTheme.colorScheme.primary)
+            SummaryLine("Expenses", data.expenseDisplay, MaterialTheme.colorScheme.onSurface)
+            SummaryLine("Net", data.netDisplay, MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -146,7 +145,7 @@ private fun CategoryRowCard(row: CategoryRow) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(row.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            Text(row.total.display(), style = MaterialTheme.typography.titleMedium)
+            Text(row.totalDisplay, style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -159,9 +158,6 @@ private fun periodLabel(period: TrackingPeriod): String = when (period) {
     TrackingPeriod.ALL_TIME -> "All time"
 }
 
-/** Placeholder formatting: amount + ISO code. Per-currency symbol + locale formatting comes later. */
-private fun Money.display(): String = "${amount.toPlainString()} $currencyCode"
-
 @Preview(showBackground = true)
 @Composable
 private fun ReportsPreview() {
@@ -170,13 +166,13 @@ private fun ReportsPreview() {
             state = ReportsUiState(
                 selectedPeriod = TrackingPeriod.MONTH,
                 data = ReportsData.Ready(
-                    income = Money.of("2000.00", "USD"),
-                    expense = Money.of("1275.50", "USD"),
-                    net = Money.of("724.50", "USD"),
+                    incomeDisplay = "2,000.00 USD",
+                    expenseDisplay = "1,275.50 USD",
+                    netDisplay = "724.50 USD",
                     categories = listOf(
-                        CategoryRow(1, "Food", Money.of("620.00", "USD")),
-                        CategoryRow(2, "Transport", Money.of("410.50", "USD")),
-                        CategoryRow(3, "Other", Money.of("245.00", "USD")),
+                        CategoryRow(1, "Food", "620.00 USD"),
+                        CategoryRow(2, "Transport", "410.50 USD"),
+                        CategoryRow(3, "Other", "245.00 USD"),
                     ),
                 ),
             ),

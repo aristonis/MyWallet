@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
@@ -30,11 +31,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
+
+    // Locale.US pins grouping/decimal separators so "1,000.50 USD" is deterministic on any host.
+    private val moneyFormatter = MoneyFormatter(Locale.US)
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
 
@@ -57,7 +62,7 @@ class HomeViewModelTest {
         val getBalances = GetAccountBalances(accountRepo, txRepo)
         val getBalancesInBase = GetAccountBalancesInBase(getBalances, currencyRepo, rateRepo, settingsRepo)
         val computeNetWorth = ComputeNetWorth(getBalances, currencyRepo, rateRepo, settingsRepo)
-        return HomeViewModel(getBalancesInBase, computeNetWorth, settingsRepo)
+        return HomeViewModel(getBalancesInBase, computeNetWorth, currencyRepo, settingsRepo, moneyFormatter)
     }
 
     @Test
@@ -74,7 +79,37 @@ class HomeViewModelTest {
         assertEquals(1, state.accounts.size)
         assertEquals(Money.of("100", "USD"), state.accounts.first().native)
         assertEquals(Money.of("100", "USD"), state.accounts.first().base)
-        assertEquals(NetWorthState.Amount(Money.of("100", "USD")), state.netWorth)
+        assertEquals(NetWorthState.Amount("100.00 USD"), state.netWorth)
+    }
+
+    @Test
+    fun netWorthAndAccountRows_areFormattedPerCurrencyAndLocale() = runTest {
+        // USD 2-decimals with thousands grouping: net worth and the native row both render "1,000.50 USD".
+        val vm = buildVm(
+            accounts = listOf(account("USD", "1000.5")),
+            currencies = listOf(Currency("USD", "$", 2)),
+        )
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(NetWorthState.Amount("1,000.50 USD"), state.netWorth)
+        assertEquals("1,000.50 USD", state.accounts.first().nativeDisplay)
+        assertEquals("1,000.50 USD", state.accounts.first().baseDisplay)
+    }
+
+    @Test
+    fun jpyAccountRow_formatsWithNoDecimals() = runTest {
+        // A JPY account (0 fraction digits) renders "1,000 JPY" from the STORED Currency.decimalPlaces.
+        val vm = buildVm(
+            accounts = listOf(account("JPY", "1000")),
+            currencies = listOf(Currency("USD", "$", 2), Currency("JPY", "¥", 0)),
+            rates = listOf(ExchangeRate("JPY", BigDecimal("0.0067"))),
+        )
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        assertEquals("1,000 JPY", vm.state.value.accounts.first().nativeDisplay)
     }
 
     @Test
@@ -102,7 +137,7 @@ class HomeViewModelTest {
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
-        assertEquals(NetWorthState.Amount(Money.of("55.00", "USD")), vm.state.value.netWorth)
+        assertEquals(NetWorthState.Amount("55.00 USD"), vm.state.value.netWorth)
     }
 
     @Test
@@ -131,7 +166,9 @@ class HomeViewModelTest {
         val vm = HomeViewModel(
             GetAccountBalancesInBase(getBalances, currencyRepo, rateRepo, settingsRepo),
             ComputeNetWorth(getBalances, currencyRepo, rateRepo, settingsRepo),
+            currencyRepo,
             settingsRepo,
+            moneyFormatter,
         )
 
         backgroundScope.launch { vm.state.collect {} }
@@ -141,7 +178,7 @@ class HomeViewModelTest {
         rateRepo.upsert(ExchangeRate("EUR", BigDecimal("1.10")))
         advanceUntilIdle()
 
-        assertEquals(NetWorthState.Amount(Money.of("55.00", "USD")), vm.state.value.netWorth)
+        assertEquals(NetWorthState.Amount("55.00 USD"), vm.state.value.netWorth)
     }
 }
 

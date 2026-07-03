@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -33,12 +34,16 @@ import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReportsViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val julRef = LocalDate.of(2026, 7, 15)
+
+    // Locale.US pins grouping/decimal separators so the formatted-string assertions are deterministic.
+    private val moneyFormatter = MoneyFormatter(Locale.US)
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
@@ -63,6 +68,8 @@ class ReportsViewModelTest {
             computePeriodSummary = ComputePeriodSummary(txRepo, currencyRepo, rateRepo, settingsRepo),
             computeCategoryBreakdown = ComputeCategoryBreakdown(txRepo, currencyRepo, rateRepo, settingsRepo),
             categories = categoryRepo,
+            currencies = currencyRepo,
+            moneyFormatter = moneyFormatter,
             today = TodayProvider { julRef },
         )
     }
@@ -89,9 +96,21 @@ class ReportsViewModelTest {
         val state = vm.state.value
         assertEquals(TrackingPeriod.MONTH, state.selectedPeriod)
         val data = ready(state)
-        assertEquals(usd("100"), data.income)
-        assertEquals(usd("30"), data.expense)
-        assertEquals(usd("70"), data.net)
+        assertEquals("100.00 USD", data.incomeDisplay)
+        assertEquals("30.00 USD", data.expenseDisplay)
+        assertEquals("70.00 USD", data.netDisplay)
+    }
+
+    @Test
+    fun summaryAmounts_areFormattedPerCurrencyAndLocale() = runTest {
+        // Thousands grouping + two-decimal padding: 1000.5 income renders "1,000.50 USD".
+        val vm = buildVm(
+            transactions = listOf(income(usd("1000.5"), category = 1, date = LocalDate.of(2026, 7, 10))),
+        )
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        assertEquals("1,000.50 USD", ready(vm.state.value).incomeDisplay)
     }
 
     @Test
@@ -113,8 +132,8 @@ class ReportsViewModelTest {
 
         val rows = ready(vm.state.value).categories
         assertEquals(listOf("Food", "Transport"), rows.map { it.name }) // 50 before 15 (desc)
-        assertEquals(usd("50"), rows[0].total)
-        assertEquals(usd("15"), rows[1].total)
+        assertEquals("50.00 USD", rows[0].totalDisplay)
+        assertEquals("15.00 USD", rows[1].totalDisplay)
     }
 
     @Test
@@ -156,12 +175,12 @@ class ReportsViewModelTest {
         )
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
-        assertEquals(usd("100"), ready(vm.state.value).income)
+        assertEquals("100.00 USD", ready(vm.state.value).incomeDisplay)
 
         vm.selectPeriod(TrackingPeriod.DAY)
         advanceUntilIdle()
         assertEquals(TrackingPeriod.DAY, vm.state.value.selectedPeriod)
-        assertEquals(usd("0"), ready(vm.state.value).income) // Jul 10 is outside the Jul 15 day
+        assertEquals("0.00 USD", ready(vm.state.value).incomeDisplay) // Jul 10 is outside the Jul 15 day
     }
 
     @Test
@@ -193,7 +212,7 @@ class ReportsViewModelTest {
         advanceUntilIdle()
 
         val data = ready(vm.state.value)
-        assertEquals(usd("33.00"), data.expense) // 30 EUR × 1.10
+        assertEquals("33.00 USD", data.expenseDisplay) // 30 EUR × 1.10
         assertEquals("Food", data.categories.single().name)
     }
 
@@ -204,9 +223,9 @@ class ReportsViewModelTest {
         advanceUntilIdle()
 
         val data = ready(vm.state.value)
-        assertEquals(usd("0"), data.income)
-        assertEquals(usd("0"), data.expense)
-        assertEquals(usd("0"), data.net)
+        assertEquals("0.00 USD", data.incomeDisplay)
+        assertEquals("0.00 USD", data.expenseDisplay)
+        assertEquals("0.00 USD", data.netDisplay)
         assertEquals(emptyList<CategoryRow>(), data.categories)
     }
 }

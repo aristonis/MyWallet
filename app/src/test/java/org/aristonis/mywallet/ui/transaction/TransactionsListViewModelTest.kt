@@ -7,9 +7,11 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.junit.After
@@ -19,6 +21,7 @@ import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * The list view model resolves ids to display names via a 3-way combine of transactions, accounts,
@@ -39,7 +42,10 @@ class TransactionsListViewModelTest {
     private val salary = Category(id = 10, name = "Salary", kind = CategoryKind.INCOME)
     private val food = Category(id = 20, name = "Food", kind = CategoryKind.EXPENSE)
 
-    private class Fixture(
+    // Locale.US + the seeded fraction digits give deterministic strings: USD 2, EUR 2, JPY 0.
+    private val currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2), Currency("JPY", "¥", 0))
+
+    private inner class Fixture(
         transactions: List<Transaction>,
         accounts: List<Account>,
         categories: List<Category>,
@@ -48,6 +54,8 @@ class TransactionsListViewModelTest {
             transactions = FakeTransactionRepository(transactions),
             accounts = FakeAccountRepository(accounts),
             categories = FakeCategoryRepository(categories),
+            currencies = FakeCurrencyRepository(currencies),
+            moneyFormatter = MoneyFormatter(Locale.US),
         )
     }
 
@@ -67,7 +75,24 @@ class TransactionsListViewModelTest {
         assertEquals("Cash", row.accountName)
         assertEquals("Salary", row.categoryName)
         assertEquals(Money.of("50", "USD"), row.amount)
+        assertEquals("50.00 USD", row.amountDisplay) // per-currency + locale, no sign (screen adds "+")
         assertNull(row.destAccountName)
+        assertNull(row.destAmountDisplay)
+    }
+
+    @Test
+    fun amountDisplay_isFormattedPerCurrencyAndLocale() = runTest {
+        // The unsigned display string the screen renders as "+1,000.50 USD" (the "+" prefix is screen-side).
+        val f = Fixture(
+            transactions = listOf(
+                Transaction.Income(id = 1, accountId = 1, amount = Money.of("1000.5", "USD"), categoryId = 10, date = LocalDate.of(2026, 7, 1)),
+            ),
+            accounts = listOf(cash),
+            categories = listOf(salary),
+        )
+        advanceUntilIdle()
+
+        assertEquals("1,000.50 USD", f.viewModel.state.value.rows.single().amountDisplay)
     }
 
     @Test
@@ -110,6 +135,30 @@ class TransactionsListViewModelTest {
         assertNull(row.categoryName)
         assertEquals(Money.of("11", "USD"), row.amount)
         assertEquals(Money.of("10.00", "EUR"), row.destAmount)
+        // Both legs pre-formatted; the screen renders "−11.00 USD → +10.00 EUR".
+        assertEquals("11.00 USD", row.amountDisplay)
+        assertEquals("10.00 EUR", row.destAmountDisplay)
+    }
+
+    @Test
+    fun transferWithJpyLeg_formatsThatLegWithNoDecimals() = runTest {
+        // A JPY destination leg (0 fraction digits) renders "1,000 JPY" from the stored decimalPlaces.
+        val f = Fixture(
+            transactions = listOf(
+                Transaction.Transfer(
+                    id = 1, sourceAccountId = 1, destAccountId = 2,
+                    sourceAmount = Money.of("6.7", "USD"), destAmount = Money.of("1000", "JPY"),
+                    rateUsed = BigDecimal("149.25"), date = LocalDate.of(2026, 7, 1),
+                ),
+            ),
+            accounts = listOf(cash, savings),
+            categories = emptyList(),
+        )
+        advanceUntilIdle()
+
+        val row = f.viewModel.state.value.rows.single()
+        assertEquals("6.70 USD", row.amountDisplay)
+        assertEquals("1,000 JPY", row.destAmountDisplay)
     }
 
     @Test
