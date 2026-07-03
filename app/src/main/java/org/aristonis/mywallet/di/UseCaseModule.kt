@@ -14,6 +14,7 @@ import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
+import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import javax.inject.Singleton
 
 /**
@@ -36,6 +37,12 @@ object UseCaseModule {
         currencies: CurrencyRepository,
         accounts: AccountRepository,
     ): CreateAccount = CreateAccount(currencies, accounts)
+
+    @Provides @Singleton
+    fun provideSetExchangeRate(
+        currencies: CurrencyRepository,
+        rates: RateRepository,
+    ): SetExchangeRate = SetExchangeRate(currencies, rates)
 
     @Provides @Singleton
     fun provideGetAccountBalances(

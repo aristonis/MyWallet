@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.home
 // UI copy hardcoded; localizing strings (RTL/i18n) comes later. Money shown as "amount CODE";
 // proper per-currency symbol + locale formatting comes later too.
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,13 +32,17 @@ import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
 @Composable
-fun HomeScreen(onAddAccount: () -> Unit, viewModel: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(
+    onAddAccount: () -> Unit,
+    onManageRates: () -> Unit,
+    viewModel: HomeViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    HomeContent(state, onAddAccount)
+    HomeContent(state, onAddAccount, onManageRates)
 }
 
 @Composable
-private fun HomeContent(state: HomeUiState, onAddAccount: () -> Unit) {
+private fun HomeContent(state: HomeUiState, onAddAccount: () -> Unit, onManageRates: () -> Unit) {
     Scaffold(
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = onAddAccount) { Text("Add account") }
@@ -48,17 +53,17 @@ private fun HomeContent(state: HomeUiState, onAddAccount: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text("My Wallet", style = MaterialTheme.typography.headlineMedium)
-            NetWorthHero(state.netWorth)
+            NetWorthHero(state.netWorth, onManageRates)
             Text("Accounts", style = MaterialTheme.typography.titleMedium)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.accounts) { accountBalance -> AccountCard(accountBalance) }
+                items(state.accounts) { accountBalance -> AccountCard(accountBalance, onManageRates) }
             }
         }
     }
 }
 
 @Composable
-private fun NetWorthHero(netWorth: NetWorthState) {
+private fun NetWorthHero(netWorth: NetWorthState, onManageRates: () -> Unit) {
     when (netWorth) {
         NetWorthState.Loading -> CircularProgressIndicator()
 
@@ -68,7 +73,7 @@ private fun NetWorthHero(netWorth: NetWorthState) {
         }
 
         is NetWorthState.MissingRate -> Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onManageRates),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
         ) {
             Text(
@@ -81,7 +86,7 @@ private fun NetWorthHero(netWorth: NetWorthState) {
 }
 
 @Composable
-private fun AccountCard(row: AccountBalanceInBase) {
+private fun AccountCard(row: AccountBalanceInBase, onManageRates: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(row.account.name, style = MaterialTheme.typography.titleMedium)
@@ -89,11 +94,12 @@ private fun AccountCard(row: AccountBalanceInBase) {
             Text(row.native.display(), style = MaterialTheme.typography.titleLarge)
             val base = row.base // local val so Kotlin can smart-cast after the null check
             when {
-                // Missing rate: show a prompt, not a fabricated number.
+                // Missing rate: show a tappable prompt (opens the rates screen), not a fabricated number.
                 base == null -> Text(
                     "Set a rate for ${row.native.currencyCode} to convert",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.clickable(onClick = onManageRates),
                 )
                 // Different currency: show the base-converted amount too.
                 base.currencyCode != row.native.currencyCode -> Text(
@@ -119,6 +125,7 @@ private fun HomePreview() {
     MyWalletTheme(dynamicColor = false) {
         HomeContent(
             onAddAccount = {},
+            onManageRates = {},
             state = HomeUiState(
                 netWorth = NetWorthState.Amount(Money.of("1275.00", "USD")),
                 accounts = listOf(

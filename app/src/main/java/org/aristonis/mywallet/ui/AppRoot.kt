@@ -15,6 +15,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.ui.account.AddAccountScreen
 import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
+import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 
 /**
  * Top-level routing gate: shows onboarding until settings exist, then Home. Because it observes the
@@ -31,17 +32,23 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
     }
 }
 
+/** The screens reachable from Home via the lightweight toggle below. */
+private enum class HomeDestination { HOME, ADD_ACCOUNT, MANAGE_RATES }
+
 /**
- * Lightweight Home <-> Add-account navigation. With only two screens, a `remember`ed flag beats
- * pulling in a nav library; when a bottom-nav shell arrives this becomes a real NavHost.
+ * Lightweight Home navigation via a `remember`ed destination. With this handful of screens a flag
+ * beats pulling in a nav library; when a bottom-nav shell arrives this becomes a real NavHost.
  */
 @Composable
 private fun HomeFlow() {
-    var showAddAccount by remember { mutableStateOf(false) }
-    if (showAddAccount) {
-        AddAccountScreen(onDone = { showAddAccount = false })
-    } else {
-        HomeScreen(onAddAccount = { showAddAccount = true })
+    var destination by remember { mutableStateOf(HomeDestination.HOME) }
+    when (destination) {
+        HomeDestination.HOME -> HomeScreen(
+            onAddAccount = { destination = HomeDestination.ADD_ACCOUNT },
+            onManageRates = { destination = HomeDestination.MANAGE_RATES },
+        )
+        HomeDestination.ADD_ACCOUNT -> AddAccountScreen(onDone = { destination = HomeDestination.HOME })
+        HomeDestination.MANAGE_RATES -> ManageRatesScreen(onDone = { destination = HomeDestination.HOME })
     }
 }
 
