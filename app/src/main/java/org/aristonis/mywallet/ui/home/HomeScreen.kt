@@ -38,12 +38,13 @@ import org.aristonis.mywallet.ui.theme.MyWalletTheme
 fun HomeScreen(
     onAddTransaction: () -> Unit,
     onTransactions: () -> Unit,
+    onReports: () -> Unit,
     onAddAccount: () -> Unit,
     onManageRates: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    HomeContent(state, onAddTransaction, onTransactions, onAddAccount, onManageRates)
+    HomeContent(state, onAddTransaction, onTransactions, onReports, onAddAccount, onManageRates)
 }
 
 @Composable
@@ -51,6 +52,7 @@ private fun HomeContent(
     state: HomeUiState,
     onAddTransaction: () -> Unit,
     onTransactions: () -> Unit,
+    onReports: () -> Unit,
     onAddAccount: () -> Unit,
     onManageRates: () -> Unit,
 ) {
@@ -67,6 +69,7 @@ private fun HomeContent(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("My Wallet", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = onReports) { Text("Reports") }
                 TextButton(onClick = onTransactions) { Text("History") }
             }
             NetWorthHero(state.netWorth, onManageRates)
@@ -145,6 +148,7 @@ private fun HomePreview() {
         HomeContent(
             onAddTransaction = {},
             onTransactions = {},
+            onReports = {},
             onAddAccount = {},
             onManageRates = {},
             state = HomeUiState(

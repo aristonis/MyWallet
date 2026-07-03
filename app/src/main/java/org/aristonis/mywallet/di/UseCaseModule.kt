@@ -10,7 +10,9 @@ import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
+import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
@@ -69,6 +71,22 @@ object UseCaseModule {
         rates: RateRepository,
         settings: SettingsRepository,
     ): GetAccountBalancesInBase = GetAccountBalancesInBase(getAccountBalances, currencies, rates, settings)
+
+    @Provides @Singleton
+    fun provideComputePeriodSummary(
+        transactions: TransactionRepository,
+        currencies: CurrencyRepository,
+        rates: RateRepository,
+        settings: SettingsRepository,
+    ): ComputePeriodSummary = ComputePeriodSummary(transactions, currencies, rates, settings)
+
+    @Provides @Singleton
+    fun provideComputeCategoryBreakdown(
+        transactions: TransactionRepository,
+        currencies: CurrencyRepository,
+        rates: RateRepository,
+        settings: SettingsRepository,
+    ): ComputeCategoryBreakdown = ComputeCategoryBreakdown(transactions, currencies, rates, settings)
 
     @Provides @Singleton
     fun provideRecordIncome(
