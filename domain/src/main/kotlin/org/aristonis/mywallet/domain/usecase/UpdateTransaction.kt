@@ -94,6 +94,7 @@ class UpdateTransaction(
         val decimals = currencies.findByCode(destCurrency)?.decimalPlaces
             ?: throw WalletException.CurrencyNotFound(destCurrency)
         val converted = source.amount.multiply(rate).setScale(decimals, CurrencyConverter.ROUNDING)
+        if (converted.signum() == 0) throw WalletException.AmountRoundsToZero(destCurrency)
         return Money.of(converted, destCurrency)
     }
 }

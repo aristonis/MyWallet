@@ -104,6 +104,16 @@ class RecordTransferTest {
         ).invoke(sourceAccountId = 1, destAccountId = 2, amount = Money.of("1", "EUR"), date = today)
     }
 
+    @Test(expected = WalletException.AmountRoundsToZero::class)
+    fun crossCurrency_amountRoundsToZero_failsLoud() = runTest {
+        // 0.01 USD into a EUR account where 1 EUR = 1000 USD → 0.00 EUR after rounding → reject, don't store 0.
+        usecase(
+            accounts = listOf(account(1, "USD"), account(2, "EUR")),
+            currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)),
+            rates = listOf(ExchangeRate("EUR", BigDecimal("1000"))),
+        ).invoke(sourceAccountId = 1, destAccountId = 2, amount = Money.of("0.01", "USD"), date = today)
+    }
+
     @Test(expected = WalletException.MissingRate::class)
     fun crossCurrency_missingRate_failsLoud() = runTest {
         // dest EUR account but no EUR rate configured

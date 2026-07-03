@@ -141,6 +141,18 @@ class UpdateTransactionTest {
         assertEquals("lunch", saved.note)
     }
 
+    @Test(expected = WalletException.AmountRoundsToZero::class)
+    fun editingTransferToAnAmountThatRoundsToZero_failsLoud() = runTest {
+        // stored USD->EUR at rate 0.001; editing the source to 0.01 → 0.01 x 0.001 = 0.00 EUR → reject.
+        val transfer = Transaction.Transfer(
+            id = 1, sourceAccountId = 1, destAccountId = 2,
+            sourceAmount = Money.of("10", "USD"), destAmount = Money.of("0.01", "EUR"),
+            rateUsed = BigDecimal("0.001"), date = today,
+        )
+        update(listOf(account(1, "USD"), account(2, "EUR")), FakeTransactionRepository(listOf(transfer)))
+            .invoke(transfer.copy(sourceAmount = Money.of("0.01", "USD")))
+    }
+
     @Test(expected = WalletException.AccountArchived::class)
     fun transfer_archivedDestination_throws() = runTest {
         val transfer = Transaction.Transfer(

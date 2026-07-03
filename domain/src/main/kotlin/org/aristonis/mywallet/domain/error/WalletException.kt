@@ -43,4 +43,8 @@ sealed class WalletException(message: String) : Exception(message) {
     /** A transfer edit tried to change its currency pair; its stored rate would no longer apply. */
     class TransferCurrencyPairChanged(val id: Long) :
         WalletException("Transaction $id is a transfer whose currencies can't change on edit — delete and re-add instead")
+
+    /** A cross-currency conversion rounded the amount down to zero in the target currency — enter more. */
+    class AmountRoundsToZero(val currencyCode: String) :
+        WalletException("The amount is too small to convert to $currencyCode; it rounds to zero")
 }

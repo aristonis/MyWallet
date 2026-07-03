@@ -52,6 +52,7 @@ class RecordTransfer(
             destAmount = converter.convert(amount, dest.currencyCode)
             rateUsed = converter.sourceToDestRate(source.currencyCode, dest.currencyCode)
         }
+        if (destAmount.isZero) throw WalletException.AmountRoundsToZero(dest.currencyCode)
 
         return transactions.add(
             Transaction.Transfer(
