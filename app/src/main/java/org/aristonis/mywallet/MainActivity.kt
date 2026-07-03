@@ -4,39 +4,24 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import dagger.hilt.android.AndroidEntryPoint
+import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
+/**
+ * [AndroidEntryPoint] lets Hilt inject into this activity and, transitively, lets `hiltViewModel()`
+ * resolve ViewModels inside the Compose tree. For now it shows onboarding unconditionally — the
+ * onboarding-vs-Home routing gate lands in SG-8 (see backlog.md).
+ */
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             MyWalletTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Placeholder(modifier = Modifier.padding(innerPadding).fillMaxSize())
-                }
+                OnboardingScreen()
             }
         }
-    }
-}
-
-@Composable
-private fun Placeholder(modifier: Modifier = Modifier) {
-    Text(text = "MyWallet", modifier = modifier.wrapContentSize())
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun PlaceholderPreview() {
-    MyWalletTheme {
-        Placeholder()
     }
 }
