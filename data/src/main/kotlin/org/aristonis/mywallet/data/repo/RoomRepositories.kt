@@ -33,6 +33,7 @@ class RoomAccountRepository(private val dao: AccountDao) : AccountRepository {
     override fun observeAll(): Flow<List<Account>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
     override suspend fun findById(id: Long): Account? = dao.findById(id)?.toDomain()
     override suspend fun upsert(account: Account): Long = dao.upsert(account.toEntity())
+    override suspend fun delete(id: Long) = dao.deleteById(id)
 }
 
 class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRepository {

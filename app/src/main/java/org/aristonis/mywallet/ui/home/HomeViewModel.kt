@@ -58,8 +58,10 @@ class HomeViewModel @Inject constructor(
             settings.observe(),
         ) { accounts, netWorthState, currentSettings ->
             HomeUiState(
+                // Archived accounts drop out of the active list (they're already out of net worth);
+                // they stay reachable + unarchivable on the Manage Accounts screen.
                 netWorth = netWorthState,
-                accounts = accounts,
+                accounts = accounts.filterNot { it.account.archived },
                 baseCurrencyCode = currentSettings.baseCurrencyCode,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())

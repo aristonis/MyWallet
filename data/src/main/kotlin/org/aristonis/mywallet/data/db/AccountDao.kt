@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface AccountDao {
 
-    @Query("SELECT * FROM accounts ORDER BY sortOrder")
+    @Query("SELECT * FROM accounts ORDER BY sortOrder, name COLLATE NOCASE")
     fun observeAll(): Flow<List<AccountEntity>>
 
     @Query("SELECT * FROM accounts WHERE id = :id")
@@ -21,4 +21,7 @@ interface AccountDao {
 
     @Upsert
     suspend fun upsert(account: AccountEntity): Long
+
+    @Query("DELETE FROM accounts WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

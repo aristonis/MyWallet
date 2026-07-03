@@ -14,11 +14,13 @@ import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.aristonis.mywallet.domain.usecase.CreateAccount
+import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.RecordExpense
 import org.aristonis.mywallet.domain.usecase.RecordIncome
 import org.aristonis.mywallet.domain.usecase.RecordTransfer
+import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import javax.inject.Singleton
@@ -43,6 +45,15 @@ object UseCaseModule {
         currencies: CurrencyRepository,
         accounts: AccountRepository,
     ): CreateAccount = CreateAccount(currencies, accounts)
+
+    @Provides @Singleton
+    fun provideSetAccountArchived(accounts: AccountRepository): SetAccountArchived = SetAccountArchived(accounts)
+
+    @Provides @Singleton
+    fun provideDeleteAccount(
+        accounts: AccountRepository,
+        transactions: TransactionRepository,
+    ): DeleteAccount = DeleteAccount(accounts, transactions)
 
     @Provides @Singleton
     fun provideSetExchangeRate(

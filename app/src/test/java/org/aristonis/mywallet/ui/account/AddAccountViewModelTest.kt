@@ -126,23 +126,4 @@ class AddAccountViewModelTest {
     }
 }
 
-// --- Minimal in-memory ports. ---
-
-private class FakeCurrencyRepository(initial: List<Currency>) : CurrencyRepository {
-    private val items = MutableStateFlow(initial)
-    override fun observeAll(): Flow<List<Currency>> = items
-    override suspend fun findByCode(code: String): Currency? = items.value.firstOrNull { it.code == code }
-}
-
-private class FakeAccountRepository : AccountRepository {
-    private val items = MutableStateFlow<List<Account>>(emptyList())
-    private var nextId = 1L
-    val upserted: List<Account> get() = items.value
-    override fun observeAll(): Flow<List<Account>> = items
-    override suspend fun findById(id: Long): Account? = items.value.firstOrNull { it.id == id }
-    override suspend fun upsert(account: Account): Long {
-        val id = if (account.id == 0L) nextId++ else account.id
-        items.value = items.value.filterNot { it.id == id } + account.copy(id = id)
-        return id
-    }
-}
+// In-memory port fakes shared with the other account VM tests live in AccountTestFakes.kt.

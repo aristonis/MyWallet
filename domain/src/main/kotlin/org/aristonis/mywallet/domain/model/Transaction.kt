@@ -55,3 +55,14 @@ sealed interface Transaction {
         }
     }
 }
+
+/**
+ * Whether this transaction references [accountId] on either leg — an income target / expense source /
+ * transfer source, OR a transfer destination. One source of truth for "is this account in use?", shared
+ * by the delete guard and the manage-accounts UI so they can never drift.
+ */
+fun Transaction.involvesAccount(accountId: Long): Boolean = when (this) {
+    is Transaction.Income -> this.accountId == accountId
+    is Transaction.Expense -> this.accountId == accountId
+    is Transaction.Transfer -> sourceAccountId == accountId || destAccountId == accountId
+}

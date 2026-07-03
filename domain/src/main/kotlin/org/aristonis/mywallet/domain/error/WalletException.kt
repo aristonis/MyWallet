@@ -9,6 +9,14 @@ sealed class WalletException(message: String) : Exception(message) {
     class AccountNotFound(val id: Long) :
         WalletException("Account $id not found")
 
+    /** The account has transactions, so it can't be hard-deleted — archive it instead. */
+    class AccountInUse(val id: Long) :
+        WalletException("Account $id has transactions and cannot be deleted; archive it instead")
+
+    /** The account is archived, so no new transaction may be recorded against it (unarchive first). */
+    class AccountArchived(val id: Long) :
+        WalletException("Account $id is archived; unarchive it to record transactions")
+
     class CategoryNotFound(val id: Long) :
         WalletException("Category $id not found")
 

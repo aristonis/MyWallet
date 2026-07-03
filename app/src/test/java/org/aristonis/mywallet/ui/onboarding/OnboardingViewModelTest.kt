@@ -169,4 +169,6 @@ private class FakeAccountRepository : AccountRepository {
         items.value = items.value.filterNot { it.id == id } + account.copy(id = id)
         return id
     }
+
+    override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
 }

@@ -32,6 +32,10 @@ class FakeAccountRepository(initial: List<Account> = emptyList()) : AccountRepos
         items.value = items.value.filterNot { it.id == id } + account.copy(id = id)
         return id
     }
+
+    override suspend fun delete(id: Long) {
+        items.value = items.value.filterNot { it.id == id }
+    }
 }
 
 class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRepository {

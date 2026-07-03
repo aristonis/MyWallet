@@ -20,6 +20,9 @@ interface AccountRepository {
 
     /** Insert (id == 0) or update; returns the account's id. */
     suspend fun upsert(account: Account): Long
+
+    /** Hard-delete an account by id. Callers must guard against deleting one that has transactions. */
+    suspend fun delete(id: Long)
 }
 
 interface CategoryRepository {

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.ui.account.AddAccountScreen
+import org.aristonis.mywallet.ui.account.ManageAccountsScreen
 import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
@@ -36,7 +37,7 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 /** The screens reachable from Home via the lightweight toggle below. */
-private enum class HomeDestination { HOME, ADD_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_RATES }
+private enum class HomeDestination { HOME, ADD_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, MANAGE_RATES }
 
 /**
  * Lightweight Home navigation via a `remember`ed destination. With this handful of screens a flag
@@ -52,11 +53,13 @@ private fun HomeFlow() {
             onTransactions = { destination = HomeDestination.TRANSACTIONS },
             onReports = { destination = HomeDestination.REPORTS },
             onAddAccount = { destination = HomeDestination.ADD_ACCOUNT },
+            onManageAccounts = { destination = HomeDestination.MANAGE_ACCOUNTS },
             onManageRates = { destination = HomeDestination.MANAGE_RATES },
         )
         HomeDestination.ADD_TRANSACTION -> AddTransactionScreen(onDone = toHome)
         HomeDestination.TRANSACTIONS -> TransactionsListScreen(onDone = toHome)
         HomeDestination.REPORTS -> ReportsScreen(onDone = toHome)
+        HomeDestination.MANAGE_ACCOUNTS -> ManageAccountsScreen(onDone = toHome)
         HomeDestination.ADD_ACCOUNT -> AddAccountScreen(onDone = toHome)
         HomeDestination.MANAGE_RATES -> ManageRatesScreen(onDone = toHome)
     }

@@ -27,6 +27,7 @@ internal class FakeAccountRepository(initial: List<Account> = emptyList()) : Acc
     override fun observeAll(): Flow<List<Account>> = items
     override suspend fun findById(id: Long): Account? = items.value.firstOrNull { it.id == id }
     override suspend fun upsert(account: Account): Long = account.id
+    override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
 }
 
 internal class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRepository {

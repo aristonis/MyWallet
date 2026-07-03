@@ -159,6 +159,7 @@ private class FakeAccountRepository(initial: List<Account>) : AccountRepository 
     override fun observeAll(): Flow<List<Account>> = items
     override suspend fun findById(id: Long): Account? = items.value.firstOrNull { it.id == id }
     override suspend fun upsert(account: Account): Long = account.id
+    override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
 }
 
 private class FakeCurrencyRepository(initial: List<Currency>) : CurrencyRepository {

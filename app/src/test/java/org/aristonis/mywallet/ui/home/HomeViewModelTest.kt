@@ -78,6 +78,21 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun archivedAccounts_areHiddenFromTheList() = runTest {
+        val active = Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100", "USD"))
+        val archived = Account(id = 2, name = "Old", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("50", "USD"), archived = true)
+        val vm = buildVm(
+            accounts = listOf(active, archived),
+            currencies = listOf(Currency("USD", "$", 2)),
+        )
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        // Archived accounts stay out of the active list (they're already out of net worth).
+        assertEquals(listOf(1L), vm.state.value.accounts.map { it.account.id })
+    }
+
+    @Test
     fun nonBaseAccountWithRate_convertsToBase() = runTest {
         val vm = buildVm(
             accounts = listOf(account("EUR", "50")),
@@ -137,6 +152,7 @@ private class FakeAccountRepository(initial: List<Account>) : AccountRepository 
     override fun observeAll(): Flow<List<Account>> = items
     override suspend fun findById(id: Long): Account? = items.value.firstOrNull { it.id == id }
     override suspend fun upsert(account: Account): Long = account.id
+    override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
 }
 
 private class FakeTransactionRepository : TransactionRepository {
