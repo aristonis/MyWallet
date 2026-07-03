@@ -44,7 +44,12 @@ interface RateRepository {
 }
 
 interface SettingsRepository {
+    /** Emits the saved settings; does NOT emit until settings exist (post-onboarding). */
     fun observe(): Flow<Settings>
+
+    /** Emits `null` while no settings exist yet, then the settings — the "is-onboarded?" signal. */
+    fun observeOrNull(): Flow<Settings?>
+
     suspend fun get(): Settings
     suspend fun save(settings: Settings)
 }

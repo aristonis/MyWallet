@@ -5,13 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import dagger.hilt.android.AndroidEntryPoint
-import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
+import org.aristonis.mywallet.ui.AppRoot
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
 /**
  * [AndroidEntryPoint] lets Hilt inject into this activity and, transitively, lets `hiltViewModel()`
- * resolve ViewModels inside the Compose tree. For now it shows onboarding unconditionally — the
- * onboarding-vs-Home routing gate lands in SG-8 (see backlog.md).
+ * resolve ViewModels inside the Compose tree. [AppRoot] decides onboarding-vs-Home from the settings
+ * signal.
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyWalletTheme {
-                OnboardingScreen()
+                AppRoot()
             }
         }
     }

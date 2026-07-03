@@ -143,6 +143,7 @@ private class FakeSettingsRepository : SettingsRepository {
     private val state = MutableStateFlow<Settings?>(null)
     val saved: Settings? get() = state.value
     override fun observe(): Flow<Settings> = throw UnsupportedOperationException("not needed for onboarding")
+    override fun observeOrNull(): Flow<Settings?> = state
     override suspend fun get(): Settings = state.value ?: error("settings not initialized")
     override suspend fun save(settings: Settings) { state.value = settings }
 }

@@ -56,6 +56,7 @@ class RoomRateRepository(private val dao: RateDao) : RateRepository {
 
 class RoomSettingsRepository(private val dao: SettingsDao) : SettingsRepository {
     override fun observe(): Flow<Settings> = dao.observe().filterNotNull().map { it.toDomain() }
+    override fun observeOrNull(): Flow<Settings?> = dao.observe().map { it?.toDomain() }
     override suspend fun get(): Settings =
         dao.get()?.toDomain() ?: error("settings not initialized — onboarding must set the base currency first")
     override suspend fun save(settings: Settings) = dao.upsert(settings.toEntity())

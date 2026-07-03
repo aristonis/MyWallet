@@ -70,6 +70,7 @@ class FakeRateRepository(initial: List<ExchangeRate> = emptyList()) : RateReposi
 class FakeSettingsRepository(initial: Settings? = null) : SettingsRepository {
     private val state = MutableStateFlow(initial)
     override fun observe(): Flow<Settings> = state.filterNotNull()
+    override fun observeOrNull(): Flow<Settings?> = state
     override suspend fun get(): Settings = state.value ?: error("settings not initialized")
     override suspend fun save(settings: Settings) {
         state.value = settings
