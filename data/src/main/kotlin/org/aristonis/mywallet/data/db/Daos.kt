@@ -32,11 +32,14 @@ interface CurrencyDao {
 
 @Dao
 interface RateDao {
-    @Query("SELECT * FROM rates")
+    @Query("SELECT * FROM rates ORDER BY currencyCode")
     fun observeAll(): Flow<List<RateEntity>>
 
     @Query("SELECT * FROM rates WHERE currencyCode = :code")
     suspend fun findByCode(code: String): RateEntity?
+
+    @Upsert
+    suspend fun upsert(rate: RateEntity)
 }
 
 @Dao

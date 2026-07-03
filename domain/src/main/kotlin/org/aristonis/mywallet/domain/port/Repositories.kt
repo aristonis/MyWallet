@@ -41,6 +41,9 @@ interface CurrencyRepository {
 interface RateRepository {
     fun observeAll(): Flow<List<ExchangeRate>>
     suspend fun findByCode(code: String): ExchangeRate?
+
+    /** Insert the rate for its currency, or replace the existing one (keyed by currency code). */
+    suspend fun upsert(rate: ExchangeRate)
 }
 
 interface SettingsRepository {

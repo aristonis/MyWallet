@@ -52,6 +52,7 @@ class RoomCurrencyRepository(private val dao: CurrencyDao) : CurrencyRepository 
 class RoomRateRepository(private val dao: RateDao) : RateRepository {
     override fun observeAll(): Flow<List<ExchangeRate>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
     override suspend fun findByCode(code: String): ExchangeRate? = dao.findByCode(code)?.toDomain()
+    override suspend fun upsert(rate: ExchangeRate) = dao.upsert(rate.toEntity())
 }
 
 class RoomSettingsRepository(private val dao: SettingsDao) : SettingsRepository {

@@ -65,6 +65,9 @@ class FakeRateRepository(initial: List<ExchangeRate> = emptyList()) : RateReposi
     override fun observeAll(): Flow<List<ExchangeRate>> = items
     override suspend fun findByCode(code: String): ExchangeRate? =
         items.value.firstOrNull { it.currencyCode == code }
+    override suspend fun upsert(rate: ExchangeRate) {
+        items.value = items.value.filterNot { it.currencyCode == rate.currencyCode } + rate
+    }
 }
 
 class FakeSettingsRepository(initial: Settings? = null) : SettingsRepository {
