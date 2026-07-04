@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.transaction
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -14,6 +15,8 @@ import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.DeleteTransaction
+import org.aristonis.mywallet.domain.usecase.GetAccountBalances
+import org.aristonis.mywallet.domain.usecase.RestoreTransaction
 import org.aristonis.mywallet.domain.usecase.UpdateTransaction
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -66,8 +69,12 @@ class EditTransactionViewModelTest {
             transactions = txRepo,
             updateTransaction = UpdateTransaction(accountRepo, categoryRepo, currencyRepo, txRepo),
             deleteTransaction = DeleteTransaction(txRepo),
+            restoreTransaction = RestoreTransaction(txRepo),
             moneyParser = MoneyParser(locale),
         )
+
+        /** A live balance probe over the same fakes the view model writes through. */
+        val balances get() = GetAccountBalances(accountRepo, txRepo)
     }
 
     private val income = Transaction.Income(
@@ -153,7 +160,7 @@ class EditTransactionViewModelTest {
     }
 
     @Test
-    fun delete_callsDeleteTransaction_andSetsDeleted() = runTest {
+    fun delete_removesRow_andEntersUndoableState_withoutNavigatingYet() = runTest {
         val f = incomeFixture()
         f.viewModel.load(5)
         advanceUntilIdle()
@@ -161,8 +168,63 @@ class EditTransactionViewModelTest {
         f.viewModel.delete()
         advanceUntilIdle()
 
-        assertNull(f.txRepo.findById(5))
+        assertNull(f.txRepo.findById(5)) // the row is genuinely gone
+        assertEquals(5L, f.viewModel.state.value.undoableDelete?.id) // held so an Undo can restore it
+        assertFalse(f.viewModel.state.value.deleted) // navigation is deferred until the snackbar resolves
+    }
+
+    @Test
+    fun undoDelete_reAddsRow_viaRestoreTransaction_andRestoresBalance_thenNavigates() = runTest {
+        val f = incomeFixture()
+        f.viewModel.load(5)
+        advanceUntilIdle()
+        assertEquals(Money.of("50", "USD"), f.balances().first().single().balance)
+
+        f.viewModel.delete()
+        advanceUntilIdle()
+        assertEquals(Money.of("0", "USD"), f.balances().first().single().balance) // effect gone with the row
+
+        f.viewModel.undoDelete()
+        advanceUntilIdle()
+
+        assertNotNull(f.txRepo.findById(5)) // the row is back
+        assertEquals(Money.of("50", "USD"), f.balances().first().single().balance) // balance reverts
+        assertNull(f.viewModel.state.value.undoableDelete)
+        assertTrue(f.viewModel.state.value.deleted) // returns to Home, now showing the restored row
+    }
+
+    @Test
+    fun confirmDelete_afterNoUndo_firesTheOneShotNavigation_andKeepsRowDeleted() = runTest {
+        val f = incomeFixture()
+        f.viewModel.load(5)
+        advanceUntilIdle()
+        f.viewModel.delete()
+        advanceUntilIdle()
+
+        f.viewModel.confirmDelete() // snackbar dismissed / timed out without an Undo
+
         assertTrue(f.viewModel.state.value.deleted)
+        assertNull(f.viewModel.state.value.undoableDelete)
+        assertNull(f.txRepo.findById(5)) // stays deleted
+    }
+
+    @Test
+    fun submit_whileAnUndoIsPending_doesNothing_soADeletedRowIsNeverSilentlySaved() = runTest {
+        val f = incomeFixture()
+        f.viewModel.load(5)
+        advanceUntilIdle()
+
+        f.viewModel.delete()
+        advanceUntilIdle()
+        assertNull(f.txRepo.findById(5)) // deleted, undo pending, form still on screen
+
+        f.viewModel.setAmount("999") // user taps the still-visible Save during the undo window
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertNull(f.txRepo.findById(5)) // still gone — no phantom "update" of a missing row
+        assertFalse(f.viewModel.state.value.saved) // and the screen was never told it saved
+        assertEquals(5L, f.viewModel.state.value.undoableDelete?.id) // undo is still available
     }
 
     @Test
@@ -186,6 +248,7 @@ class EditTransactionViewModelTest {
         advanceUntilIdle()
         f.viewModel.delete()
         advanceUntilIdle()
+        f.viewModel.confirmDelete()
         assertTrue(f.viewModel.state.value.deleted)
 
         f.viewModel.acknowledgeDeleted()

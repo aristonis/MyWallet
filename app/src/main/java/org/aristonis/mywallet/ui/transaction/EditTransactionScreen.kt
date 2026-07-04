@@ -26,6 +26,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -55,8 +59,9 @@ import java.time.ZoneOffset
 /**
  * Edit-transaction screen. The type is fixed at load and shown read-only: income/expense may change
  * account/category/amount/date/note; a transfer's account legs are locked (shown disabled) so only its
- * amount/date/note move. A Delete button confirms then removes the row. [onDone] returns to Home — fired
- * on Cancel/back and once the edit is saved or the row is deleted (the VM's one-shot flags). No nav library.
+ * amount/date/note move. A Delete button confirms then removes the row, then offers a one-tap Undo via a
+ * snackbar before leaving. [onDone] returns to Home — fired on Cancel/back and once the edit is saved or
+ * the delete settles (undone or let go, via the VM's one-shot flags). No nav library.
  */
 @Composable
 fun EditTransactionScreen(
@@ -65,6 +70,7 @@ fun EditTransactionScreen(
     viewModel: EditTransactionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
     // Re-hydrate whenever the target id changes; the view model is retained across the Home toggle.
     LaunchedEffect(transactionId) { viewModel.load(transactionId) }
     LaunchedEffect(state.saved) {
@@ -79,9 +85,25 @@ fun EditTransactionScreen(
             viewModel.acknowledgeDeleted()
         }
     }
+    // The row is already removed; the snackbar is the undo window. Its action restores the row, dismissal/
+    // timeout finalizes — either way the VM sets `deleted`, which the effect above turns into onDone().
+    LaunchedEffect(state.undoableDelete) {
+        if (state.undoableDelete != null) {
+            val result = snackbarHostState.showSnackbar(
+                message = "Transaction deleted",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short,
+            )
+            when (result) {
+                SnackbarResult.ActionPerformed -> viewModel.undoDelete()
+                SnackbarResult.Dismissed -> viewModel.confirmDelete()
+            }
+        }
+    }
     BackHandler(onBack = onDone)
     EditTransactionContent(
         state = state,
+        snackbarHostState = snackbarHostState,
         onAccountSelected = viewModel::selectAccount,
         onCategorySelected = viewModel::selectCategory,
         onAmountChanged = viewModel::setAmount,
@@ -96,6 +118,7 @@ fun EditTransactionScreen(
 @Composable
 private fun EditTransactionContent(
     state: EditTransactionUiState,
+    snackbarHostState: SnackbarHostState,
     onAccountSelected: (Long) -> Unit,
     onCategorySelected: (Long) -> Unit,
     onAmountChanged: (String) -> Unit,
@@ -105,7 +128,7 @@ private fun EditTransactionContent(
     onDelete: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Scaffold { innerPadding ->
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
         val loaded = state.loaded
         val type = state.type
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
@@ -208,7 +231,7 @@ private fun EditTransactionForm(
 
         TextButton(
             onClick = { confirmingDelete = true },
-            enabled = !state.isSubmitting,
+            enabled = !state.isSubmitting && state.undoableDelete == null,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Delete", color = MaterialTheme.colorScheme.error)
@@ -219,7 +242,7 @@ private fun EditTransactionForm(
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
             title = { Text("Delete this transaction?") },
-            text = { Text("This permanently removes the transaction. This can't be undone.") },
+            text = { Text("This removes the transaction. You can undo right after.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmingDelete = false
@@ -348,6 +371,7 @@ private fun EditTransactionPreview() {
                 date = LocalDate.of(2026, 7, 3),
                 note = "Lunch",
             ),
+            snackbarHostState = remember { SnackbarHostState() },
             onAccountSelected = {},
             onCategorySelected = {},
             onAmountChanged = {},

@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.transaction
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.DeleteTransaction
+import org.aristonis.mywallet.domain.usecase.RestoreTransaction
 import org.aristonis.mywallet.domain.usecase.UpdateTransaction
 import java.time.LocalDate
 import javax.inject.Inject
@@ -47,6 +49,9 @@ data class EditTransactionUiState(
     val error: String? = null,
     val saved: Boolean = false,
     val deleted: Boolean = false,
+    // The row just removed by [delete], held while the Undo affordance is up so it can be restored.
+    // Non-null means "deleted, but still undoable" — navigation waits until the user undoes or lets it go.
+    val undoableDelete: Transaction? = null,
 ) {
     /** Categories offered for the loaded kind: income lists income, expense lists expense, transfer none. */
     val categoriesForType: List<Category>
@@ -63,7 +68,7 @@ data class EditTransactionUiState(
     val accountPickersLocked: Boolean get() = type == TransactionType.TRANSFER
 
     val canSubmit: Boolean
-        get() = when (type) {
+        get() = undoableDelete == null && when (type) {
             null -> false
             TransactionType.TRANSFER -> amountInput.isNotBlank() && !isSubmitting
             else ->
@@ -75,7 +80,8 @@ data class EditTransactionUiState(
 /**
  * Edits or deletes one existing transaction. [load] re-hydrates the form from the stored row; [submit]
  * routes the edited values back through [UpdateTransaction] (which re-validates and, for a transfer,
- * re-derives the destination leg at the ORIGINAL stored rate); [delete] removes the row. The type is
+ * re-derives the destination leg at the ORIGINAL stored rate); [delete] removes the row but keeps it
+ * undoable ([undoDelete] restores it, [confirmDelete] finalizes). The type is
  * fixed at load — a transfer keeps its account legs locked so an edit can only touch amount/date/note.
  * Because the write goes through the same repositories Home reads, balances and net worth recompute for
  * free via the reactive read path; this view model never touches balance math.
@@ -87,6 +93,7 @@ class EditTransactionViewModel @Inject constructor(
     private val transactions: TransactionRepository,
     private val updateTransaction: UpdateTransaction,
     private val deleteTransaction: DeleteTransaction,
+    private val restoreTransaction: RestoreTransaction,
     private val moneyParser: MoneyParser,
 ) : ViewModel() {
 
@@ -117,7 +124,10 @@ class EditTransactionViewModel @Inject constructor(
         // Reset identity + one-shot state before the async fetch, so a reused (retained) view model
         // never renders — or lets a Save/Delete hit — the previously loaded transaction while findById runs.
         _state.update {
-            it.copy(loaded = null, type = null, isSubmitting = false, error = null, saved = false, deleted = false)
+            it.copy(
+                loaded = null, type = null, isSubmitting = false, error = null,
+                saved = false, deleted = false, undoableDelete = null,
+            )
         }
         loadJob = viewModelScope.launch {
             val existing = transactions.findById(id)
@@ -146,9 +156,39 @@ class EditTransactionViewModel @Inject constructor(
     /** Clear the one-shot `deleted` signal after the screen has navigated away. */
     fun acknowledgeDeleted() = _state.update { it.copy(deleted = false, error = null) }
 
+    /**
+     * Undo the just-completed delete: re-add the held row, then finish. The row returns (reusing its
+     * original, now-freed id) and balances revert via the reactive read path; `deleted` fires so the
+     * screen returns to Home, where the restored row is visible. The undoable state is cleared up front
+     * so a repeated trigger can't restore the same row twice, and a restore failure surfaces loud.
+     */
+    fun undoDelete() {
+        val removed = _state.value.undoableDelete ?: return
+        _state.update { it.copy(undoableDelete = null) }
+        viewModelScope.launch {
+            try {
+                restoreTransaction(removed)
+                _state.update { it.copy(deleted = true) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: WalletException) {
+                _state.update { it.copy(error = e.message) }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Couldn't restore the transaction") }
+            }
+        }
+    }
+
+    /**
+     * No undo was taken (the snackbar dismissed or timed out): finalize the delete and let the screen
+     * navigate back to Home. The row was already removed by [delete]; nothing more to persist.
+     */
+    fun confirmDelete() = _state.update { it.copy(undoableDelete = null, deleted = true) }
+
     fun submit() {
         val snapshot = _state.value
         val loaded = snapshot.loaded ?: return
+        if (snapshot.undoableDelete != null) return // the row is deleted with an undo pending — don't save a ghost
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, error = null) }
             try {
@@ -164,13 +204,19 @@ class EditTransactionViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Remove the loaded row, then enter the undoable state instead of finishing outright: the removed
+     * transaction is held so [undoDelete] can restore it, and navigation waits for the screen's snackbar
+     * to resolve ([undoDelete] or [confirmDelete]). Balances already drop via the reactive read path.
+     */
     fun delete() {
         val loaded = _state.value.loaded ?: return
+        if (_state.value.undoableDelete != null) return // already deleted with an undo pending
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, error = null) }
             try {
                 deleteTransaction(loaded.id)
-                _state.update { it.copy(isSubmitting = false, deleted = true) }
+                _state.update { it.copy(isSubmitting = false, undoableDelete = loaded) }
             } catch (e: WalletException) {
                 _state.update { it.copy(isSubmitting = false, error = e.message) }
             }
@@ -210,6 +256,7 @@ class EditTransactionViewModel @Inject constructor(
         error = null,
         saved = false,
         deleted = false,
+        undoableDelete = null,
     )
 
     /**

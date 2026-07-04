@@ -24,6 +24,7 @@ import org.aristonis.mywallet.domain.usecase.RecordExpense
 import org.aristonis.mywallet.domain.usecase.RecordIncome
 import org.aristonis.mywallet.domain.usecase.RecordTransfer
 import org.aristonis.mywallet.domain.usecase.RestoreBackup
+import org.aristonis.mywallet.domain.usecase.RestoreTransaction
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
@@ -151,6 +152,11 @@ object UseCaseModule {
     fun provideDeleteTransaction(
         transactions: TransactionRepository,
     ): DeleteTransaction = DeleteTransaction(transactions)
+
+    @Provides @Singleton
+    fun provideRestoreTransaction(
+        transactions: TransactionRepository,
+    ): RestoreTransaction = RestoreTransaction(transactions)
 
     @Provides @Singleton
     fun provideExportBackup(backups: BackupRepository): ExportBackup = ExportBackup(backups)
