@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    jacoco
 }
 
 android {
@@ -21,6 +22,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            enableUnitTestCoverage = true
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -35,6 +39,11 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+
+    // Pin AGP's coverage agent to the version already available; no extra fetch.
+    testCoverage {
+        jacocoVersion = "0.8.14"
     }
 }
 
@@ -70,4 +79,57 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+// Coverage: the JaCoCo runtime is a resolved dependency (not bundled with Gradle) — it needs one
+// online run to land in the Gradle cache, after which coverage reports run fully offline.
+jacoco {
+    toolVersion = "0.8.14"
+}
+
+// Generated / non-logic code kept out of the coverage denominator so the number is real logic.
+val coverageExclusions = listOf(
+    "**/*_Factory*",
+    "**/*_MembersInjector*",
+    "**/*_HiltModules*",
+    "**/Hilt_*",
+    "**/*_GeneratedInjector*",
+    "**/*_Impl*",
+    "**/dagger/**",
+    "dagger/**",
+    "**/hilt_aggregated_deps/**",
+    "hilt_aggregated_deps/**",
+    "**/ComposableSingletons*",
+    "**/*ComposableSingletons*",
+    "**/*Kt\$*",
+    "**/R.class",
+    "**/R\$*.class",
+    "**/BuildConfig.*",
+    "**/di/**",
+)
+
+tasks.register<JacocoReport>("jacocoDebugReport") {
+    dependsOn("testDebugUnitTest")
+    group = "verification"
+    description = "Generates JaCoCo coverage for the debug unit tests."
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+    }
+
+    val buildDirFile = layout.buildDirectory.get().asFile
+    classDirectories.setFrom(
+        fileTree(buildDirFile.resolve("tmp/kotlin-classes/debug")) {
+            exclude(coverageExclusions)
+        }
+    )
+    sourceDirectories.setFrom(files("src/main/kotlin", "src/main/java"))
+    executionData.setFrom(
+        fileTree(buildDirFile) {
+            include(
+                "outputs/unit_test_code_coverage/**/*.exec",
+                "jacoco/*.exec",
+            )
+        }
+    )
 }
