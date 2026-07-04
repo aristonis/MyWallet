@@ -27,6 +27,7 @@ import org.aristonis.mywallet.domain.usecase.RestoreBackup
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
+import org.aristonis.mywallet.domain.usecase.SetTheme
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
 import org.aristonis.mywallet.domain.usecase.UpdateTransaction
 import javax.inject.Singleton
@@ -45,6 +46,9 @@ object UseCaseModule {
         currencies: CurrencyRepository,
         settings: SettingsRepository,
     ): SetBaseCurrency = SetBaseCurrency(currencies, settings)
+
+    @Provides @Singleton
+    fun provideSetTheme(settings: SettingsRepository): SetTheme = SetTheme(settings)
 
     @Provides @Singleton
     fun provideCreateAccount(

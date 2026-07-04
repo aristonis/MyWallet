@@ -6,12 +6,18 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.ThemePreference
+import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ExportBackup
 import org.aristonis.mywallet.domain.usecase.RestoreBackup
+import org.aristonis.mywallet.domain.usecase.SetTheme
 import javax.inject.Inject
 
 /** What the backup section is currently doing; a terminal Success/Error carries user-facing copy. */
@@ -26,21 +32,38 @@ sealed interface BackupStatus {
 data class BackupUiState(val status: BackupStatus = BackupStatus.Idle)
 
 /**
- * Drives export/restore from the settings screen. The screen owns the Storage Access Framework
- * pickers and hands this a [Uri]; here the [Uri] is only passed through to [DocumentIo]. The actual
- * work is done by [Uri]-free `internal` functions that take the IO step as a lambda, so the whole
- * Working -> Success/Error state machine (and the error mapping) is unit-testable without a real
- * `android.net.Uri`.
+ * Drives the settings screen: the backup section (export/restore) and the appearance section (theme).
+ *
+ * Backup: the screen owns the Storage Access Framework pickers and hands this a [Uri]; here the [Uri]
+ * is only passed through to [DocumentIo]. The actual work is done by [Uri]-free `internal` functions
+ * that take the IO step as a lambda, so the whole Working -> Success/Error state machine (and the
+ * error mapping) is unit-testable without a real `android.net.Uri`.
+ *
+ * Theme: [theme] mirrors the saved choice off the live settings flow so the selector shows what's in
+ * effect; [selectTheme] persists a new choice via [SetTheme]. Saving re-emits on the flow, so both
+ * the selector highlight and the app-wide colours (driven from `MainActivity`) update with no restart.
  */
 @HiltViewModel
-class BackupViewModel @Inject constructor(
+class SettingsViewModel @Inject constructor(
     private val exportBackup: ExportBackup,
     private val restoreBackup: RestoreBackup,
     private val documentIo: DocumentIo,
+    private val setTheme: SetTheme,
+    settings: SettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BackupUiState())
     val uiState: StateFlow<BackupUiState> = _uiState.asStateFlow()
+
+    val theme: StateFlow<ThemePreference> =
+        settings.observeOrNull()
+            .map { it?.theme ?: ThemePreference.SYSTEM }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemePreference.SYSTEM)
+
+    /** Persist the chosen theme; the settings flow then reskins the app and moves the selection. */
+    fun selectTheme(choice: ThemePreference) {
+        viewModelScope.launch { setTheme(choice) }
+    }
 
     /** Serialize the wallet and write it to the chosen document. */
     fun exportTo(uri: Uri) {

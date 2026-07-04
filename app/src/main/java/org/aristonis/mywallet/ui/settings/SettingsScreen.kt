@@ -16,9 +16,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -36,8 +40,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.time.LocalDate
+
+/** The theme choices, in display order, with the label the user sees for each. */
+private val themeOptions = listOf(
+    ThemePreference.SYSTEM to "System",
+    ThemePreference.LIGHT to "Light",
+    ThemePreference.DARK to "Dark",
+)
 
 /**
  * Settings screen. Today it only hosts backup & restore. [onDone] returns to Home (Done button and
@@ -48,9 +60,10 @@ import java.time.LocalDate
 @Composable
 fun SettingsScreen(
     onDone: () -> Unit,
-    viewModel: BackupViewModel = hiltViewModel(),
+    viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val theme by viewModel.theme.collectAsStateWithLifecycle()
     BackHandler(onBack = onDone)
 
     // Export writes a real application/json document. Import accepts "*/*" on purpose: many file
@@ -70,6 +83,8 @@ fun SettingsScreen(
 
     SettingsContent(
         state = state,
+        currentTheme = theme,
+        onThemeSelected = viewModel::selectTheme,
         onExport = { exportLauncher.launch("mywallet-backup-${LocalDate.now()}.json") },
         onImport = { importLauncher.launch(arrayOf("*/*")) },
         onStatusShown = viewModel::acknowledge,
@@ -90,6 +105,8 @@ fun SettingsScreen(
 @Composable
 private fun SettingsContent(
     state: BackupUiState,
+    currentTheme: ThemePreference,
+    onThemeSelected: (ThemePreference) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
     onStatusShown: () -> Unit,
@@ -124,6 +141,9 @@ private fun SettingsContent(
                 TextButton(onClick = onDone) { Text("Done") }
             }
 
+            Text("Appearance", style = MaterialTheme.typography.titleMedium)
+            ThemeSelector(currentTheme = currentTheme, onThemeSelected = onThemeSelected)
+
             Text("Backup & restore", style = MaterialTheme.typography.titleMedium)
             Text(
                 "Save all your data to a file, or replace it with a previously saved backup.",
@@ -143,6 +163,26 @@ private fun SettingsContent(
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     Text("Working…", style = MaterialTheme.typography.bodyMedium)
                 }
+            }
+        }
+    }
+}
+
+/** Three-way theme picker whose selection mirrors the saved choice; a tap persists the new one. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ThemeSelector(
+    currentTheme: ThemePreference,
+    onThemeSelected: (ThemePreference) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        themeOptions.forEachIndexed { index, (preference, label) ->
+            SegmentedButton(
+                selected = currentTheme == preference,
+                onClick = { onThemeSelected(preference) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
+            ) {
+                Text(label)
             }
         }
     }
@@ -168,6 +208,8 @@ private fun SettingsPreview() {
     MyWalletTheme(dynamicColor = false) {
         SettingsContent(
             state = BackupUiState(),
+            currentTheme = ThemePreference.SYSTEM,
+            onThemeSelected = {},
             onExport = {},
             onImport = {},
             onStatusShown = {},

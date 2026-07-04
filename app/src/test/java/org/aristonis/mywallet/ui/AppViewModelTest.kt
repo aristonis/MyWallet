@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.domain.model.Settings
+import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -58,6 +59,22 @@ class AppViewModelTest {
         advanceUntilIdle()
 
         assertEquals(StartDestination.HOME, vm.startDestination.value)
+    }
+
+    @Test
+    fun theme_defaultsToSystemBeforeSettingsLoad() = runTest {
+        val vm = AppViewModel(FakeSettingsRepository(null))
+        // The initial value before the settings flow emits — a fresh install follows the OS.
+        assertEquals(ThemePreference.SYSTEM, vm.theme.value)
+    }
+
+    @Test
+    fun theme_reflectsTheSavedChoiceOnceLoaded() = runTest {
+        val vm = AppViewModel(FakeSettingsRepository(Settings(baseCurrencyCode = "USD", theme = ThemePreference.DARK)))
+        backgroundScope.launch { vm.theme.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(ThemePreference.DARK, vm.theme.value)
     }
 }
 
