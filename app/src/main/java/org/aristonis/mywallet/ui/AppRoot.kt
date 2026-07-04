@@ -20,6 +20,7 @@ import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen
+import org.aristonis.mywallet.ui.settings.SettingsScreen
 import org.aristonis.mywallet.ui.transaction.AddTransactionScreen
 import org.aristonis.mywallet.ui.transaction.EditTransactionScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListScreen
@@ -40,7 +41,7 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 /** The screens reachable from Home via the lightweight toggle below. */
-private enum class HomeDestination { HOME, ADD_TRANSACTION, EDIT_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, EDIT_ACCOUNT, MANAGE_RATES }
+private enum class HomeDestination { HOME, ADD_TRANSACTION, EDIT_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, EDIT_ACCOUNT, MANAGE_RATES, SETTINGS }
 
 /**
  * Lightweight Home navigation via a `remember`ed destination. With this handful of screens a flag
@@ -63,6 +64,7 @@ private fun HomeFlow() {
             onAddAccount = { destination = HomeDestination.ADD_ACCOUNT },
             onManageAccounts = { destination = HomeDestination.MANAGE_ACCOUNTS },
             onManageRates = { destination = HomeDestination.MANAGE_RATES },
+            onSettings = { destination = HomeDestination.SETTINGS },
         )
         HomeDestination.ADD_TRANSACTION -> AddTransactionScreen(onDone = toHome)
         HomeDestination.TRANSACTIONS -> TransactionsListScreen(
@@ -101,6 +103,7 @@ private fun HomeFlow() {
         }
         HomeDestination.ADD_ACCOUNT -> AddAccountScreen(onDone = toHome)
         HomeDestination.MANAGE_RATES -> ManageRatesScreen(onDone = toHome)
+        HomeDestination.SETTINGS -> SettingsScreen(onDone = toHome)
     }
 }
 

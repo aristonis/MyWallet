@@ -41,10 +41,11 @@ fun HomeScreen(
     onAddAccount: () -> Unit,
     onManageAccounts: () -> Unit,
     onManageRates: () -> Unit,
+    onSettings: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    HomeContent(state, onAddTransaction, onTransactions, onReports, onAddAccount, onManageAccounts, onManageRates)
+    HomeContent(state, onAddTransaction, onTransactions, onReports, onAddAccount, onManageAccounts, onManageRates, onSettings)
 }
 
 @Composable
@@ -56,6 +57,7 @@ private fun HomeContent(
     onAddAccount: () -> Unit,
     onManageAccounts: () -> Unit,
     onManageRates: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     Scaffold(
         floatingActionButton = {
@@ -72,6 +74,7 @@ private fun HomeContent(
                 Text("My Wallet", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = onReports) { Text("Reports") }
                 TextButton(onClick = onTransactions) { Text("History") }
+                TextButton(onClick = onSettings) { Text("Settings") }
             }
             NetWorthHero(state.netWorth, onManageRates)
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -151,6 +154,7 @@ private fun HomePreview() {
             onAddAccount = {},
             onManageAccounts = {},
             onManageRates = {},
+            onSettings = {},
             state = HomeUiState(
                 netWorth = NetWorthState.Amount("1,275.00 USD"),
                 accounts = listOf(
