@@ -10,6 +10,7 @@ import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
+import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
@@ -92,5 +93,25 @@ class FakeSettingsRepository(initial: Settings? = null) : SettingsRepository {
     override suspend fun get(): Settings = state.value ?: error("settings not initialized")
     override suspend fun save(settings: Settings) {
         state.value = settings
+    }
+}
+
+/**
+ * Export hands back a canned string; restore records the string it was given (or throws a preset
+ * failure) so a use-case test can prove forwarding happens and that errors are not swallowed.
+ */
+class FakeBackupRepository(
+    private val exported: String = "",
+    private val restoreFailure: Throwable? = null,
+) : BackupRepository {
+    /** The string passed to the last [restoreBackup] call, for assertions. */
+    var restoredWith: String? = null
+        private set
+
+    override suspend fun exportBackup(): String = exported
+
+    override suspend fun restoreBackup(serialized: String) {
+        restoreFailure?.let { throw it }
+        restoredWith = serialized
     }
 }

@@ -23,6 +23,15 @@ interface TransactionDao {
 
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("SELECT * FROM transactions")
+    suspend fun getAll(): List<TransactionEntity>
+
+    @Insert
+    suspend fun insertAll(rows: List<TransactionEntity>)
+
+    @Query("DELETE FROM transactions")
+    suspend fun clear()
 }
 
 @Dao
@@ -32,6 +41,15 @@ interface CategoryDao {
 
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun findById(id: Long): CategoryEntity?
+
+    @Query("SELECT * FROM categories")
+    suspend fun getAll(): List<CategoryEntity>
+
+    @Insert
+    suspend fun insertAll(rows: List<CategoryEntity>)
+
+    @Query("DELETE FROM categories")
+    suspend fun clear()
 }
 
 @Dao
@@ -41,6 +59,15 @@ interface CurrencyDao {
 
     @Query("SELECT * FROM currencies WHERE code = :code")
     suspend fun findByCode(code: String): CurrencyEntity?
+
+    @Query("SELECT * FROM currencies")
+    suspend fun getAll(): List<CurrencyEntity>
+
+    @Insert
+    suspend fun insertAll(rows: List<CurrencyEntity>)
+
+    @Query("DELETE FROM currencies")
+    suspend fun clear()
 }
 
 @Dao
@@ -53,6 +80,15 @@ interface RateDao {
 
     @Upsert
     suspend fun upsert(rate: RateEntity)
+
+    @Query("SELECT * FROM rates")
+    suspend fun getAll(): List<RateEntity>
+
+    @Insert
+    suspend fun insertAll(rows: List<RateEntity>)
+
+    @Query("DELETE FROM rates")
+    suspend fun clear()
 }
 
 @Dao
@@ -65,4 +101,7 @@ interface SettingsDao {
 
     @Upsert
     suspend fun upsert(settings: SettingsEntity)
+
+    @Query("DELETE FROM settings")
+    suspend fun clear()
 }

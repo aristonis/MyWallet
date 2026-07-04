@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.data.db
 
 import androidx.room.Dao
+import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -24,4 +25,15 @@ interface AccountDao {
 
     @Query("DELETE FROM accounts WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    // --- Backup: one-shot snapshot + bulk replace (used by the backup/restore path) ---
+
+    @Query("SELECT * FROM accounts")
+    suspend fun getAll(): List<AccountEntity>
+
+    @Insert
+    suspend fun insertAll(rows: List<AccountEntity>)
+
+    @Query("DELETE FROM accounts")
+    suspend fun clear()
 }

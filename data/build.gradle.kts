@@ -36,4 +36,22 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    // Instrumented tests: real in-memory Room exercising the backup/restore transaction on-device.
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
+
+    // The test-runner graph transitively pins a few artifacts whose exact versions aren't in the
+    // offline cache (only newer ones are). Constrain those already-present transitives to the
+    // resolvable versions so the instrumented test APK links without network access.
+    constraints {
+        androidTestImplementation("androidx.tracing:tracing:1.2.0") {
+            because("only tracing 1.2.0 is available in the offline cache; the default 1.1.0 is not")
+        }
+        androidTestImplementation("androidx.lifecycle:lifecycle-common") {
+            version { strictly("2.6.2") }
+            because("lifecycle-common 2.6.2 is the resolvable jar in the offline cache; the default strict 2.3.1 is not")
+        }
+    }
 }

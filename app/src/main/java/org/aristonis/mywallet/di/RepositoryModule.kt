@@ -10,6 +10,8 @@ import org.aristonis.mywallet.data.db.CurrencyDao
 import org.aristonis.mywallet.data.db.RateDao
 import org.aristonis.mywallet.data.db.SettingsDao
 import org.aristonis.mywallet.data.db.TransactionDao
+import org.aristonis.mywallet.data.db.WalletDatabase
+import org.aristonis.mywallet.data.backup.RoomBackupRepository
 import org.aristonis.mywallet.data.repo.RoomAccountRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRepository
 import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
@@ -17,6 +19,7 @@ import org.aristonis.mywallet.data.repo.RoomRateRepository
 import org.aristonis.mywallet.data.repo.RoomSettingsRepository
 import org.aristonis.mywallet.data.repo.RoomTransactionRepository
 import org.aristonis.mywallet.domain.port.AccountRepository
+import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
@@ -46,4 +49,17 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideSettingsRepository(dao: SettingsDao): SettingsRepository = RoomSettingsRepository(dao)
+
+    @Provides @Singleton
+    fun provideBackupRepository(
+        database: WalletDatabase,
+        accountDao: AccountDao,
+        transactionDao: TransactionDao,
+        categoryDao: CategoryDao,
+        currencyDao: CurrencyDao,
+        rateDao: RateDao,
+        settingsDao: SettingsDao,
+    ): BackupRepository = RoomBackupRepository(
+        database, accountDao, transactionDao, categoryDao, currencyDao, rateDao, settingsDao,
+    )
 }

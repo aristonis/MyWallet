@@ -69,3 +69,15 @@ interface SettingsRepository {
     suspend fun get(): Settings
     suspend fun save(settings: Settings)
 }
+
+/**
+ * Reads and writes a full-database backup as one opaque serialized string. The domain deliberately
+ * stays unaware of the on-disk format (JSON today, in `:data`) — here it is only text in, text out.
+ */
+interface BackupRepository {
+    /** Serializes the entire wallet (all tables) into one portable string. */
+    suspend fun exportBackup(): String
+
+    /** Replaces the entire wallet with the contents of [serialized], all-or-nothing. */
+    suspend fun restoreBackup(serialized: String)
+}

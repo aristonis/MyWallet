@@ -1,10 +1,10 @@
 package org.aristonis.mywallet.domain.error
 
 /**
- * Typed, fail-loud domain errors (NFR-9). Sealed so callers/tests can exhaustively react to each
+ * Typed, fail-loud domain errors. Sealed so callers/tests can exhaustively react to each
  * kind, and so we never throw a vague `Exception("...")`. Each subclass keeps the offending value.
  */
-sealed class WalletException(message: String) : Exception(message) {
+sealed class WalletException(message: String, cause: Throwable? = null) : Exception(message, cause) {
 
     class AccountNotFound(val id: Long) :
         WalletException("Account $id not found")
@@ -47,4 +47,12 @@ sealed class WalletException(message: String) : Exception(message) {
     /** A cross-currency conversion rounded the amount down to zero in the target currency — enter more. */
     class AmountRoundsToZero(val currencyCode: String) :
         WalletException("The amount is too small to convert to $currencyCode; it rounds to zero")
+
+    /** A backup file could not be read — malformed, truncated, or missing required fields. */
+    class BackupInvalid(cause: Throwable? = null) :
+        WalletException("Backup data could not be read: it is corrupt or in an unrecognized format", cause)
+
+    /** A backup was written in a format version this build doesn't know how to restore. */
+    class BackupVersionUnsupported(val version: Int) :
+        WalletException("Backup format version $version is not supported")
 }

@@ -5,6 +5,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import org.aristonis.mywallet.domain.port.AccountRepository
+import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
@@ -16,11 +17,13 @@ import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.DeleteTransaction
+import org.aristonis.mywallet.domain.usecase.ExportBackup
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.RecordExpense
 import org.aristonis.mywallet.domain.usecase.RecordIncome
 import org.aristonis.mywallet.domain.usecase.RecordTransfer
+import org.aristonis.mywallet.domain.usecase.RestoreBackup
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
@@ -144,4 +147,10 @@ object UseCaseModule {
     fun provideDeleteTransaction(
         transactions: TransactionRepository,
     ): DeleteTransaction = DeleteTransaction(transactions)
+
+    @Provides @Singleton
+    fun provideExportBackup(backups: BackupRepository): ExportBackup = ExportBackup(backups)
+
+    @Provides @Singleton
+    fun provideRestoreBackup(backups: BackupRepository): RestoreBackup = RestoreBackup(backups)
 }
