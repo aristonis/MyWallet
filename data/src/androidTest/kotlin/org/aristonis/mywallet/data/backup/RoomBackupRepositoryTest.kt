@@ -14,7 +14,6 @@ import org.aristonis.mywallet.data.db.WalletDatabase
 import org.aristonis.mywallet.domain.error.WalletException
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -171,17 +170,20 @@ class RoomBackupRepositoryTest {
     }
 
     @Test
-    fun restore_ofNullSettingsBackup_leavesTheSettingsTableEmpty() = runTest {
+    fun restore_ofNullSettingsBackup_isRejectedAndLeavesTheDatabaseUntouched() = runTest {
         seed()
         val noSettings = BackupCodec.encode(
             BackupCodec.decode(repository.exportBackup()).copy(settings = null),
         )
 
-        wipeEverything()
-        repository.restoreBackup(noSettings)
+        var thrown: Throwable? = null
+        try {
+            repository.restoreBackup(noSettings)
+        } catch (e: WalletException.BackupInvalid) {
+            thrown = e
+        }
 
-        assertNull("a null-settings backup must not leave a settings row", db.settingsDao().get())
-        assertEquals(accounts.toSet(), db.accountDao().getAll().toSet())
-        assertEquals(transactions.toSet(), db.transactionDao().getAll().toSet())
+        assertTrue("a settings-less backup must be rejected", thrown is WalletException.BackupInvalid)
+        assertDatabaseMatchesSeed()
     }
 }

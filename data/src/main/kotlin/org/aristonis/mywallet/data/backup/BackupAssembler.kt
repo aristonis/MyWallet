@@ -54,5 +54,11 @@ fun decodeValidated(text: String): WalletBackup {
     if (backup.version != CURRENT_BACKUP_VERSION) {
         throw WalletException.BackupVersionUnsupported(backup.version)
     }
+    // A real wallet backup is always taken after onboarding, so it always carries settings (the base
+    // currency lives there). A settings-less document would restore a wallet with no base currency
+    // and bounce the app straight back into onboarding — refuse it rather than restore a half-state.
+    if (backup.settings == null) {
+        throw WalletException.BackupInvalid()
+    }
     return backup
 }

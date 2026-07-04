@@ -63,10 +63,15 @@ class BackupAssemblerTest {
     }
 
     @Test
-    fun buildBackup_withNullSettings_roundTrips() {
-        val built = build(settingsRow = null)
-        assertNull(built.settings)
-        assertEquals(built, decodeValidated(BackupCodec.encode(built)))
+    fun buildBackup_withNullSettings_producesANullSettingsBlock() {
+        assertNull(build(settingsRow = null).settings)
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsABackupWithoutSettings() {
+        // A wallet backup always carries settings (the base currency); a settings-less one isn't a
+        // restorable wallet, so it's refused rather than restored into a broken half-state.
+        decodeValidated(BackupCodec.encode(build(settingsRow = null)))
     }
 
     @Test
