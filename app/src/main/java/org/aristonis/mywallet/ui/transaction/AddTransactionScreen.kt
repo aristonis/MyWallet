@@ -50,6 +50,7 @@ import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import org.aristonis.mywallet.ui.label
 
 /**
  * Add-transaction screen. A type selector (Income / Expense / Transfer) drives which fields show:
@@ -74,6 +75,7 @@ fun AddTransactionScreen(
         onTypeSelected = viewModel::selectType,
         onAccountSelected = viewModel::selectAccount,
         onCategorySelected = viewModel::selectCategory,
+        onSubCategorySelected = viewModel::selectSubCategory,
         onDestAccountSelected = viewModel::selectDestAccount,
         onAmountChanged = viewModel::setAmount,
         onDateSelected = viewModel::setDate,
@@ -89,6 +91,7 @@ private fun AddTransactionContent(
     onTypeSelected: (TransactionType) -> Unit,
     onAccountSelected: (Long) -> Unit,
     onCategorySelected: (Long) -> Unit,
+    onSubCategorySelected: (Long?) -> Unit,
     onDestAccountSelected: (Long) -> Unit,
     onAmountChanged: (String) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
@@ -144,11 +147,24 @@ private fun AddTransactionContent(
                     val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
                     LabeledDropdown(
                         label = "Category",
-                        selectedText = category?.name ?: "Select…",
+                        selectedText = category?.label() ?: "Select…",
                         items = state.categoriesForType,
-                        itemLabel = Category::name,
+                        itemLabel = { it.label() },
                         onSelect = { onCategorySelected(it.id) },
                     )
+                    // Only offered when the chosen category actually has children, so an ordinary
+                    // entry stays a two-tap job rather than growing a field that is always empty.
+                    val subCategories = state.subCategoriesForSelected
+                    if (subCategories.isNotEmpty()) {
+                        val chosen = subCategories.firstOrNull { it.id == state.selectedSubCategoryId }
+                        LabeledDropdown(
+                            label = "Sub-category (optional)",
+                            selectedText = chosen?.label() ?: "None",
+                            items = subCategories,
+                            itemLabel = { it.label() },
+                            onSelect = { onSubCategorySelected(it.id) },
+                        )
+                    }
                 }
             }
 
@@ -256,6 +272,7 @@ private fun AddTransactionPreview() {
             onAccountSelected = {},
             onCategorySelected = {},
             onDestAccountSelected = {},
+            onSubCategorySelected = {},
             onAmountChanged = {},
             onDateSelected = {},
             onNoteChanged = {},

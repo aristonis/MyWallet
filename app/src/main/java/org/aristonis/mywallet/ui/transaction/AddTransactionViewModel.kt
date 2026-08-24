@@ -35,6 +35,7 @@ data class AddTransactionUiState(
     val allCategories: List<Category> = emptyList(),
     val selectedAccountId: Long? = null,
     val selectedCategoryId: Long? = null,
+    val selectedSubCategoryId: Long? = null,
     val destAccountId: Long? = null,
     val amountInput: String = "",
     val date: LocalDate,
@@ -43,6 +44,17 @@ data class AddTransactionUiState(
     val error: String? = null,
     val saved: Boolean = false,
 ) {
+    /**
+     * The sub-categories offered under the chosen category. Filtered by kind as well as parent:
+     * restored data can hold a child whose kind differs from its parent's, and offering one would
+     * put a choice on screen that the domain then refuses, leaving Save dead with no explanation.
+     */
+    val subCategoriesForSelected: List<Category>
+        get() = selectedCategoryId?.let { parent ->
+            val parentKind = allCategories.firstOrNull { it.id == parent }?.kind
+            allCategories.filter { it.parentId == parent && it.kind == parentKind }
+        }.orEmpty()
+
     /** Categories offered for the current type: income lists income, expense lists expense, transfer none. */
     val categoriesForType: List<Category>
         get() = when (type) {
@@ -109,12 +121,18 @@ class AddTransactionViewModel @Inject constructor(
     fun selectType(type: TransactionType) = _state.update {
         // Switching type clears the category: the use-cases only check a category EXISTS, not that its
         // kind matches, so a stale income category must not survive into an expense (and vice versa).
-        it.copy(type = type, selectedCategoryId = null, error = null)
+        it.copy(type = type, selectedCategoryId = null, selectedSubCategoryId = null, error = null)
     }
 
     fun selectAccount(id: Long) = _state.update { it.copy(selectedAccountId = id) }
 
-    fun selectCategory(id: Long) = _state.update { it.copy(selectedCategoryId = id) }
+    // Changing the category drops the child with it: the previous category's child would otherwise
+    // ride along and be refused by the domain guard at save time.
+    fun selectCategory(id: Long) = _state.update {
+        it.copy(selectedCategoryId = id, selectedSubCategoryId = null)
+    }
+
+    fun selectSubCategory(id: Long?) = _state.update { it.copy(selectedSubCategoryId = id) }
 
     fun selectDestAccount(id: Long) = _state.update { it.copy(destAccountId = id) }
 
@@ -137,6 +155,7 @@ class AddTransactionViewModel @Inject constructor(
             amountInput = "",
             note = "",
             selectedCategoryId = null,
+            selectedSubCategoryId = null,
             destAccountId = null,
             date = today.today(),
             error = null,
@@ -168,6 +187,7 @@ class AddTransactionViewModel @Inject constructor(
                 accountId = account.id,
                 amount = amount,
                 categoryId = requireCategory(snapshot),
+                subCategoryId = snapshot.selectedSubCategoryId,
                 date = snapshot.date,
                 note = note,
             )
@@ -175,6 +195,7 @@ class AddTransactionViewModel @Inject constructor(
                 accountId = account.id,
                 amount = amount,
                 categoryId = requireCategory(snapshot),
+                subCategoryId = snapshot.selectedSubCategoryId,
                 date = snapshot.date,
                 note = note,
             )

@@ -23,6 +23,7 @@ import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.aristonis.mywallet.domain.usecase.PeriodSummaryResult
 import org.aristonis.mywallet.ui.format.display
 import javax.inject.Inject
+import org.aristonis.mywallet.ui.label
 
 /**
  * One row of the spending-by-category list: [id] is the category id (a stable list key — names are
@@ -133,7 +134,7 @@ class ReportsViewModel @Inject constructor(
 
     // A deleted/unknown category id degrades to a dash instead of dropping the row (defensive read).
     private fun categoryName(id: Long, categories: List<Category>): String =
-        categories.firstOrNull { it.id == id }?.name ?: MISSING
+        categories.firstOrNull { it.id == id }?.label() ?: MISSING
 
     private companion object {
         private const val MISSING = "—"

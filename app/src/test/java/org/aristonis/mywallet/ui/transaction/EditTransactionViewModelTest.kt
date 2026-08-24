@@ -69,7 +69,7 @@ class EditTransactionViewModelTest {
             transactions = txRepo,
             updateTransaction = UpdateTransaction(accountRepo, categoryRepo, currencyRepo, txRepo),
             deleteTransaction = DeleteTransaction(txRepo),
-            restoreTransaction = RestoreTransaction(txRepo),
+            restoreTransaction = RestoreTransaction(txRepo, categoryRepo),
             moneyParser = MoneyParser(locale),
         )
 

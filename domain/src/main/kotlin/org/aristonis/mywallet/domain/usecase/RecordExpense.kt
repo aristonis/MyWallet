@@ -28,8 +28,7 @@ class RecordExpense(
         if (amount.currencyCode != account.currencyCode) {
             throw WalletException.CurrencyMismatch(amount.currencyCode, account.currencyCode)
         }
-        categories.findById(categoryId)
-            ?: throw WalletException.CategoryNotFound(categoryId)
+        categories.requireTransactionCategories(categoryId, subCategoryId)
 
         return transactions.add(
             Transaction.Expense(

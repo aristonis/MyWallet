@@ -41,6 +41,7 @@ data class EditTransactionUiState(
     val allCategories: List<Category> = emptyList(),
     val selectedAccountId: Long? = null,
     val selectedCategoryId: Long? = null,
+    val selectedSubCategoryId: Long? = null,
     val destAccountId: Long? = null,
     val amountInput: String = "",
     val date: LocalDate? = null,
@@ -54,6 +55,13 @@ data class EditTransactionUiState(
     val undoableDelete: Transaction? = null,
 ) {
     /** Categories offered for the loaded kind: income lists income, expense lists expense, transfer none. */
+    /** Children of the chosen category, filtered by kind for the reason the add form gives. */
+    val subCategoriesForSelected: List<Category>
+        get() = selectedCategoryId?.let { parent ->
+            val parentKind = allCategories.firstOrNull { it.id == parent }?.kind
+            allCategories.filter { it.parentId == parent && it.kind == parentKind }
+        }.orEmpty()
+
     val categoriesForType: List<Category>
         get() = when (type) {
             TransactionType.INCOME -> allCategories.filter { it.kind == CategoryKind.INCOME && !it.isSubCategory }
@@ -142,7 +150,13 @@ class EditTransactionViewModel @Inject constructor(
 
     fun selectAccount(id: Long) = _state.update { it.copy(selectedAccountId = id) }
 
-    fun selectCategory(id: Long) = _state.update { it.copy(selectedCategoryId = id) }
+    // Changing the category drops the child with it: it belongs to the old parent, so the domain
+    // guard would refuse the save with nothing on screen explaining why.
+    fun selectCategory(id: Long) = _state.update {
+        it.copy(selectedCategoryId = id, selectedSubCategoryId = null)
+    }
+
+    fun selectSubCategory(id: Long?) = _state.update { it.copy(selectedSubCategoryId = id) }
 
     fun setAmount(text: String) = _state.update { it.copy(amountInput = text) }
 
@@ -226,13 +240,13 @@ class EditTransactionViewModel @Inject constructor(
     /** Re-hydrate every form field from a stored row, resetting transient/one-shot state. */
     private fun EditTransactionUiState.populatedFrom(tx: Transaction): EditTransactionUiState = when (tx) {
         is Transaction.Income -> copyLoaded(
-            tx, TransactionType.INCOME, tx.accountId, tx.categoryId, null, tx.amount,
+            tx, TransactionType.INCOME, tx.accountId, tx.categoryId, tx.subCategoryId, null, tx.amount,
         )
         is Transaction.Expense -> copyLoaded(
-            tx, TransactionType.EXPENSE, tx.accountId, tx.categoryId, null, tx.amount,
+            tx, TransactionType.EXPENSE, tx.accountId, tx.categoryId, tx.subCategoryId, null, tx.amount,
         )
         is Transaction.Transfer -> copyLoaded(
-            tx, TransactionType.TRANSFER, tx.sourceAccountId, null, tx.destAccountId, tx.sourceAmount,
+            tx, TransactionType.TRANSFER, tx.sourceAccountId, null, null, tx.destAccountId, tx.sourceAmount,
         )
     }
 
@@ -241,6 +255,7 @@ class EditTransactionViewModel @Inject constructor(
         type: TransactionType,
         accountId: Long,
         categoryId: Long?,
+        subCategoryId: Long?,
         destAccountId: Long?,
         amount: Money,
     ) = copy(
@@ -248,6 +263,9 @@ class EditTransactionViewModel @Inject constructor(
         type = type,
         selectedAccountId = accountId,
         selectedCategoryId = categoryId,
+        // Seeded here for the same reason it is written on save: the form now owns this field, so
+        // leaving it unseeded would make editing anything at all clear the stored sub-category.
+        selectedSubCategoryId = subCategoryId,
         destAccountId = destAccountId,
         amountInput = moneyParser.toInputString(amount.amount),
         date = tx.date,
@@ -274,6 +292,7 @@ class EditTransactionViewModel @Inject constructor(
                     accountId = account.id,
                     amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode),
                     categoryId = requireCategory(snapshot),
+                    subCategoryId = snapshot.selectedSubCategoryId,
                     date = date,
                     note = note,
                 )
@@ -284,6 +303,7 @@ class EditTransactionViewModel @Inject constructor(
                     accountId = account.id,
                     amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode),
                     categoryId = requireCategory(snapshot),
+                    subCategoryId = snapshot.selectedSubCategoryId,
                     date = date,
                     note = note,
                 )

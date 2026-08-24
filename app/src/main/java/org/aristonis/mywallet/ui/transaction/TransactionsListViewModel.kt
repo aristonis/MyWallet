@@ -23,6 +23,7 @@ import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.ui.format.display
 import java.time.LocalDate
 import javax.inject.Inject
+import org.aristonis.mywallet.ui.label
 
 /** Which kind a display row is — lets the screen pick the sign/icon without re-deriving it. */
 enum class TransactionRowType { INCOME, EXPENSE, TRANSFER }
@@ -135,7 +136,7 @@ class TransactionsListViewModel @Inject constructor(
         accounts.firstOrNull { it.id == id }?.name ?: MISSING
 
     private fun categoryName(id: Long, categories: List<Category>): String =
-        categories.firstOrNull { it.id == id }?.name ?: MISSING
+        categories.firstOrNull { it.id == id }?.label() ?: MISSING
 
     private companion object {
         private const val MISSING = "—"

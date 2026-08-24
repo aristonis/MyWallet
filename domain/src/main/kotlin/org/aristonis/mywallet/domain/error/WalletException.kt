@@ -67,7 +67,14 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class CurrencyNotFound(val code: String) :
         WalletException("Currency $code not found")
 
-    /** No exchange rate is set for a non-base currency that a conversion needs (FR-15 fail-loud). */
+    /**
+     * Re-expressing a rate against a new base left nothing inside the scale the app stores. The two
+     * currencies are too far apart in magnitude for one to be written against the other.
+     */
+    class RateUnderflow(val code: String) :
+        WalletException("The rate for $code is too small to express against the new base currency")
+
+    /** A conversion needs a rate for a non-base currency and none is set. Refused rather than guessed. */
     class MissingRate(val code: String) :
         WalletException("No exchange rate set for $code")
 

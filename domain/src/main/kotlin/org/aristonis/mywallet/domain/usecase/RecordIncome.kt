@@ -10,8 +10,9 @@ import java.time.LocalDate
 
 /**
  * Records an income into an account. Cross-entity rules live here (the account must exist, the
- * amount must be in the account's currency, the category must exist); the amount-positive rule is
- * already enforced by [Transaction.Income] itself.
+ * amount must be in the account's currency, and the category pair must satisfy
+ * [requireTransactionCategories]); the amount-positive rule is already enforced by
+ * [Transaction.Income] itself.
  *
  * Dependencies are the ports, injected via the constructor. Call it like a function:
  * `recordIncome(accountId = 1, amount = ..., ...)`.
@@ -35,8 +36,7 @@ class RecordIncome(
         if (amount.currencyCode != account.currencyCode) {
             throw WalletException.CurrencyMismatch(amount.currencyCode, account.currencyCode)
         }
-        categories.findById(categoryId)
-            ?: throw WalletException.CategoryNotFound(categoryId)
+        categories.requireTransactionCategories(categoryId, subCategoryId)
 
         return transactions.add(
             Transaction.Income(

@@ -13,7 +13,8 @@ import java.math.BigDecimal
 /**
  * Edits an existing transaction in place (its id is preserved). Re-runs the same cross-entity rules
  * as the Record* use-cases — the account must exist, be live (not archived), and hold money in its
- * own currency; income/expense categories must exist — so an edit can never leave an invalid row.
+ * own currency; an income/expense category pair must satisfy [requireTransactionCategories] — so an
+ * edit can never leave an invalid row.
  *
  * A transfer is a historical fact, so its destination leg is recomputed from the (possibly new)
  * source amount and the transfer's ORIGINAL stored rate (preserve-rate semantics): editing only a
@@ -30,11 +31,21 @@ class UpdateTransaction(
         val existing = transactions.findById(transaction.id)
             ?: throw WalletException.TransactionNotFound(transaction.id)
         when (transaction) {
-            is Transaction.Income ->
-                validateAndUpdate(transaction.accountId, transaction.amount, transaction.categoryId, transaction)
+            is Transaction.Income -> validateAndUpdate(
+                accountId = transaction.accountId,
+                amount = transaction.amount,
+                categoryId = transaction.categoryId,
+                subCategoryId = transaction.subCategoryId,
+                transaction = transaction,
+            )
 
-            is Transaction.Expense ->
-                validateAndUpdate(transaction.accountId, transaction.amount, transaction.categoryId, transaction)
+            is Transaction.Expense -> validateAndUpdate(
+                accountId = transaction.accountId,
+                amount = transaction.amount,
+                categoryId = transaction.categoryId,
+                subCategoryId = transaction.subCategoryId,
+                transaction = transaction,
+            )
 
             is Transaction.Transfer -> {
                 requireLiveAccountHolds(transaction.sourceAccountId, transaction.sourceAmount)
@@ -52,10 +63,21 @@ class UpdateTransaction(
         }
     }
 
-    /** Re-validates an income/expense (its account holds the amount, its category exists) then persists it. */
-    private suspend fun validateAndUpdate(accountId: Long, amount: Money, categoryId: Long, transaction: Transaction) {
+    /**
+     * Re-validates an income/expense (its account holds the amount, its category pair is well
+     * formed) then persists it. The category guard runs on every edit, not just on the ones that
+     * touched the category: an edit re-writes the whole row, so a pair that was never valid — a
+     * restored one, say — would otherwise be written back untouched.
+     */
+    private suspend fun validateAndUpdate(
+        accountId: Long,
+        amount: Money,
+        categoryId: Long,
+        subCategoryId: Long?,
+        transaction: Transaction,
+    ) {
         requireLiveAccountHolds(accountId, amount)
-        requireCategory(categoryId)
+        categories.requireTransactionCategories(categoryId, subCategoryId)
         transactions.update(transaction)
     }
 
@@ -67,10 +89,6 @@ class UpdateTransaction(
         if (amount.currencyCode != account.currencyCode) {
             throw WalletException.CurrencyMismatch(amount.currencyCode, account.currencyCode)
         }
-    }
-
-    private suspend fun requireCategory(categoryId: Long) {
-        categories.findById(categoryId) ?: throw WalletException.CategoryNotFound(categoryId)
     }
 
     /**

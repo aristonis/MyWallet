@@ -55,6 +55,7 @@ import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import org.aristonis.mywallet.ui.label
 
 /**
  * Edit-transaction screen. The type is fixed at load and shown read-only: income/expense may change
@@ -106,6 +107,7 @@ fun EditTransactionScreen(
         snackbarHostState = snackbarHostState,
         onAccountSelected = viewModel::selectAccount,
         onCategorySelected = viewModel::selectCategory,
+        onSubCategorySelected = viewModel::selectSubCategory,
         onAmountChanged = viewModel::setAmount,
         onDateSelected = viewModel::setDate,
         onNoteChanged = viewModel::setNote,
@@ -121,6 +123,7 @@ private fun EditTransactionContent(
     snackbarHostState: SnackbarHostState,
     onAccountSelected: (Long) -> Unit,
     onCategorySelected: (Long) -> Unit,
+    onSubCategorySelected: (Long?) -> Unit,
     onAmountChanged: (String) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onNoteChanged: (String) -> Unit,
@@ -141,6 +144,7 @@ private fun EditTransactionContent(
                     date = state.date ?: loaded.date,
                     onAccountSelected = onAccountSelected,
                     onCategorySelected = onCategorySelected,
+            onSubCategorySelected = onSubCategorySelected,
                     onAmountChanged = onAmountChanged,
                     onDateSelected = onDateSelected,
                     onNoteChanged = onNoteChanged,
@@ -160,6 +164,7 @@ private fun EditTransactionForm(
     date: LocalDate,
     onAccountSelected: (Long) -> Unit,
     onCategorySelected: (Long) -> Unit,
+    onSubCategorySelected: (Long?) -> Unit,
     onAmountChanged: (String) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onNoteChanged: (String) -> Unit,
@@ -189,6 +194,7 @@ private fun EditTransactionForm(
             type = type,
             onAccountSelected = onAccountSelected,
             onCategorySelected = onCategorySelected,
+            onSubCategorySelected = onSubCategorySelected,
         )
 
         val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
@@ -264,6 +270,7 @@ private fun AccountAndCategoryFields(
     type: TransactionType,
     onAccountSelected: (Long) -> Unit,
     onCategorySelected: (Long) -> Unit,
+    onSubCategorySelected: (Long?) -> Unit,
 ) {
     if (type == TransactionType.TRANSFER) {
         LockedField(label = "From account", value = accountLabel(state.selectedAccountId, state.accounts))
@@ -282,11 +289,25 @@ private fun AccountAndCategoryFields(
     val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
     LabeledDropdown(
         label = "Category",
-        selectedText = category?.name ?: "Select…",
+        selectedText = category?.label() ?: "Select…",
         items = state.categoriesForType,
-        itemLabel = Category::name,
+        itemLabel = { it.label() },
         onSelect = { onCategorySelected(it.id) },
     )
+    // Offered only when the chosen category has children, matching the add form. Without it the
+    // stored sub-category would be unreachable — and re-picking the same category clears it, so
+    // there would be no way to put it back.
+    val subCategories = state.subCategoriesForSelected
+    if (subCategories.isNotEmpty()) {
+        val chosen = subCategories.firstOrNull { it.id == state.selectedSubCategoryId }
+        LabeledDropdown(
+            label = "Sub-category (optional)",
+            selectedText = chosen?.label() ?: "None",
+            items = subCategories,
+            itemLabel = { it.label() },
+            onSelect = { onSubCategorySelected(it.id) },
+        )
+    }
 }
 
 /** A labelled, disabled field — looks like a picker but can't be changed (a transfer's locked legs). */
@@ -374,6 +395,7 @@ private fun EditTransactionPreview() {
             snackbarHostState = remember { SnackbarHostState() },
             onAccountSelected = {},
             onCategorySelected = {},
+            onSubCategorySelected = {},
             onAmountChanged = {},
             onDateSelected = {},
             onNoteChanged = {},
