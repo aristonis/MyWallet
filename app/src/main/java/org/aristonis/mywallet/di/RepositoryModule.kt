@@ -26,6 +26,10 @@ import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import javax.inject.Singleton
+import org.aristonis.mywallet.domain.port.FxRepository
+import org.aristonis.mywallet.data.repo.RoomFxRepository
+import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
+import org.aristonis.mywallet.data.repo.RoomBaseCurrencyRepository
 
 /** Binds each domain port to its Room implementation. This is the seam where the app chooses Room. */
 @Module
@@ -49,6 +53,13 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideSettingsRepository(dao: SettingsDao): SettingsRepository = RoomSettingsRepository(dao)
+
+    @Provides @Singleton
+    fun provideBaseCurrencyRepository(db: WalletDatabase): BaseCurrencyRepository =
+        RoomBaseCurrencyRepository(db)
+
+    @Provides @Singleton
+    fun provideFxRepository(db: WalletDatabase): FxRepository = RoomFxRepository(db)
 
     @Provides @Singleton
     fun provideBackupRepository(

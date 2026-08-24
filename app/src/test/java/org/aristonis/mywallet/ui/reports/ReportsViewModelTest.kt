@@ -35,6 +35,7 @@ import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.Locale
+import org.aristonis.mywallet.ui.transaction.FakeFxRepository
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReportsViewModelTest {
@@ -65,8 +66,8 @@ class ReportsViewModelTest {
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         val categoryRepo = FakeCategoryRepository(categories)
         return ReportsViewModel(
-            computePeriodSummary = ComputePeriodSummary(txRepo, currencyRepo, rateRepo, settingsRepo),
-            computeCategoryBreakdown = ComputeCategoryBreakdown(txRepo, currencyRepo, rateRepo, settingsRepo),
+            computePeriodSummary = ComputePeriodSummary(txRepo, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
+            computeCategoryBreakdown = ComputeCategoryBreakdown(txRepo, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             categories = categoryRepo,
             currencies = currencyRepo,
             moneyFormatter = moneyFormatter,
@@ -245,6 +246,13 @@ private class FakeCategoryRepository(initial: List<Category>) : CategoryReposito
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Category>> = items
     override suspend fun findById(id: Long): Category? = items.value.firstOrNull { it.id == id }
+
+    // Reports only read categories — managing them is a different screen. Failing here rather than
+    // returning something plausible keeps a drifting test from passing quietly.
+    override suspend fun upsert(category: Category): Long = error("reports do not write categories")
+
+    override suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int =
+        error("reports do not delete categories")
 }
 
 private class FakeCurrencyRepository(initial: List<Currency>) : CurrencyRepository {

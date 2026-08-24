@@ -60,6 +60,9 @@ private val themeOptions = listOf(
 @Composable
 fun SettingsScreen(
     onDone: () -> Unit,
+    onManageCategories: () -> Unit,
+    onManageRates: () -> Unit,
+    onChangeBaseCurrency: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -88,6 +91,9 @@ fun SettingsScreen(
         onExport = { exportLauncher.launch("mywallet-backup-${LocalDate.now()}.json") },
         onImport = { importLauncher.launch(arrayOf("*/*")) },
         onStatusShown = viewModel::acknowledge,
+        onManageCategories = onManageCategories,
+        onManageRates = onManageRates,
+        onChangeBaseCurrency = onChangeBaseCurrency,
         onDone = onDone,
     )
 
@@ -110,6 +116,9 @@ private fun SettingsContent(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onStatusShown: () -> Unit,
+    onManageCategories: () -> Unit,
+    onManageRates: () -> Unit,
+    onChangeBaseCurrency: () -> Unit,
     onDone: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -139,6 +148,19 @@ private fun SettingsContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Settings", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = onDone) { Text("Done") }
+            }
+
+            Text("Your wallet", style = MaterialTheme.typography.titleMedium)
+            OutlinedButton(onClick = onChangeBaseCurrency, modifier = Modifier.fillMaxWidth()) {
+                Text("Base currency")
+            }
+            OutlinedButton(onClick = onManageCategories, modifier = Modifier.fillMaxWidth()) {
+                Text("Categories")
+            }
+            // Rates are reachable from Home too, but that route is the missing-rate warning asking
+            // to be fixed. This one is for changing a rate nothing is currently complaining about.
+            OutlinedButton(onClick = onManageRates, modifier = Modifier.fillMaxWidth()) {
+                Text("Currencies & rates")
             }
 
             Text("Appearance", style = MaterialTheme.typography.titleMedium)
@@ -213,6 +235,9 @@ private fun SettingsPreview() {
             onExport = {},
             onImport = {},
             onStatusShown = {},
+            onManageCategories = {},
+            onManageRates = {},
+            onChangeBaseCurrency = {},
             onDone = {},
         )
     }

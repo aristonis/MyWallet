@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
@@ -15,6 +16,9 @@ import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.port.FxRepository
+import org.aristonis.mywallet.domain.model.FxSnapshot
+import kotlinx.coroutines.flow.combine
 
 /**
  * Reactive in-memory ports shared by the two transaction view-model tests (both live in this package,
@@ -34,6 +38,14 @@ internal class FakeCategoryRepository(initial: List<Category> = emptyList()) : C
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Category>> = items
     override suspend fun findById(id: Long): Category? = items.value.firstOrNull { it.id == id }
+
+    // The transaction screens only read categories — managing them is a different screen. Failing
+    // here rather than returning something plausible keeps a drifting test from passing quietly.
+    override suspend fun upsert(category: Category): Long =
+        error("the transaction screens do not write categories")
+
+    override suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int =
+        error("the transaction screens do not delete categories")
 }
 
 internal class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : TransactionRepository {
@@ -80,4 +92,24 @@ internal class FakeSettingsRepository(initial: Settings? = null) : SettingsRepos
     override fun observeOrNull(): Flow<Settings?> = state
     override suspend fun get(): Settings = state.value ?: error("settings not initialized")
     override suspend fun save(settings: Settings) { state.value = settings }
+}
+
+/**
+ * Assembles the conversion context from the three fakes the screens already use, so a test that
+ * upserts a rate still sees the flow re-emit. The real adapter does the same re-read inside one
+ * transaction; that atomicity is what the instrumented tests prove, not this.
+ */
+internal class FakeFxRepository(
+    private val currencies: CurrencyRepository,
+    private val rates: RateRepository,
+    private val settings: SettingsRepository,
+) : FxRepository {
+    override fun observeFx(): Flow<FxSnapshot> =
+        combine(settings.observe(), rates.observeAll(), currencies.observeAll()) { s, r, c ->
+            FxSnapshot(
+                baseCurrencyCode = s.baseCurrencyCode,
+                ratesToBase = r.associate { it.currencyCode to it.rateToBase },
+                currencies = c,
+            )
+        }
 }

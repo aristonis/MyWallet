@@ -24,6 +24,9 @@ import org.aristonis.mywallet.ui.settings.SettingsScreen
 import org.aristonis.mywallet.ui.transaction.AddTransactionScreen
 import org.aristonis.mywallet.ui.transaction.EditTransactionScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListScreen
+import org.aristonis.mywallet.ui.category.ManageCategoriesScreen
+import androidx.compose.runtime.saveable.rememberSaveable
+import org.aristonis.mywallet.ui.currency.ChangeBaseCurrencyScreen
 
 /**
  * Top-level routing gate: shows onboarding until settings exist, then Home. Because it observes the
@@ -41,7 +44,7 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 /** The screens reachable from Home via the lightweight toggle below. */
-private enum class HomeDestination { HOME, ADD_TRANSACTION, EDIT_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, EDIT_ACCOUNT, MANAGE_RATES, SETTINGS }
+private enum class HomeDestination { HOME, ADD_TRANSACTION, EDIT_TRANSACTION, TRANSACTIONS, REPORTS, ADD_ACCOUNT, MANAGE_ACCOUNTS, EDIT_ACCOUNT, MANAGE_RATES, MANAGE_CATEGORIES, CHANGE_BASE_CURRENCY, SETTINGS }
 
 /**
  * Lightweight Home navigation via a `remember`ed destination. With this handful of screens a flag
@@ -51,9 +54,11 @@ private enum class HomeDestination { HOME, ADD_TRANSACTION, EDIT_TRANSACTION, TR
  */
 @Composable
 private fun HomeFlow() {
-    var destination by remember { mutableStateOf(HomeDestination.HOME) }
-    var editingTransactionId by remember { mutableStateOf<Long?>(null) }
-    var editingAccountId by remember { mutableStateOf<Long?>(null) }
+    // Saved rather than merely remembered: a plain `remember` drops the user back to Home on every
+    // rotation, losing whichever editor was open. A real back stack arrives with the NavHost.
+    var destination by rememberSaveable { mutableStateOf(HomeDestination.HOME) }
+    var editingTransactionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
     val toHome = { destination = HomeDestination.HOME }
     val toManageAccounts = { destination = HomeDestination.MANAGE_ACCOUNTS }
     when (destination) {
@@ -103,7 +108,15 @@ private fun HomeFlow() {
         }
         HomeDestination.ADD_ACCOUNT -> AddAccountScreen(onDone = toHome)
         HomeDestination.MANAGE_RATES -> ManageRatesScreen(onDone = toHome)
-        HomeDestination.SETTINGS -> SettingsScreen(onDone = toHome)
+        HomeDestination.MANAGE_CATEGORIES -> ManageCategoriesScreen(onDone = { destination = HomeDestination.SETTINGS })
+        HomeDestination.CHANGE_BASE_CURRENCY ->
+            ChangeBaseCurrencyScreen(onDone = { destination = HomeDestination.SETTINGS })
+        HomeDestination.SETTINGS -> SettingsScreen(
+            onDone = toHome,
+            onManageCategories = { destination = HomeDestination.MANAGE_CATEGORIES },
+            onManageRates = { destination = HomeDestination.MANAGE_RATES },
+            onChangeBaseCurrency = { destination = HomeDestination.CHANGE_BASE_CURRENCY },
+        )
     }
 }
 

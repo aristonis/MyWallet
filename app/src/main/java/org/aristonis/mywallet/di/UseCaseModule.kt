@@ -8,6 +8,7 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
@@ -32,6 +33,11 @@ import org.aristonis.mywallet.domain.usecase.SetTheme
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
 import org.aristonis.mywallet.domain.usecase.UpdateTransaction
 import javax.inject.Singleton
+import org.aristonis.mywallet.domain.usecase.RenameCategory
+import org.aristonis.mywallet.domain.usecase.DeleteCategory
+import org.aristonis.mywallet.domain.usecase.CreateCategory
+import org.aristonis.mywallet.domain.usecase.ChangeBaseCurrency
+import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
 
 /**
  * Provides domain use-cases to the app. Use-cases are plain `:domain` classes (no Hilt annotations —
@@ -49,6 +55,14 @@ object UseCaseModule {
     ): SetBaseCurrency = SetBaseCurrency(currencies, settings)
 
     @Provides @Singleton
+    fun provideChangeBaseCurrency(
+        currencies: CurrencyRepository,
+        rates: RateRepository,
+        settings: SettingsRepository,
+        baseCurrency: BaseCurrencyRepository,
+    ): ChangeBaseCurrency = ChangeBaseCurrency(currencies, rates, settings, baseCurrency)
+
+    @Provides @Singleton
     fun provideSetTheme(settings: SettingsRepository): SetTheme = SetTheme(settings)
 
     @Provides @Singleton
@@ -59,6 +73,15 @@ object UseCaseModule {
 
     @Provides @Singleton
     fun provideSetAccountArchived(accounts: AccountRepository): SetAccountArchived = SetAccountArchived(accounts)
+
+    @Provides @Singleton
+    fun provideCreateCategory(categories: CategoryRepository): CreateCategory = CreateCategory(categories)
+
+    @Provides @Singleton
+    fun provideRenameCategory(categories: CategoryRepository): RenameCategory = RenameCategory(categories)
+
+    @Provides @Singleton
+    fun provideDeleteCategory(categories: CategoryRepository): DeleteCategory = DeleteCategory(categories)
 
     @Provides @Singleton
     fun provideDeleteAccount(
@@ -88,34 +111,26 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideComputeNetWorth(
         getAccountBalances: GetAccountBalances,
-        currencies: CurrencyRepository,
-        rates: RateRepository,
-        settings: SettingsRepository,
-    ): ComputeNetWorth = ComputeNetWorth(getAccountBalances, currencies, rates, settings)
+        fx: FxRepository,
+    ): ComputeNetWorth = ComputeNetWorth(getAccountBalances, fx)
 
     @Provides @Singleton
     fun provideGetAccountBalancesInBase(
         getAccountBalances: GetAccountBalances,
-        currencies: CurrencyRepository,
-        rates: RateRepository,
-        settings: SettingsRepository,
-    ): GetAccountBalancesInBase = GetAccountBalancesInBase(getAccountBalances, currencies, rates, settings)
+        fx: FxRepository,
+    ): GetAccountBalancesInBase = GetAccountBalancesInBase(getAccountBalances, fx)
 
     @Provides @Singleton
     fun provideComputePeriodSummary(
         transactions: TransactionRepository,
-        currencies: CurrencyRepository,
-        rates: RateRepository,
-        settings: SettingsRepository,
-    ): ComputePeriodSummary = ComputePeriodSummary(transactions, currencies, rates, settings)
+        fx: FxRepository,
+    ): ComputePeriodSummary = ComputePeriodSummary(transactions, fx)
 
     @Provides @Singleton
     fun provideComputeCategoryBreakdown(
         transactions: TransactionRepository,
-        currencies: CurrencyRepository,
-        rates: RateRepository,
-        settings: SettingsRepository,
-    ): ComputeCategoryBreakdown = ComputeCategoryBreakdown(transactions, currencies, rates, settings)
+        fx: FxRepository,
+    ): ComputeCategoryBreakdown = ComputeCategoryBreakdown(transactions, fx)
 
     @Provides @Singleton
     fun provideRecordIncome(
@@ -156,7 +171,8 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideRestoreTransaction(
         transactions: TransactionRepository,
-    ): RestoreTransaction = RestoreTransaction(transactions)
+        categories: CategoryRepository,
+    ): RestoreTransaction = RestoreTransaction(transactions, categories)
 
     @Provides @Singleton
     fun provideExportBackup(backups: BackupRepository): ExportBackup = ExportBackup(backups)

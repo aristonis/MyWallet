@@ -32,6 +32,7 @@ import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 import java.util.Locale
+import org.aristonis.mywallet.ui.transaction.FakeFxRepository
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
@@ -60,8 +61,8 @@ class HomeViewModelTest {
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         val getBalances = GetAccountBalances(accountRepo, txRepo)
-        val getBalancesInBase = GetAccountBalancesInBase(getBalances, currencyRepo, rateRepo, settingsRepo)
-        val computeNetWorth = ComputeNetWorth(getBalances, currencyRepo, rateRepo, settingsRepo)
+        val getBalancesInBase = GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
+        val computeNetWorth = ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
         return HomeViewModel(getBalancesInBase, computeNetWorth, currencyRepo, settingsRepo, moneyFormatter)
     }
 
@@ -164,8 +165,8 @@ class HomeViewModelTest {
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
         val getBalances = GetAccountBalances(accountRepo, FakeTransactionRepository())
         val vm = HomeViewModel(
-            GetAccountBalancesInBase(getBalances, currencyRepo, rateRepo, settingsRepo),
-            ComputeNetWorth(getBalances, currencyRepo, rateRepo, settingsRepo),
+            GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
+            ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             currencyRepo,
             settingsRepo,
             moneyFormatter,
