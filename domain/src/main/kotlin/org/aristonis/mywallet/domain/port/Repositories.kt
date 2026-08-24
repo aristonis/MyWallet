@@ -5,6 +5,7 @@ import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
+import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
 import kotlinx.coroutines.flow.Flow
@@ -83,6 +84,25 @@ interface RateRepository {
  * a snapshot never mixes a new base currency with the rates that belonged to the old one — the
  * failure that produces a wrong total with no error anywhere.
  */
+/**
+ * Applies a base-currency change as one all-or-nothing write.
+ *
+ * It takes the CODE, not a whole [Settings]: an aggregate read outside the write and handed back in
+ * carries every other field with it, so a theme change landing in between would be silently undone.
+ * The adapter re-reads and copies the row inside its own transaction instead.
+ *
+ * [rates] REPLACES the stored set — a code absent from it is a code with no rate. That is what
+ * removes the new base's own row. An upsert loop would leave it behind, invisible while it is the
+ * base, until the next rebase read it as real data and inflated every figure in that currency.
+ */
+interface BaseCurrencyRepository {
+    suspend fun rebase(newBaseCurrencyCode: String, rates: List<ExchangeRate>)
+}
+
+interface FxRepository {
+    fun observeFx(): Flow<FxSnapshot>
+}
+
 interface SettingsRepository {
     /** Emits the saved settings; does NOT emit until settings exist (post-onboarding). */
     fun observe(): Flow<Settings>

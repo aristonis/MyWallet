@@ -12,6 +12,7 @@ import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeTransactionRepository
+import org.aristonis.mywallet.domain.usecase.fake.fakeFx
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -27,9 +28,7 @@ class ComputeCategoryBreakdownTest {
     // Base USD; EUR known but unrated (empty FakeRateRepository) — the "missing rate" condition.
     private fun usecase(transactions: List<Transaction>) = ComputeCategoryBreakdown(
         transactions = FakeTransactionRepository(transactions),
-        currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2))),
-        rates = FakeRateRepository(),
-        settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD")),
+        fx = fakeFx(currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)), base = "USD"),
     )
 
     /** Unwrap the happy-path result; fails loudly if the breakdown was MissingRate. */

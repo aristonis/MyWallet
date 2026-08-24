@@ -2,10 +2,8 @@ package org.aristonis.mywallet.domain.usecase
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.model.Money
-import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.RateRepository
-import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.service.CurrencyConverter
 
 /**
@@ -25,19 +23,15 @@ sealed interface NetWorth {
  */
 class ComputeNetWorth(
     private val getAccountBalances: GetAccountBalances,
-    private val currencies: CurrencyRepository,
-    private val rates: RateRepository,
-    private val settings: SettingsRepository,
+    private val fx: FxRepository,
 ) {
     operator fun invoke(): Flow<NetWorth> =
         combine(
             getAccountBalances(),
-            currencies.observeAll(),
-            rates.observeAll(),
-            settings.observe(),
-        ) { balances, currencyList, rateList, settingsValue ->
-            val base = settingsValue.baseCurrencyCode
-            val ratesToBase = rateList.associate { it.currencyCode to it.rateToBase }
+            fx.observeFx(),
+        ) { balances, snapshot ->
+            val base = snapshot.baseCurrencyCode
+            val ratesToBase = snapshot.ratesToBase
             val active = balances.filterNot { it.account.archived }
 
             // Detect a missing rate up front (before any conversion throws) so the result stays a
@@ -52,7 +46,7 @@ class ComputeNetWorth(
                 val converter = CurrencyConverter(
                     baseCurrencyCode = base,
                     ratesToBase = ratesToBase,
-                    decimalPlaces = currencyList.associate { it.code to it.decimalPlaces },
+                    decimalPlaces = snapshot.decimalPlaces,
                 )
                 val total = active.fold(Money.zero(base)) { sum, ab -> sum + converter.convert(ab.balance, base) }
                 NetWorth.Amount(total)

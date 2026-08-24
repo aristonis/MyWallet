@@ -8,12 +8,15 @@ import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
+import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
+import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
 import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
@@ -117,6 +120,46 @@ class FakeRateRepository(initial: List<ExchangeRate> = emptyList()) : RateReposi
         items.value = items.value.filterNot { it.currencyCode == rate.currencyCode } + rate
     }
 }
+
+/**
+ * Serves one snapshot at a time, so a test can prove that a consumer reads the base currency and the
+ * rates as a single unit — swapping both together is exactly what the real transactional read gives.
+ */
+class FakeFxRepository(initial: FxSnapshot) : FxRepository {
+    private val state = MutableStateFlow(initial)
+    override fun observeFx(): Flow<FxSnapshot> = state
+
+    /** Replaces the whole context at once, the way a re-based read arrives. */
+    fun emit(snapshot: FxSnapshot) { state.value = snapshot }
+}
+
+/** Records the one atomic hand-over, so a test can assert what the adapter was actually given. */
+class FakeBaseCurrencyRepository : BaseCurrencyRepository {
+    data class Rebase(val newBaseCurrencyCode: String, val rates: List<ExchangeRate>)
+
+    var lastRebase: Rebase? = null
+        private set
+    var rebaseCount: Int = 0
+        private set
+
+    override suspend fun rebase(newBaseCurrencyCode: String, rates: List<ExchangeRate>) {
+        lastRebase = Rebase(newBaseCurrencyCode, rates)
+        rebaseCount++
+    }
+}
+
+/** Builds the fake conversion context the way the real transactional read assembles it. */
+fun fakeFx(
+    currencies: List<Currency> = emptyList(),
+    rates: List<ExchangeRate> = emptyList(),
+    base: String = "USD",
+) = FakeFxRepository(
+    FxSnapshot(
+        baseCurrencyCode = base,
+        ratesToBase = rates.associate { it.currencyCode to it.rateToBase },
+        currencies = currencies,
+    ),
+)
 
 class FakeSettingsRepository(initial: Settings? = null) : SettingsRepository {
     private val state = MutableStateFlow(initial)

@@ -6,9 +6,7 @@ import org.aristonis.mywallet.domain.model.CategoryTotal
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.RateRepository
-import org.aristonis.mywallet.domain.port.SettingsRepository
+import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.service.CurrencyConverter
 import org.aristonis.mywallet.domain.service.PeriodRanges
@@ -32,19 +30,15 @@ sealed interface CategoryBreakdownResult {
  */
 class ComputeCategoryBreakdown(
     private val transactions: TransactionRepository,
-    private val currencies: CurrencyRepository,
-    private val rates: RateRepository,
-    private val settings: SettingsRepository,
+    private val fx: FxRepository,
 ) {
     operator fun invoke(period: TrackingPeriod, reference: LocalDate): Flow<CategoryBreakdownResult> =
         combine(
             transactions.observeAll(),
-            currencies.observeAll(),
-            rates.observeAll(),
-            settings.observe(),
-        ) { txs, currencyList, rateList, settingsValue ->
-            val base = settingsValue.baseCurrencyCode
-            val ratesToBase = rateList.associate { it.currencyCode to it.rateToBase }
+            fx.observeFx(),
+        ) { txs, snapshot ->
+            val base = snapshot.baseCurrencyCode
+            val ratesToBase = snapshot.ratesToBase
             val range = PeriodRanges.of(period, reference)
             val inPeriodExpenses = txs.filter { it.date in range }.filterIsInstance<Transaction.Expense>()
 
@@ -61,7 +55,7 @@ class ComputeCategoryBreakdown(
                 val converter = CurrencyConverter(
                     baseCurrencyCode = base,
                     ratesToBase = ratesToBase,
-                    decimalPlaces = currencyList.associate { it.code to it.decimalPlaces },
+                    decimalPlaces = snapshot.decimalPlaces,
                 )
                 val totals = inPeriodExpenses
                     .groupBy { it.categoryId }

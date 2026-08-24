@@ -6,9 +6,7 @@ import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.PeriodSummary
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.RateRepository
-import org.aristonis.mywallet.domain.port.SettingsRepository
+import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.service.CurrencyConverter
 import org.aristonis.mywallet.domain.service.PeriodRanges
@@ -33,19 +31,15 @@ sealed interface PeriodSummaryResult {
  */
 class ComputePeriodSummary(
     private val transactions: TransactionRepository,
-    private val currencies: CurrencyRepository,
-    private val rates: RateRepository,
-    private val settings: SettingsRepository,
+    private val fx: FxRepository,
 ) {
     operator fun invoke(period: TrackingPeriod, reference: LocalDate): Flow<PeriodSummaryResult> =
         combine(
             transactions.observeAll(),
-            currencies.observeAll(),
-            rates.observeAll(),
-            settings.observe(),
-        ) { txs, currencyList, rateList, settingsValue ->
-            val base = settingsValue.baseCurrencyCode
-            val ratesToBase = rateList.associate { it.currencyCode to it.rateToBase }
+            fx.observeFx(),
+        ) { txs, snapshot ->
+            val base = snapshot.baseCurrencyCode
+            val ratesToBase = snapshot.ratesToBase
             val range = PeriodRanges.of(period, reference)
             val inPeriod = txs.filter { it.date in range }
 
@@ -69,7 +63,7 @@ class ComputePeriodSummary(
                 val converter = CurrencyConverter(
                     baseCurrencyCode = base,
                     ratesToBase = ratesToBase,
-                    decimalPlaces = currencyList.associate { it.code to it.decimalPlaces },
+                    decimalPlaces = snapshot.decimalPlaces,
                 )
 
                 // Transfers are internal movement — never summed here (only Income/Expense are folded).

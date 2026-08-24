@@ -5,10 +5,12 @@ import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
+import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
+import org.aristonis.mywallet.domain.usecase.fake.fakeFx
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
@@ -32,9 +34,7 @@ class ComputeNetWorthTest {
         val getBalances = GetAccountBalances(FakeAccountRepository(accounts), FakeTransactionRepository(transactions))
         return ComputeNetWorth(
             getAccountBalances = getBalances,
-            currencies = FakeCurrencyRepository(currencies),
-            rates = FakeRateRepository(rates),
-            settings = FakeSettingsRepository(Settings(baseCurrencyCode = base)),
+            fx = fakeFx(currencies, rates, base),
         )
     }
 
@@ -74,21 +74,23 @@ class ComputeNetWorthTest {
         // Because a missing rate is a returned value (not a thrown error that would end the flow), once
         // the rate exists the use-case recomputes to a total instead of staying stuck on MissingRate.
         // (That a single LIVE subscription re-emits on the change is pinned by HomeViewModelTest.)
-        val rates = FakeRateRepository()
+        val currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2))
+        val fx = fakeFx(currencies = currencies, rates = emptyList(), base = "USD")
         val getBalances = GetAccountBalances(
             FakeAccountRepository(listOf(acct(1, "USD", "100"), acct(2, "EUR", "50"))),
             FakeTransactionRepository(),
         )
-        val nw = ComputeNetWorth(
-            getAccountBalances = getBalances,
-            currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2))),
-            rates = rates,
-            settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD")),
-        )
+        val nw = ComputeNetWorth(getAccountBalances = getBalances, fx = fx)
 
         assertEquals(NetWorth.MissingRate("EUR"), nw().first())
 
-        rates.upsert(ExchangeRate("EUR", BigDecimal("1.10")))
+        fx.emit(
+            FxSnapshot(
+                baseCurrencyCode = "USD",
+                ratesToBase = mapOf("EUR" to BigDecimal("1.10")),
+                currencies = currencies,
+            ),
+        )
 
         assertEquals(NetWorth.Amount(Money.of("155.00", "USD")), nw().first())
     }
