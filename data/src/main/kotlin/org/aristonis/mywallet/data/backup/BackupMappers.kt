@@ -5,6 +5,7 @@ import org.aristonis.mywallet.data.db.CategoryEntity
 import org.aristonis.mywallet.data.db.CurrencyEntity
 import org.aristonis.mywallet.data.db.RateEntity
 import org.aristonis.mywallet.data.db.SettingsEntity
+import org.aristonis.mywallet.data.db.TOP_LEVEL_PARENT_ID
 import org.aristonis.mywallet.data.db.TransactionEntity
 
 /**
@@ -42,9 +43,23 @@ fun TransactionDto.toEntity(): TransactionEntity = TransactionEntity(
 )
 
 // --- Category ---
-fun CategoryEntity.toDto(): CategoryDto = CategoryDto(id = id, name = name, kind = kind, parentId = parentId)
+// The backup file keeps "no parent" as JSON null: it stays readable by hand and portable across
+// any future storage change, so the sentinel never leaks into the format.
+fun CategoryEntity.toDto(): CategoryDto = CategoryDto(
+    id = id,
+    name = name,
+    kind = kind,
+    parentId = parentId.takeIf { it != TOP_LEVEL_PARENT_ID },
+    systemKey = systemKey,
+)
 
-fun CategoryDto.toEntity(): CategoryEntity = CategoryEntity(id = id, name = name, kind = kind, parentId = parentId)
+fun CategoryDto.toEntity(): CategoryEntity = CategoryEntity(
+    id = id,
+    name = name,
+    kind = kind,
+    parentId = parentId ?: TOP_LEVEL_PARENT_ID,
+    systemKey = systemKey,
+)
 
 // --- Currency ---
 fun CurrencyEntity.toDto(): CurrencyDto = CurrencyDto(code = code, symbol = symbol, decimalPlaces = decimalPlaces)

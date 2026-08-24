@@ -13,6 +13,7 @@ import org.aristonis.mywallet.data.db.toDomain
 import org.aristonis.mywallet.data.db.toEntity
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
@@ -23,6 +24,8 @@ import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.data.db.UPSERT_NO_ROW_ID
+import org.aristonis.mywallet.domain.error.WalletException
 
 /**
  * The Room-backed implementations of the domain ports. Each one is a thin adapter: call the DAO,
@@ -47,6 +50,30 @@ class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRe
 class RoomCategoryRepository(private val dao: CategoryDao) : CategoryRepository {
     override fun observeAll(): Flow<List<Category>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
     override suspend fun findById(id: Long): Category? = dao.findById(id)?.toDomain()
+
+    override suspend fun upsert(category: Category): Long {
+        val rowId = dao.upsert(category.toEntity())
+        if (rowId != UPSERT_NO_ROW_ID) return rowId
+        // Room reports no row id when the upsert took its UPDATE branch. For a row that arrived with
+        // an id that is simply its own id. For a new row it means the insert lost a uniqueness check
+        // and the update then matched nothing, so nothing was written — reporting that back as a
+        // successful save would hand the caller an id for a row that does not exist.
+        if (category.id == 0L) throw WalletException.DuplicateCategoryName(category.name)
+        return category.id
+    }
+
+    override suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int =
+        dao.deleteAndReassign(
+            categoryId = categoryId,
+            kind = kind.name,
+            fallbackKey = fallbackKey,
+            // The key doubles as the bucket's stored name. Nothing displays it — the screen resolves
+            // a label from the key — and it deliberately is not a word anyone would type, because the
+            // name still shares a uniqueness namespace with user names. A friendlier placeholder
+            // would collide with a user's own "Uncategorized" and dead-end every later delete of
+            // that kind, since the bucket could then never be created.
+            fallbackName = fallbackKey,
+        )
 }
 
 class RoomCurrencyRepository(private val dao: CurrencyDao) : CurrencyRepository {

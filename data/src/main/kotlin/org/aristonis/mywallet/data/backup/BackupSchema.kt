@@ -39,12 +39,19 @@ data class TransactionDto(
     val rateUsed: String? = null,
 )
 
+/**
+ * [systemKey] defaults to null so a backup written before fallback buckets existed still decodes —
+ * its categories are all user categories, which is exactly what a missing key means. Restoring a
+ * newer backup keeps the key, so the bucket comes back protected rather than as an ordinary
+ * category the user can rename or delete.
+ */
 @Serializable
 data class CategoryDto(
     val id: Long = 0,
     val name: String,
     val kind: String,
     val parentId: Long? = null,
+    val systemKey: String? = null,
 )
 
 @Serializable

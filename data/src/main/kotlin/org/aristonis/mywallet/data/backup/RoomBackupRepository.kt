@@ -54,7 +54,9 @@ class RoomBackupRepository(
         database.withTransaction {
             clearAll()
             // Referenced rows (currencies, categories, accounts) go in before the rows that point at
-            // them; there are no FK constraints, but keeping this order makes the intent explicit.
+            // them. This order is required, not decorative: transactions carry a foreign key on
+            // their sub-category and Room enables foreign key enforcement, so inserting them first
+            // would abort the restore. Reordering these lines breaks a restore.
             currencies.insertAll(backup.currencies.map { it.toEntity() })
             categories.insertAll(backup.categories.map { it.toEntity() })
             accounts.insertAll(backup.accounts.map { it.toEntity() })

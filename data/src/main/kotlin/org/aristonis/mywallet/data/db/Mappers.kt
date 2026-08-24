@@ -38,11 +38,23 @@ fun Account.toEntity(): AccountEntity = AccountEntity(
 )
 
 // --- Category ---
-fun CategoryEntity.toDomain(): Category =
-    Category(id = id, name = name, kind = CategoryKind.valueOf(kind), parentId = parentId)
+// The domain models "no parent" as null; storage uses a sentinel so the sibling-uniqueness index
+// actually constrains top-level rows, because SQLite treats every NULL in a unique index as distinct.
+fun CategoryEntity.toDomain(): Category = Category(
+    id = id,
+    name = name,
+    kind = CategoryKind.valueOf(kind),
+    parentId = parentId.takeIf { it != TOP_LEVEL_PARENT_ID },
+    systemKey = systemKey,
+)
 
-fun Category.toEntity(): CategoryEntity =
-    CategoryEntity(id = id, name = name, kind = kind.name, parentId = parentId)
+fun Category.toEntity(): CategoryEntity = CategoryEntity(
+    id = id,
+    name = name,
+    kind = kind.name,
+    parentId = parentId ?: TOP_LEVEL_PARENT_ID,
+    systemKey = systemKey,
+)
 
 // --- Currency ---
 fun CurrencyEntity.toDomain(): Currency = Currency(code = code, symbol = symbol, decimalPlaces = decimalPlaces)

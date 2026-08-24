@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
@@ -41,8 +42,39 @@ class FakeAccountRepository(initial: List<Account> = emptyList()) : AccountRepos
 
 class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRepository {
     private val items = MutableStateFlow(initial)
+    private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1
+
+    /** Everything currently stored, for assertions. */
+    val stored: List<Category> get() = items.value
+
+    /**
+     * Records what the use-case asked for. The real reassignment is a multi-table statement that
+     * only Room can run atomically, so the domain tests assert the CONTRACT (which category, which
+     * fallback) and the instrumented data tests prove the column-level effect.
+     */
+    var lastDeleteCall: DeleteCall? = null
+        private set
+
+    data class DeleteCall(val categoryId: Long, val kind: CategoryKind, val fallbackKey: String)
+
+    /** How many transactions the next [deleteAndReassign] should claim to have touched. */
+    var affectedRows: Int = 0
+
     override fun observeAll(): Flow<List<Category>> = items
     override suspend fun findById(id: Long): Category? = items.value.firstOrNull { it.id == id }
+
+    override suspend fun upsert(category: Category): Long {
+        val id = if (category.id == 0L) nextId++ else category.id
+        items.value = items.value.filterNot { it.id == id } + category.copy(id = id)
+        return id
+    }
+
+    override suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int {
+        lastDeleteCall = DeleteCall(categoryId, kind, fallbackKey)
+        val doomed = items.value.filter { it.id == categoryId || it.parentId == categoryId }.map { it.id }.toSet()
+        items.value = items.value.filterNot { it.id in doomed }
+        return affectedRows
+    }
 }
 
 class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : TransactionRepository {

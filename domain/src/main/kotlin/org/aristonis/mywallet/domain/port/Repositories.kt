@@ -2,6 +2,7 @@ package org.aristonis.mywallet.domain.port
 
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
@@ -28,6 +29,24 @@ interface AccountRepository {
 interface CategoryRepository {
     fun observeAll(): Flow<List<Category>>
     suspend fun findById(id: Long): Category?
+
+    /** Insert (id == 0) or update; returns the category's id. */
+    suspend fun upsert(category: Category): Long
+
+    /**
+     * Removes [categoryId] — and, when it is a parent, its children — and re-points every
+     * transaction that referenced them, returning how many transaction rows changed.
+     *
+     * The two cases differ and the difference is the whole point. Deleting a sub-category only
+     * clears the finer label, leaving `categoryId` alone so the spend stays in its parent. Deleting
+     * a parent moves the spend to the [fallbackKey] bucket of [kind] instead, because there is no
+     * longer a category to stay in.
+     *
+     * The adapter runs the lookup, the bucket's get-or-create and the writes as one atomic unit: a
+     * half-applied reassignment would leave transactions pointing at rows that no longer exist, and
+     * doing the get-or-create out here would strand an orphan bucket when the rest rolled back.
+     */
+    suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int
 }
 
 interface TransactionRepository {
@@ -59,6 +78,11 @@ interface RateRepository {
     suspend fun upsert(rate: ExchangeRate)
 }
 
+/**
+ * The conversion context as one consistent read. Implemented over a single database transaction, so
+ * a snapshot never mixes a new base currency with the rates that belonged to the old one — the
+ * failure that produces a wrong total with no error anywhere.
+ */
 interface SettingsRepository {
     /** Emits the saved settings; does NOT emit until settings exist (post-onboarding). */
     fun observe(): Flow<Settings>

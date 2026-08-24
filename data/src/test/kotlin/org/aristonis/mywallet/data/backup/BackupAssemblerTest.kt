@@ -9,6 +9,7 @@ import org.aristonis.mywallet.data.db.TransactionEntity
 import org.aristonis.mywallet.domain.error.WalletException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -102,5 +103,65 @@ class BackupAssemblerTest {
     fun decodeValidated_acceptsValidCurrentVersion_returnsEqual() {
         val built = build()
         assertEquals(built, decodeValidated(BackupCodec.encode(built)))
+    }
+
+    @Test
+    fun buildBackup_carriesTheSystemKeyOfAnAppOwnedBucket() {
+        // Identity of the fallback bucket is the key, not the display name, so a backup that dropped
+        // it would restore the bucket as an ordinary category the user could then delete.
+        val withBucket = buildBackup(
+            accounts,
+            transactions,
+            categories + CategoryEntity(
+                id = 99, name = "Uncategorized", kind = "EXPENSE", systemKey = "UNCATEGORIZED_EXPENSE",
+            ),
+            currencies,
+            rates,
+            settings,
+        )
+        val restored = decodeValidated(BackupCodec.encode(withBucket))
+
+        assertEquals("UNCATEGORIZED_EXPENSE", restored.categories.first { it.id == 99L }.systemKey)
+        assertNull("a user category must not gain a key", restored.categories.first { it.id == 11L }.systemKey)
+    }
+
+    @Test
+    fun decodeValidated_acceptsABackupWrittenBeforeSystemKeysExisted() {
+        // Older files simply have no such field; they must still restore, with every category read
+        // back as user-owned rather than the decode failing on a missing key.
+        // The document is pretty-printed, so the field is stripped by pattern rather than by literal
+        // text; it is written last in the object, so the comma taken with it is always the preceding one.
+        val withoutTheField = BackupCodec.encode(build())
+            .replace(Regex(",\\s*\"systemKey\"\\s*:\\s*null"), "")
+        val restored = decodeValidated(withoutTheField)
+
+        assertTrue("the field should be gone from the document", !withoutTheField.contains("systemKey"))
+        assertTrue("every category reads back as user-owned", restored.categories.all { it.systemKey == null })
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsATransactionNamingACategoryTheBackupDoesNotCarry() {
+        // Transactions have a foreign key on their sub-category, so this would otherwise abort the
+        // restore part-way with a raw SQLite error the user can do nothing with.
+        val dangling = build().let { b ->
+            b.copy(transactions = b.transactions.map { if (it.id == 2L) it.copy(subCategoryId = 4242) else it })
+        }
+        decodeValidated(BackupCodec.encode(dangling))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsATransactionWhoseMainCategoryIsMissing() {
+        val dangling = build().let { b ->
+            b.copy(transactions = b.transactions.map { if (it.id == 1L) it.copy(categoryId = 4242) else it })
+        }
+        decodeValidated(BackupCodec.encode(dangling))
+    }
+
+    @Test
+    fun decodeValidated_acceptsATransferWhichNamesNoCategoryAtAll() {
+        // Transfers are never categorized, so null references must not be mistaken for dangling ones.
+        val transfersOnly = build().let { b -> b.copy(transactions = b.transactions.filter { it.type == "TRANSFER" }) }
+
+        assertEquals(1, decodeValidated(BackupCodec.encode(transfersOnly)).transactions.size)
     }
 }

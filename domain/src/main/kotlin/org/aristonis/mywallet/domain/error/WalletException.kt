@@ -24,6 +24,41 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class CategoryNotFound(val id: Long) :
         WalletException("Category $id not found")
 
+    /** A sibling category (same kind, same parent) already uses this name, ignoring case. */
+    class DuplicateCategoryName(val name: String, cause: Throwable? = null) :
+        WalletException("A category named \"$name\" already exists here", cause)
+
+    /** Categories stop at two levels, so a sub-category can never itself become a parent. */
+    class CategoryDepthExceeded(val parentId: Long) :
+        WalletException("Category $parentId is already a sub-category; categories go two levels deep")
+
+    /**
+     * A sub-category and the parent it was paired with don't belong together: either the two are of
+     * different income/expense kinds, or the sub-category hangs under some other category entirely.
+     */
+    class CategoryKindMismatch(val parentId: Long) :
+        WalletException("Category $parentId and the sub-category paired with it don't match: wrong kind, or not its child")
+
+    /**
+     * The stored category tree is not shaped the way every reader assumes — a row parented under
+     * itself, or an app-owned bucket filed under a category being deleted. Only reachable from data
+     * that arrived from outside, so it names the row rather than pretending the operation succeeded.
+     */
+    class CategoryStructureInvalid(val id: Long) :
+        WalletException("Category $id is part of a broken category tree and cannot be used")
+
+    /**
+     * A transaction's main category must be a top-level one. A sub-category used there would be
+     * invisible to the delete path — that only clears the finer `subCategoryId` column — so the row
+     * would end up naming a category that no longer exists, with nothing to flag it.
+     */
+    class CategoryNotTopLevel(val id: Long) :
+        WalletException("Category $id is a sub-category; a transaction's main category must be a top-level one")
+
+    /** The two Uncategorized buckets belong to the app; renaming or deleting one is refused. */
+    class SystemCategoryProtected(val id: Long) :
+        WalletException("Category $id is managed by the app and can't be renamed or deleted")
+
     /** The transaction amount's currency does not match the account it lands on. */
     class CurrencyMismatch(val amountCurrency: String, val accountCurrency: String) :
         WalletException("currency mismatch: amount is $amountCurrency but account is $accountCurrency")

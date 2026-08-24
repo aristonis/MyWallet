@@ -3,7 +3,8 @@ plugins {
     jacoco
 }
 
-// Pure-Kotlin domain core — NO Android, Room, or Compose here (hexagonal core, NFR-8).
+// Pure-Kotlin domain core. No Android, Room or Compose here: keeping it plain JVM is what lets
+// the business rules be tested without a device.
 kotlin {
     jvmToolchain(17)
 }

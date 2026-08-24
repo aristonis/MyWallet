@@ -13,8 +13,8 @@ import java.util.Currency as PlatformCurrency
 object DefaultData {
     /**
      * The current ISO 4217 currency set, read from the platform ([PlatformCurrency]) rather than
-     * fetched from the network — the data already ships in the OS (ICU), so this stays **offline**
-     * (NFR-1) with zero maintenance.
+     * fetched from the network. The data already ships in the OS (ICU), so the app stays offline
+     * and the list needs no maintenance.
      *
      * Two filters clean the raw catalog:
      * - `getAvailableCurrencies()` also returns ~150 **withdrawn** codes (ADP, AFA, …). We keep only
@@ -37,6 +37,7 @@ object DefaultData {
             .sortedBy { it.code }
     }
 
+    /** Top-level categories. Ids come from SQLite at insert time, so none are set here. */
     val categories: List<Category> = listOf(
         Category(name = "Salary", kind = CategoryKind.INCOME),
         Category(name = "Gifts", kind = CategoryKind.INCOME),
@@ -48,5 +49,25 @@ object DefaultData {
         Category(name = "Health", kind = CategoryKind.EXPENSE),
         Category(name = "Entertainment", kind = CategoryKind.EXPENSE),
         Category(name = "Other", kind = CategoryKind.EXPENSE),
+    )
+
+    /**
+     * A starter sub-category names its parent rather than pointing at an id, because the parent
+     * only gets its id when the seed inserts it. The seed resolves the id and copies the parent's
+     * kind along with it, so a child can never land under a parent of the other kind.
+     */
+    data class SubCategorySeed(val parentName: String, val name: String)
+
+    /**
+     * Enough of a second level to show what sub-categories are for without guessing at how anyone
+     * budgets. The two-level cap means none of these may itself gain children.
+     */
+    val subCategories: List<SubCategorySeed> = listOf(
+        SubCategorySeed(parentName = "Food", name = "Groceries"),
+        SubCategorySeed(parentName = "Food", name = "Restaurants"),
+        SubCategorySeed(parentName = "Transport", name = "Fuel"),
+        SubCategorySeed(parentName = "Transport", name = "Public transport"),
+        SubCategorySeed(parentName = "Bills", name = "Utilities"),
+        SubCategorySeed(parentName = "Bills", name = "Rent"),
     )
 }

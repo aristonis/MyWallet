@@ -6,7 +6,7 @@ plugins {
     jacoco
 }
 
-// Adapters layer — Room + repo implementations land here from SG-4. Depends only on :domain.
+// Adapters layer: Room and the repository implementations. Depends only on :domain.
 android {
     namespace = "org.aristonis.mywallet.data"
     compileSdk = 37
@@ -35,6 +35,14 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+// Room writes one JSON file per schema version here, and that file is the only durable record of
+// what a given version's tables actually were. Without it a later migration has nothing to be
+// written against and nothing to be tested against, because the old shape exists only in whatever
+// databases are already installed on people's phones. The directory is committed for that reason.
+ksp {
+    arg("room.schemaLocation", layout.projectDirectory.dir("schemas").asFile.path)
 }
 
 dependencies {
