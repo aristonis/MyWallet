@@ -103,7 +103,20 @@ class ManageRatesViewModel @Inject constructor(
         s.copy(rows = s.rows.map { if (it.currencyCode == currencyCode) transform(it) else it })
     }
 
+    /**
+     * The base the rows currently on screen were typed against. A rate means "so many units of THE
+     * BASE", so the moment the base changes every typed number means something else.
+     */
+    private var rowsBase: String? = null
+
     private fun buildRows(snapshot: Snapshot, previous: List<RateRow>): List<RateRow> {
+        // Discard anything typed when the base has moved. The view model outlives navigation, so the
+        // field would otherwise still hold a number expressed against the OLD base, and one Save
+        // would store it as a new-base rate — a permanent error on every figure in that currency,
+        // with nothing to indicate it. Keyed on the base rather than on any change at all, so an
+        // unrelated edit elsewhere does not throw away what the user is in the middle of typing.
+        val carried = if (rowsBase == snapshot.base) previous else emptyList()
+        rowsBase = snapshot.base
         // Only currencies that active accounts use need a rate — this mirrors ComputeNetWorth, which
         // excludes archived accounts, so we never prompt for a rate that can't change the net worth.
         val usedNonBase = snapshot.accounts
@@ -114,7 +127,7 @@ class ManageRatesViewModel @Inject constructor(
 
         return usedNonBase.map { code ->
             val currentRate = snapshot.rates.firstOrNull { it.currencyCode == code }?.rateToBase
-            val prior = previous.firstOrNull { it.currencyCode == code }
+            val prior = carried.firstOrNull { it.currencyCode == code }
             RateRow(
                 currencyCode = code,
                 symbol = snapshot.currencies.firstOrNull { it.code == code }?.symbol ?: code,

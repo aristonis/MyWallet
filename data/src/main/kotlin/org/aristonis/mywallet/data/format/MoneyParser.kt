@@ -7,6 +7,7 @@ import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
 import java.text.ParsePosition
 import java.util.Locale
+import org.aristonis.mywallet.domain.service.CurrencyConverter
 
 /**
  * Parses a typed amount locale-aware AND exact. It reads the device locale's decimal and grouping
@@ -77,7 +78,7 @@ class MoneyParser(private val locale: Locale) {
     private companion object {
         // A real amount sits far inside this scale; an extreme exponent is a paste/typo that would also
         // OOM toPlainString(), so it is rejected at the boundary rather than crash later.
-        private const val MAX_AMOUNT_SCALE = 30
+        private const val MAX_AMOUNT_SCALE = CurrencyConverter.MAX_STORED_SCALE
         private const val REALISTIC_AMOUNT = "Enter a realistic amount"
     }
 }

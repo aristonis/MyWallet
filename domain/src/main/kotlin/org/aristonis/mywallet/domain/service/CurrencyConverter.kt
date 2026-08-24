@@ -40,5 +40,15 @@ class CurrencyConverter(
         val ROUNDING: RoundingMode = RoundingMode.HALF_UP
         const val DEFAULT_DECIMALS = 2
         const val RATE_SCALE = 12
+
+        /**
+         * The most decimal places any stored amount or rate may carry.
+         *
+         * It is a storage limit and an input limit at once, and it has to be both: a value beyond it
+         * is an extreme exponent that would OOM `toPlainString()`, and a value the app itself writes
+         * beyond it is one the app then refuses to let the user re-save. Anything produced for
+         * storage is rounded to this before it is written.
+         */
+        const val MAX_STORED_SCALE = 30
     }
 }

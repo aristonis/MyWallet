@@ -153,10 +153,48 @@ class ManageRatesViewModelTest {
         assertTrue(f.rateRepo.stored.isEmpty())
         assertEquals("Enter a realistic rate", f.viewModel.state.value.rows.single { it.currencyCode == "EUR" }.error)
     }
+    @Test
+    fun changingTheBaseCurrencyDiscardsWhateverWasTyped() = runTest {
+        // The typed number meant "so many units of the OLD base". After a re-base it means nothing,
+        // and the view model survives navigating away, so the field would still be sitting there.
+        // One Save would then store an old-base number as a new-base rate: a permanent error on
+        // every figure in that currency, with nothing anywhere saying so.
+        val f = Fixture(
+            accounts = listOf(account("USD"), account("EUR"), account("JPY")),
+            currencies = listOf(usd, eur, jpy),
+            rates = listOf(ExchangeRate("EUR", BigDecimal("1.10")), ExchangeRate("JPY", BigDecimal("0.0067"))),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        f.viewModel.setRateInput("JPY", "0.0067")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("0.0067", f.viewModel.state.value.rows.first { it.currencyCode == "JPY" }.input)
+        // The re-base: every rate replaced and the base swapped, exactly as the use-case hands over.
+        f.rateRepo.upsert(ExchangeRate("USD", BigDecimal("0.909090909091")))
+        f.rateRepo.upsert(ExchangeRate("JPY", BigDecimal("0.006090909091")))
+        f.settingsRepo.save(Settings(baseCurrencyCode = "EUR"))
+        dispatcher.scheduler.advanceUntilIdle()
+        val jpyRow = f.viewModel.state.value.rows.first { it.currencyCode == "JPY" }
+        assertEquals("the field must be reseeded from the new rate", "0.006090909091", jpyRow.input)
+    }
+    @Test
+    fun typingSurvivesAnUnrelatedChangeWhileTheBaseStaysPut() = runTest {
+        // Discarding on every emission would throw away the user's typing whenever anything else in
+        // the wallet changed, so the reset has to key on the base, not on any change at all.
+        val f = Fixture(
+            accounts = listOf(account("USD"), account("EUR")),
+            currencies = listOf(usd, eur),
+            rates = listOf(ExchangeRate("EUR", BigDecimal("1.10"))),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        f.viewModel.setRateInput("EUR", "1.23")
+        dispatcher.scheduler.advanceUntilIdle()
+        f.accountRepo.upsert(account("EUR"))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("1.23", f.viewModel.state.value.rows.first { it.currencyCode == "EUR" }.input)
+    }
 }
 
 // --- Minimal in-memory ports. ---
-
 private class FakeAccountRepository(initial: List<Account>) : AccountRepository {
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Account>> = items
