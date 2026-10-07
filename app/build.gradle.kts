@@ -39,6 +39,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // The About screen shows the version name, which lives on the generated BuildConfig.
+        buildConfig = true
     }
 
     // Pin AGP's coverage agent to the version already available; no extra fetch.
@@ -65,6 +67,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.navigation.compose)
     implementation(libs.material)
 
     implementation(libs.hilt.android)
