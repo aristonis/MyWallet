@@ -3,11 +3,13 @@ package org.aristonis.mywallet.domain.usecase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.PeriodSummary
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.service.PeriodRanges
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
@@ -46,7 +48,7 @@ class ComputePeriodSummaryTest {
                 rateUsed = BigDecimal.ONE, date = LocalDate.of(2026, 7, 12),
             ),
         )
-        val summary = usecase(txs).invoke(TrackingPeriod.MONTH, julRef).first().summary()
+        val summary = usecase(txs).invoke(PeriodRanges.of(TrackingPeriod.MONTH, julRef)).first().summary()
         assertEquals(usd("100"), summary.income)
         assertEquals(usd("30"), summary.expense)
         assertEquals(usd("70"), summary.net)
@@ -57,7 +59,7 @@ class ComputePeriodSummaryTest {
         val txs = listOf(
             Transaction.Income(id = 1, accountId = 1, amount = usd("100"), categoryId = 1, date = LocalDate.of(2026, 6, 10)), // June
         )
-        val summary = usecase(txs).invoke(TrackingPeriod.MONTH, julRef).first().summary()
+        val summary = usecase(txs).invoke(PeriodRanges.of(TrackingPeriod.MONTH, julRef)).first().summary()
         assertEquals(Money.zero("USD"), summary.income)
         assertEquals(Money.zero("USD"), summary.net)
     }
@@ -67,7 +69,7 @@ class ComputePeriodSummaryTest {
         val txs = listOf(
             Transaction.Expense(id = 1, accountId = 1, amount = eur("30"), categoryId = 2, date = LocalDate.of(2026, 7, 20)),
         )
-        val result = usecase(txs).invoke(TrackingPeriod.MONTH, julRef).first()
+        val result = usecase(txs).invoke(PeriodRanges.of(TrackingPeriod.MONTH, julRef)).first()
         assertEquals(PeriodSummaryResult.MissingRate("EUR"), result)
     }
 
@@ -78,7 +80,7 @@ class ComputePeriodSummaryTest {
         val txs = listOf(
             Transaction.Income(id = 1, accountId = 1, amount = eur("100"), categoryId = 1, date = LocalDate.of(2026, 7, 10)),
         )
-        val result = usecase(txs).invoke(TrackingPeriod.MONTH, julRef).first()
+        val result = usecase(txs).invoke(PeriodRanges.of(TrackingPeriod.MONTH, julRef)).first()
         assertEquals(PeriodSummaryResult.MissingRate("EUR"), result)
     }
 
@@ -89,9 +91,23 @@ class ComputePeriodSummaryTest {
         val txs = listOf(
             Transaction.Expense(id = 1, accountId = 1, amount = eur("30"), categoryId = 2, date = LocalDate.of(2026, 6, 20)), // June
         )
-        val summary = usecase(txs).invoke(TrackingPeriod.MONTH, julRef).first().summary()
+        val summary = usecase(txs).invoke(PeriodRanges.of(TrackingPeriod.MONTH, julRef)).first().summary()
         assertEquals(Money.zero("USD"), summary.income)
         assertEquals(Money.zero("USD"), summary.expense)
         assertEquals(Money.zero("USD"), summary.net)
+    }
+
+    @Test
+    fun boundsAreInclusive() = runTest {
+        val from = LocalDate.of(2026, 8, 3)
+        val to = LocalDate.of(2026, 8, 17)
+        val txs = listOf(
+            Transaction.Income(id = 1, accountId = 1, amount = usd("10"), categoryId = 1, date = from.minusDays(1)),
+            Transaction.Income(id = 2, accountId = 1, amount = usd("20"), categoryId = 1, date = from),
+            Transaction.Income(id = 3, accountId = 1, amount = usd("40"), categoryId = 1, date = to),
+            Transaction.Income(id = 4, accountId = 1, amount = usd("80"), categoryId = 1, date = to.plusDays(1)),
+        )
+        val summary = usecase(txs).invoke(DateRange(from, to)).first().summary()
+        assertEquals(usd("60"), summary.income)
     }
 }

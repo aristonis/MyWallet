@@ -22,6 +22,21 @@ object PeriodRanges {
             reference.withDayOfYear(1),
             reference.with(TemporalAdjusters.lastDayOfYear()),
         )
-        TrackingPeriod.ALL_TIME -> DateRange(LocalDate.MIN, LocalDate.MAX)
+        TrackingPeriod.ALL_TIME -> DateRange.ALL_TIME
+    }
+
+    /**
+     * Move [anchor] by [steps] whole periods (negative = earlier). Only the anchor moves; feed it back
+     * to [of] for the neighbouring range. java.time clamps an impossible day (Jan 31 + 1 month is
+     * Feb 28/29, Feb 29 + 1 year is Feb 28), which is safe because [of] widens to the whole unit anyway.
+     *
+     * @throws IllegalStateException for [TrackingPeriod.ALL_TIME], which already spans every date.
+     */
+    fun shift(period: TrackingPeriod, anchor: LocalDate, steps: Long): LocalDate = when (period) {
+        TrackingPeriod.DAY -> anchor.plusDays(steps)
+        TrackingPeriod.WEEK -> anchor.plusWeeks(steps)
+        TrackingPeriod.MONTH -> anchor.plusMonths(steps)
+        TrackingPeriod.YEAR -> anchor.plusYears(steps)
+        TrackingPeriod.ALL_TIME -> error("all time has no neighbour to shift to")
     }
 }

@@ -17,6 +17,7 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.service.PeriodRanges
 import org.aristonis.mywallet.domain.usecase.CategoryBreakdownResult
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
@@ -76,10 +77,11 @@ class ReportsViewModel @Inject constructor(
 
     val state: StateFlow<ReportsUiState> =
         period.flatMapLatest { selected ->
-            val reference = today.today() // read per period change, not once at injection
+            // "today" is read per period change, not once at injection, so the range tracks the day.
+            val range = PeriodRanges.of(selected, today.today())
             combine(
-                computePeriodSummary(selected, reference),
-                computeCategoryBreakdown(selected, reference),
+                computePeriodSummary(range),
+                computeCategoryBreakdown(range),
                 categories.observeAll(),
                 currencies.observeAll(),
             ) { summary, breakdown, categoryList, currencyList ->
@@ -112,11 +114,10 @@ class ReportsViewModel @Inject constructor(
         }
         val totals = when (breakdown) {
             is CategoryBreakdownResult.MissingRate -> return ReportsData.MissingRate(breakdown.currencyCode)
-            is CategoryBreakdownResult.Resolved -> breakdown.totals
+            is CategoryBreakdownResult.Resolved -> breakdown.breakdown.expense
         }
-        // Sort by the exact Money (all totals are in the base currency) BEFORE formatting to strings.
+        // The breakdown already comes biggest spend first (ties by id); keep its order as-is.
         val rows = totals
-            .sortedByDescending { it.total } // biggest spend first
             .map {
                 CategoryRow(
                     id = it.categoryId,
