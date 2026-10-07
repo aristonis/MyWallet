@@ -1,3 +1,290 @@
 <resources>
     <string name="app_name">My Wallet</string>
+
+    <!-- Bottom navigation -->
+    <string name="tab_home">Home</string>
+    <string name="tab_transactions">Transactions</string>
+    <string name="tab_tracking">Tracking</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Actions shared by more than one screen -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_save_transaction">Save transaction</string>
+    <string name="action_save_account">Save account</string>
+    <string name="action_save_rate">Save rate</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_add">Add</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_back">Back</string>
+    <string name="action_ok">OK</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_archive">Archive</string>
+    <string name="action_unarchive">Unarchive</string>
+    <string name="action_replace">Replace</string>
+    <string name="action_switch">Switch</string>
+    <string name="action_select">Select</string>
+    <string name="action_selected">Selected</string>
+    <string name="action_search">Search</string>
+
+    <!-- Placeholders and fallbacks -->
+    <string name="value_select_prompt">Select…</string>
+    <string name="value_none">None</string>
+    <!-- An em dash standing in for a value that could not be resolved. -->
+    <string name="value_missing">—</string>
+
+    <!-- Icon labels for screen readers. Purely decorative icons pass a null description instead. -->
+    <string name="cd_navigate_back">Back</string>
+    <string name="cd_income">Income</string>
+    <string name="cd_expense">Expense</string>
+    <string name="cd_transfer">Transfer</string>
+    <string name="cd_warning">Warning</string>
+    <!-- Several rows on a screen each have their own menu, so the row is named. -->
+    <string name="cd_row_actions">Actions for %1$s</string>
+
+    <!-- Home -->
+    <string name="home_title">My Wallet</string>
+    <string name="home_net_worth">Net worth</string>
+    <string name="home_net_worth_scope">Updated from all active accounts</string>
+    <string name="home_no_accounts">Your wallet needs an account before you can record anything.</string>
+    <string name="home_create_first_account">Create your first account</string>
+    <string name="home_accounts">Accounts</string>
+    <string name="home_manage">Manage</string>
+    <string name="home_settings">Settings</string>
+    <string name="home_add_account">Add account</string>
+    <string name="home_add_transaction">Add transaction</string>
+    <string name="home_missing_rate">Set an exchange rate for %1$s to see your net worth.</string>
+    <string name="home_account_missing_rate">Set a rate for %1$s to convert</string>
+    <!-- The approximately-equals sign marks a converted, rounded balance. -->
+    <string name="home_account_converted">≈ %1$s</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">Welcome to My Wallet</string>
+    <string name="onboarding_subtitle">Pick your base currency and add your first account.</string>
+    <string name="onboarding_finish">Finish setup</string>
+    <string name="onboarding_complete_title">You\'re all set</string>
+    <string name="onboarding_complete_body">Your wallet is ready.</string>
+
+    <!-- Account form, shared by add and edit -->
+    <string name="add_account_title">Add account</string>
+    <string name="edit_account_title">Edit account</string>
+    <string name="field_base_currency">Base currency</string>
+    <string name="field_currency">Currency</string>
+    <string name="field_account_name">Account name</string>
+    <string name="field_account_type">Account type</string>
+    <string name="field_opening_balance">Opening balance (optional)</string>
+    <string name="account_currency_locked">Currency is locked once an account has transactions</string>
+
+    <!-- Manage accounts -->
+    <string name="manage_accounts_title">Accounts</string>
+    <string name="manage_accounts_empty">No accounts yet.</string>
+    <string name="account_archived">Archived</string>
+    <string name="account_type_and_currency">%1$s · %2$s</string>
+    <string name="account_archive_instead">Has transactions — archive instead</string>
+    <string name="delete_account_title">Delete %1$s?</string>
+    <string name="delete_account_body">This permanently removes the account. This can\'t be undone.</string>
+
+    <!-- Transactions list -->
+    <string name="transactions_title">Transactions</string>
+    <string name="transactions_empty">No transactions yet. Add your first transaction.</string>
+    <!-- Day headers. Today keeps its date; yesterday does not need one. -->
+    <string name="date_today">Today · %1$s</string>
+    <string name="date_yesterday">Yesterday</string>
+    <!-- Category, then the note that tells two similar rows apart. -->
+    <string name="transaction_headline_with_note">%1$s · %2$s</string>
+    <!-- Source account, then destination. The arrow is content, not a control. -->
+    <string name="transfer_route">%1$s → %2$s</string>
+    <string name="transfer_amounts">%1$s → %2$s</string>
+
+    <!-- Add and edit transaction -->
+    <string name="add_transaction_title">Add transaction</string>
+    <string name="edit_transaction_title">Edit transaction</string>
+    <string name="transaction_type_income">Income</string>
+    <string name="transaction_type_expense">Expense</string>
+    <string name="transaction_type_transfer">Transfer</string>
+    <string name="field_account">Account</string>
+    <string name="field_from_account">From account</string>
+    <string name="field_to_account">To account</string>
+    <string name="field_category">Category</string>
+    <string name="field_sub_category">Sub-category (optional)</string>
+    <string name="field_amount">Amount</string>
+    <string name="field_amount_in_currency">Amount (%1$s)</string>
+    <string name="field_date">Date</string>
+    <string name="field_note">Note (optional)</string>
+    <string name="field_name">Name</string>
+    <string name="account_with_currency">%1$s (%2$s)</string>
+    <string name="delete_transaction_title">Delete this transaction?</string>
+    <string name="delete_transaction_body">This removes the transaction. You can undo right after.</string>
+    <string name="transaction_deleted">Transaction deleted</string>
+
+    <!-- Exchange rates -->
+    <string name="rates_title">Exchange rates</string>
+    <string name="rates_not_needed">All your accounts are already in your base currency — no rates needed.</string>
+    <string name="rates_hint">Enter how much 1 unit is worth in %1$s.</string>
+    <string name="rates_currency_heading">%1$s (%2$s)</string>
+    <string name="rates_current_in_base">1 %1$s = %2$s %3$s</string>
+    <string name="rates_current">1 %1$s = %2$s</string>
+    <string name="rates_unset">No rate set yet</string>
+    <string name="field_rate">Rate</string>
+    <string name="field_rate_in_base">Rate in %1$s</string>
+
+    <!-- Reports -->
+    <string name="tracking_title">Tracking</string>
+    <string name="reports_missing_rate">Set an exchange rate for %1$s on the Exchange rates screen to see this report.</string>
+    <string name="reports_spending_by_category">Spending by category</string>
+    <string name="reports_no_spending">No spending this period.</string>
+    <string name="reports_income">Income</string>
+    <string name="reports_expenses">Expenses</string>
+    <string name="reports_net">Net</string>
+    <!-- Names the control, since the button itself shows only the period in effect. -->
+    <string name="cd_period_selector">Period, %1$s</string>
+    <string name="period_day">Day</string>
+    <string name="period_week">Week</string>
+    <string name="period_month">Month</string>
+    <string name="period_year">Year</string>
+    <string name="period_all_time">All time</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_wallet">Your wallet</string>
+    <string name="settings_base_currency">Base currency</string>
+    <string name="settings_accounts">Accounts</string>
+    <string name="settings_categories">Categories</string>
+    <string name="settings_rates">Currencies &amp; rates</string>
+    <string name="settings_section_currencies">Currencies</string>
+    <string name="settings_section_data">Data</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_about">About My Wallet</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_body">An offline wallet. Everything you record stays on this device — nothing is uploaded, and there is no account to sign in to.</string>
+    <string name="settings_export_body">Save everything to a file you keep.</string>
+    <string name="settings_restore_body">Replaces everything currently in the app.</string>
+    <string name="settings_export">Export backup</string>
+    <string name="settings_restore">Restore from backup</string>
+    <string name="settings_working">Working…</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="restore_confirm_title">Restore backup?</string>
+    <string name="restore_confirm_body">Replace all current data with this backup? This can\'t be undone.</string>
+
+    <!-- Base currency -->
+    <string name="base_currency_title">Base currency</string>
+    <string name="base_currency_body">Everything is totalled in this currency. Your recorded amounts stay exactly as they are — only what they convert into changes.</string>
+    <string name="base_currency_current">Currently %1$s</string>
+    <string name="base_currency_rate_label">1 %1$s in %2$s</string>
+    <string name="base_currency_switch_to">Switch to %1$s</string>
+    <string name="base_currency_choose">Choose a currency</string>
+    <string name="base_currency_confirm_title">Switch to %1$s?</string>
+    <string name="base_currency_confirm_body">Every exchange rate will be re-expressed against %1$s, replacing the ones you entered. Your accounts and transactions are not changed. This cannot be undone.</string>
+    <string name="currency_code_and_symbol">%1$s %2$s</string>
+    <string name="currency_code_with_symbol">%1$s — %2$s</string>
+
+    <!-- Categories -->
+    <string name="categories_title">Categories</string>
+    <string name="categories_expense">Expense</string>
+    <string name="categories_income">Income</string>
+    <string name="categories_expense_empty">No expense categories yet.</string>
+    <string name="categories_income_empty">No income categories yet.</string>
+    <string name="category_add_sub">Add sub</string>
+    <string name="category_new">New category</string>
+    <string name="category_new_sub">New sub-category under %1$s</string>
+    <string name="category_rename_title">Rename category</string>
+    <string name="delete_category_title">Delete %1$s?</string>
+    <plurals name="category_transaction_count">
+        <item quantity="one">%1$d transaction</item>
+        <item quantity="other">%1$d transactions</item>
+    </plurals>
+
+    <!-- What a category delete did. The counts are the point: a user told "1 transaction" who then
+         loses three has been misled at the one moment they were asked to decide. -->
+    <string name="category_deleted_none">Deleted. No transactions were affected.</string>
+    <plurals name="category_deleted_sub">
+        <item quantity="one">Deleted. %1$d transaction kept its category and lost only the finer label.</item>
+        <item quantity="other">Deleted. %1$d transactions kept their category and lost only the finer label.</item>
+    </plurals>
+    <plurals name="category_deleted_parent">
+        <item quantity="one">Deleted. %1$d transaction moved to Uncategorized.</item>
+        <item quantity="other">Deleted. %1$d transactions moved to Uncategorized.</item>
+    </plurals>
+
+    <!-- What a category delete is about to do. -->
+    <string name="delete_category_sub_none">No transactions use it, so nothing changes.</string>
+    <plurals name="delete_category_sub_affected">
+        <item quantity="one">%1$d transaction keeps its category and loses only this finer label.</item>
+        <item quantity="other">%1$d transactions keep their category and lose only this finer label.</item>
+    </plurals>
+    <plurals name="delete_category_children">
+        <item quantity="one">Its %1$d sub-category goes too. </item>
+        <item quantity="other">Its %1$d sub-categories go too. </item>
+    </plurals>
+    <string name="delete_category_none">No transactions use it, so nothing moves.</string>
+    <plurals name="delete_category_affected">
+        <item quantity="one">%1$d transaction moves to Uncategorized — nothing is lost.</item>
+        <item quantity="other">%1$d transactions move to Uncategorized — nothing is lost.</item>
+    </plurals>
+
+    <!-- Searchable pickers -->
+    <string name="search_no_match">No match for \"%1$s\"</string>
+
+    <!-- Account types. The stored key is the identity; this is only what it is called on screen. -->
+    <string name="account_type_cash">Cash</string>
+    <string name="account_type_card">Card</string>
+    <string name="account_type_savings">Savings</string>
+    <string name="account_type_bank">Bank</string>
+    <string name="account_type_other">Other</string>
+
+    <!-- The app-owned bucket that a deleted category's transactions fall back to. -->
+    <string name="category_uncategorized">Uncategorized</string>
+
+    <!-- Messages. Each one is the user-facing wording of a named failure; see UiMessage.kt.
+         They say what to do next wherever there is something the user can actually do. -->
+    <string name="msg_amount_missing">Enter an amount.</string>
+    <string name="msg_amount_not_positive">Enter an amount greater than zero.</string>
+    <string name="msg_amount_out_of_range">That amount is too large. Enter a realistic one.</string>
+    <string name="msg_rate_missing">Enter a rate.</string>
+    <string name="msg_rate_not_positive">Enter a rate greater than zero.</string>
+    <string name="msg_rate_out_of_range">That rate is too large. Enter a realistic one.</string>
+    <string name="msg_not_a_number">Enter a plain number, without grouping separators.</string>
+
+    <string name="msg_account_required">Choose an account.</string>
+    <string name="msg_category_required">Choose a category.</string>
+    <string name="msg_destination_account_required">Choose an account to transfer to.</string>
+    <string name="msg_name_required">Enter a name.</string>
+
+    <string name="msg_account_not_found">That account no longer exists.</string>
+    <string name="msg_account_in_use">This account has transactions, so it can\'t be deleted. Archive it instead.</string>
+    <string name="msg_account_currency_locked">This account has transactions, so its currency can\'t be changed.</string>
+    <string name="msg_account_archived">This account is archived. Unarchive it to record transactions.</string>
+
+    <string name="msg_category_not_found">That category no longer exists.</string>
+    <string name="msg_duplicate_category_name">A category named \"%1$s\" already exists here. Pick another name.</string>
+    <string name="msg_category_depth_exceeded">Categories go two levels deep, so a sub-category can\'t have its own.</string>
+    <string name="msg_category_kind_mismatch">That sub-category doesn\'t belong to this category.</string>
+    <string name="msg_category_structure_invalid">This category can\'t be used because its structure is broken.</string>
+    <string name="msg_category_not_top_level">Pick a top-level category, then its sub-category if you want one.</string>
+    <string name="msg_system_category_protected">Uncategorized is managed by the app and can\'t be renamed or deleted.</string>
+
+    <string name="msg_currency_mismatch">This amount is in %1$s but the account is in %2$s.</string>
+    <string name="msg_currency_not_found">%1$s isn\'t in the currency list.</string>
+    <string name="msg_missing_rate">Set an exchange rate for %1$s first.</string>
+    <string name="msg_rate_underflow">The rate for %1$s is too small to express against the new base currency.</string>
+    <string name="msg_amount_rounds_to_zero">That amount is too small to convert to %1$s. Enter a larger one.</string>
+
+    <string name="msg_transaction_not_found">That transaction no longer exists.</string>
+    <string name="msg_transfer_currency_pair_changed">A transfer\'s currencies can\'t change. Delete it and add it again.</string>
+    <string name="msg_transaction_restore_failed">Couldn\'t bring the transaction back.</string>
+
+    <string name="msg_backup_saved">Backup saved.</string>
+    <string name="msg_backup_save_failed">Couldn\'t save the backup.</string>
+    <string name="msg_backup_file_unreadable">Couldn\'t read that file.</string>
+    <string name="msg_backup_restored">Backup restored.</string>
+    <string name="msg_backup_not_recognized">This file isn\'t a MyWallet backup.</string>
+    <string name="msg_backup_from_newer_version">This backup is from a newer version of the app.</string>
+    <string name="msg_backup_restore_failed">Couldn\'t restore the backup.</string>
+
+    <string name="msg_unexpected">Something went wrong. Please try again.</string>
 </resources>
