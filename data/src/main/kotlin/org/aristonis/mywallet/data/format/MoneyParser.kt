@@ -16,25 +16,26 @@ import org.aristonis.mywallet.domain.service.CurrencyConverter
  * "1,50abc" and "abc" are rejected rather than silently truncated.
  *
  * A fresh [DecimalFormat] is built per call: it is not thread-safe, so there is no shared mutable state
- * to synchronise (mirrors MoneyFormatter). Each public method frames a user-facing message on failure.
+ * to synchronise (mirrors MoneyFormatter). Every rejection is a [MoneyParseException] naming a
+ * [MoneyParseError]; wording it is the UI's job, not this layer's.
  */
 class MoneyParser(private val locale: Locale) {
 
     /** Required, strictly positive. Built in [currencyCode] so it never touches a float. */
     fun parseAmount(input: String, currencyCode: String): Money {
         val trimmed = input.trim()
-        require(trimmed.isNotEmpty()) { "Enter an amount" }
-        val parsed = exactWithinScale(trimmed, REALISTIC_AMOUNT)
-        require(parsed.signum() > 0) { "Amount must be greater than 0" }
+        if (trimmed.isEmpty()) throw MoneyParseException(MoneyParseError.AMOUNT_MISSING)
+        val parsed = exactWithinScale(trimmed, MoneyParseError.AMOUNT_OUT_OF_RANGE)
+        if (parsed.signum() <= 0) throw MoneyParseException(MoneyParseError.AMOUNT_NOT_POSITIVE)
         return Money.of(parsed, currencyCode)
     }
 
     /** Required, strictly positive. Returns the raw [BigDecimal] — a rate is not a currency amount. */
     fun parseRate(input: String): BigDecimal {
         val trimmed = input.trim()
-        require(trimmed.isNotEmpty()) { "Enter a rate" }
-        val parsed = exactWithinScale(trimmed, "Enter a realistic rate")
-        require(parsed.signum() > 0) { "Rate must be greater than 0" }
+        if (trimmed.isEmpty()) throw MoneyParseException(MoneyParseError.RATE_MISSING)
+        val parsed = exactWithinScale(trimmed, MoneyParseError.RATE_OUT_OF_RANGE)
+        if (parsed.signum() <= 0) throw MoneyParseException(MoneyParseError.RATE_NOT_POSITIVE)
         return parsed
     }
 
@@ -42,7 +43,7 @@ class MoneyParser(private val locale: Locale) {
     fun parseOpeningBalance(input: String, currencyCode: String): Money {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return Money.zero(currencyCode)
-        return Money.of(exactWithinScale(trimmed, REALISTIC_AMOUNT), currencyCode)
+        return Money.of(exactWithinScale(trimmed, MoneyParseError.AMOUNT_OUT_OF_RANGE), currencyCode)
     }
 
     /**
@@ -53,10 +54,10 @@ class MoneyParser(private val locale: Locale) {
     fun toInputString(amount: BigDecimal): String =
         amount.toPlainString().replace('.', DecimalFormatSymbols.getInstance(locale).decimalSeparator)
 
-    /** The locale-aware exact parse plus the shared scale guard; [scaleMessage] names the flavor. */
-    private fun exactWithinScale(trimmed: String, scaleMessage: String): BigDecimal {
+    /** The locale-aware exact parse plus the shared scale guard; [outOfRange] names the flavor. */
+    private fun exactWithinScale(trimmed: String, outOfRange: MoneyParseError): BigDecimal {
         val parsed = exactParse(trimmed)
-        require(parsed.scale() in -MAX_AMOUNT_SCALE..MAX_AMOUNT_SCALE) { scaleMessage }
+        if (parsed.scale() !in -MAX_AMOUNT_SCALE..MAX_AMOUNT_SCALE) throw MoneyParseException(outOfRange)
         return parsed
     }
 
@@ -68,10 +69,14 @@ class MoneyParser(private val locale: Locale) {
         val format = (NumberFormat.getInstance(locale) as DecimalFormat).apply { isParseBigDecimal = true }
         // A money field takes a plain number, never a grouped one: reject any grouping separator so a
         // stray/misplaced one can't be silently misread (e.g. en-US "1,50" as 150). Display groups; input doesn't.
-        require(format.decimalFormatSymbols.groupingSeparator !in trimmed) { "Enter a valid number" }
+        if (format.decimalFormatSymbols.groupingSeparator in trimmed) {
+            throw MoneyParseException(MoneyParseError.NOT_A_NUMBER)
+        }
         val position = ParsePosition(0)
         val parsed = format.parse(trimmed, position)
-        require(parsed is BigDecimal && position.index == trimmed.length) { "Enter a valid number" }
+        if (parsed !is BigDecimal || position.index != trimmed.length) {
+            throw MoneyParseException(MoneyParseError.NOT_A_NUMBER)
+        }
         return parsed
     }
 
@@ -79,6 +84,5 @@ class MoneyParser(private val locale: Locale) {
         // A real amount sits far inside this scale; an extreme exponent is a paste/typo that would also
         // OOM toPlainString(), so it is rejected at the boundary rather than crash later.
         private const val MAX_AMOUNT_SCALE = CurrencyConverter.MAX_STORED_SCALE
-        private const val REALISTIC_AMOUNT = "Enter a realistic amount"
     }
 }

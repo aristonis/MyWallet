@@ -23,6 +23,7 @@ import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.aristonis.mywallet.domain.usecase.PeriodSummaryResult
 import org.aristonis.mywallet.ui.format.display
 import javax.inject.Inject
+import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.label
 
 /**
@@ -30,7 +31,7 @@ import org.aristonis.mywallet.ui.label
  * not unique and unknown ids all render as a dash), [name] is already resolved for display, and
  * [totalDisplay] is the total pre-formatted per currency + locale.
  */
-data class CategoryRow(val id: Long, val name: String, val totalDisplay: String)
+data class CategoryRow(val id: Long, val label: CategoryLabel, val totalDisplay: String)
 
 /**
  * The report body. A missing rate is a first-class value (not a spinner and not a wrong number), so
@@ -119,7 +120,7 @@ class ReportsViewModel @Inject constructor(
             .map {
                 CategoryRow(
                     id = it.categoryId,
-                    name = categoryName(it.categoryId, categoryList),
+                    label = categoryName(it.categoryId, categoryList),
                     totalDisplay = moneyFormatter.display(it.total, currencyList),
                 )
             }
@@ -132,12 +133,12 @@ class ReportsViewModel @Inject constructor(
         )
     }
 
-    // A deleted/unknown category id degrades to a dash instead of dropping the row (defensive read).
-    private fun categoryName(id: Long, categories: List<Category>): String =
-        categories.firstOrNull { it.id == id }?.label() ?: MISSING
+    // A deleted/unknown category id degrades to an Unknown label instead of dropping the row
+    // (defensive read). What that looks like on screen is the screen's business, not this one's.
+    private fun categoryName(id: Long, categories: List<Category>): CategoryLabel =
+        categories.firstOrNull { it.id == id }?.label() ?: CategoryLabel.Unknown
 
     private companion object {
-        private const val MISSING = "—"
         private const val STOP_TIMEOUT_MS = 5_000L
     }
 }

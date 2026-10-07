@@ -28,6 +28,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.aristonis.mywallet.ui.message.UiMessage
 import java.math.BigDecimal
 import java.util.Locale
 
@@ -112,7 +113,7 @@ class ManageRatesViewModelTest {
         advanceUntilIdle()
 
         assertTrue(f.rateRepo.stored.isEmpty())
-        assertEquals("Rate must be greater than 0", f.viewModel.state.value.rows.single { it.currencyCode == "EUR" }.error)
+        assertEquals(UiMessage.RateNotPositive, f.viewModel.state.value.rows.single { it.currencyCode == "EUR" }.error)
     }
 
     @Test
@@ -125,7 +126,7 @@ class ManageRatesViewModelTest {
         advanceUntilIdle()
 
         assertTrue(f.rateRepo.stored.isEmpty())
-        assertEquals("Enter a valid number", f.viewModel.state.value.rows.single { it.currencyCode == "EUR" }.error)
+        assertEquals(UiMessage.NotANumber, f.viewModel.state.value.rows.single { it.currencyCode == "EUR" }.error)
     }
 
     @Test
@@ -151,7 +152,7 @@ class ManageRatesViewModelTest {
         advanceUntilIdle()
 
         assertTrue(f.rateRepo.stored.isEmpty())
-        assertEquals("Enter a realistic rate", f.viewModel.state.value.rows.single { it.currencyCode == "EUR" }.error)
+        assertEquals(UiMessage.RateOutOfRange, f.viewModel.state.value.rows.single { it.currencyCode == "EUR" }.error)
     }
     @Test
     fun changingTheBaseCurrencyDiscardsWhateverWasTyped() = runTest {

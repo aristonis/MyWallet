@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ThemePreference
@@ -30,7 +32,7 @@ data class OnboardingUiState(
     val openingBalanceInput: String = "",
     val theme: ThemePreference = ThemePreference.SYSTEM,
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: UiMessage? = null,
     val completed: Boolean = false,
 ) {
     /** The UI enables the finish button only when both required choices are present. */
@@ -99,10 +101,10 @@ class OnboardingViewModel @Inject constructor(
                 _state.update { it.copy(isSubmitting = false, completed = true) }
             } catch (e: WalletException) {
                 // Typed domain failure (e.g. unknown currency) — surface, never swallow (fail-loud).
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
                 // Invariant violations: blank name (Account) or unparseable amount (NumberFormatException).
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
     }

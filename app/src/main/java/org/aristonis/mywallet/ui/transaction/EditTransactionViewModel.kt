@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.MissingSelectionException
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -47,7 +50,7 @@ data class EditTransactionUiState(
     val date: LocalDate? = null,
     val note: String = "",
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: UiMessage? = null,
     val saved: Boolean = false,
     val deleted: Boolean = false,
     // The row just removed by [delete], held while the Undo affordance is up so it can be restored.
@@ -141,7 +144,7 @@ class EditTransactionViewModel @Inject constructor(
             val existing = transactions.findById(id)
             ensureActive() // a newer load() cancelled this one — don't overwrite the fresh state
             if (existing == null) {
-                _state.update { it.copy(error = WalletException.TransactionNotFound(id).message) }
+                _state.update { it.copy(error = UiMessage.TransactionNotFound) }
                 return@launch
             }
             _state.update { it.populatedFrom(existing) }
@@ -186,9 +189,9 @@ class EditTransactionViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: WalletException) {
-                _state.update { it.copy(error = e.message) }
+                _state.update { it.copy(error = e.toUiMessage()) }
             } catch (e: Exception) {
-                _state.update { it.copy(error = "Couldn't restore the transaction") }
+                _state.update { it.copy(error = UiMessage.TransactionRestoreFailed) }
             }
         }
     }
@@ -210,10 +213,11 @@ class EditTransactionViewModel @Inject constructor(
                 _state.update { it.copy(isSubmitting = false, saved = true) }
             } catch (e: WalletException) {
                 // Includes TransferCurrencyPairChanged / TransactionNotFound — surface it to the user.
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
-                // Bad amount (parse) or a model invariant (amount > 0) — surface it.
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                // A bad amount or a missing choice names itself; a model invariant (amount > 0) does
+                // not, and its text was written for a stack trace.
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
     }
@@ -232,7 +236,7 @@ class EditTransactionViewModel @Inject constructor(
                 deleteTransaction(loaded.id)
                 _state.update { it.copy(isSubmitting = false, undoableDelete = loaded) }
             } catch (e: WalletException) {
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
     }
@@ -319,8 +323,8 @@ class EditTransactionViewModel @Inject constructor(
 
     private fun requireAccount(snapshot: EditTransactionUiState): Account =
         snapshot.accounts.firstOrNull { it.id == snapshot.selectedAccountId }
-            ?: throw IllegalArgumentException("Choose an account")
+            ?: throw MissingSelectionException(UiMessage.AccountRequired)
 
     private fun requireCategory(snapshot: EditTransactionUiState): Long =
-        snapshot.selectedCategoryId ?: throw IllegalArgumentException("Choose a category")
+        snapshot.selectedCategoryId ?: throw MissingSelectionException(UiMessage.CategoryRequired)
 }

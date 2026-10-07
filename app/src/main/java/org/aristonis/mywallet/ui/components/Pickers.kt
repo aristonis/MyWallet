@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -21,15 +22,27 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.ui.icons.WalletIcons
 
 /**
  * Reusable form pickers shared across screens (onboarding, add-account). Kept in a neutral package
  * so feature screens don't import UI widgets from each other. All stable Material 3 APIs — no
- * experimental ExposedDropdownMenuBox, no icon dependency (the caret is plain text).
+ * experimental ExposedDropdownMenuBox.
  */
+
+/**
+ * The caret on a field that opens a menu. It is decorative — the field's own label already tells a
+ * screen reader what the control is, so announcing "show options" after it would only repeat.
+ */
+@Composable
+private fun DropdownCaret() {
+    Icon(imageVector = WalletIcons.Expand, contentDescription = null)
+}
 
 /** A labelled field that opens a searchable currency picker; only the chosen code goes back up. */
 @Composable
@@ -43,15 +56,19 @@ internal fun SearchableCurrencyField(
     Column {
         Text(label, style = MaterialTheme.typography.labelMedium)
         OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(selected?.let { "${it.code} (${it.symbol})" } ?: "Select…", modifier = Modifier.weight(1f))
-            Text("▾")
+            Text(
+                text = selected?.let { stringResource(R.string.account_with_currency, it.code, it.symbol) }
+                    ?: stringResource(R.string.value_select_prompt),
+                modifier = Modifier.weight(1f),
+            )
+            DropdownCaret()
         }
     }
     if (showPicker) {
         SearchableListDialog(
             title = label,
             items = currencies,
-            itemLabel = { "${it.code} — ${it.symbol}" },
+            itemLabel = { stringResource(R.string.currency_code_with_symbol, it.code, it.symbol) },
             matches = { c, q -> c.code.contains(q, ignoreCase = true) || c.symbol.contains(q, ignoreCase = true) },
             onPick = {
                 onSelect(it.code)
@@ -67,7 +84,7 @@ internal fun SearchableCurrencyField(
 internal fun <T> SearchableListDialog(
     title: String,
     items: List<T>,
-    itemLabel: (T) -> String,
+    itemLabel: @Composable (T) -> String,
     matches: (T, String) -> Boolean,
     onPick: (T) -> Unit,
     onDismiss: () -> Unit,
@@ -83,13 +100,13 @@ internal fun <T> SearchableListDialog(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Search") },
+                    placeholder = { Text(stringResource(R.string.action_search)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 )
                 if (filtered.isEmpty()) {
                     Text(
-                        "No match for \"$query\"",
+                        stringResource(R.string.search_no_match, query),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(vertical = 12.dp),
                     )
@@ -117,7 +134,7 @@ internal fun <T> LabeledDropdown(
     label: String,
     selectedText: String,
     items: List<T>,
-    itemLabel: (T) -> String,
+    itemLabel: @Composable (T) -> String,
     onSelect: (T) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -126,7 +143,7 @@ internal fun <T> LabeledDropdown(
         Box {
             OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(selectedText, modifier = Modifier.weight(1f))
-                Text("▾")
+                DropdownCaret()
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 items.forEach { item ->

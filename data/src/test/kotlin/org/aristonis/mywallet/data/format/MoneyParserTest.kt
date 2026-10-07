@@ -22,8 +22,8 @@ class MoneyParserTest {
     @Test
     fun us_groupedInput_isRejected() {
         // Input takes a plain number, not a grouped one — the grouped form is a display concern.
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseAmount("1,000.50", "USD") }
-        assertEquals("Enter a valid number", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseAmount("1,000.50", "USD") }
+        assertEquals(MoneyParseError.NOT_A_NUMBER, ex.error)
     }
 
     @Test
@@ -38,8 +38,8 @@ class MoneyParserTest {
 
     @Test
     fun germany_groupedInput_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { germany.parseAmount("1.000,50", "EUR") }
-        assertEquals("Enter a valid number", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { germany.parseAmount("1.000,50", "EUR") }
+        assertEquals(MoneyParseError.NOT_A_NUMBER, ex.error)
     }
 
     // --- grouping separators are rejected on input: a money field takes a plain number, never grouped,
@@ -48,15 +48,15 @@ class MoneyParserTest {
     @Test
     fun us_commaDecimalTypo_isRejected() {
         // "1,50" in en-US must NOT parse to 150 (',' = grouping) — reject it rather than record 100x.
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseAmount("1,50", "USD") }
-        assertEquals("Enter a valid number", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseAmount("1,50", "USD") }
+        assertEquals(MoneyParseError.NOT_A_NUMBER, ex.error)
     }
 
     @Test
     fun germany_dotDecimalTypo_isRejected() {
         // "1.50" in de-DE must NOT parse to 150 ('.' = grouping there).
-        val ex = assertThrows(IllegalArgumentException::class.java) { germany.parseAmount("1.50", "EUR") }
-        assertEquals("Enter a valid number", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { germany.parseAmount("1.50", "EUR") }
+        assertEquals(MoneyParseError.NOT_A_NUMBER, ex.error)
     }
 
     // --- prefill round-trips: parse(toInputString(x)) == x in every locale (edit screens rely on this) ---
@@ -77,28 +77,28 @@ class MoneyParserTest {
 
     @Test
     fun trailingGarbage_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseAmount("1,50abc", "USD") }
-        assertEquals("Enter a valid number", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseAmount("1,50abc", "USD") }
+        assertEquals(MoneyParseError.NOT_A_NUMBER, ex.error)
     }
 
     @Test
     fun nonNumeric_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseAmount("abc", "USD") }
-        assertEquals("Enter a valid number", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseAmount("abc", "USD") }
+        assertEquals(MoneyParseError.NOT_A_NUMBER, ex.error)
     }
 
     // --- blank, per flavor ---
 
     @Test
     fun blankAmount_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseAmount("   ", "USD") }
-        assertEquals("Enter an amount", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseAmount("   ", "USD") }
+        assertEquals(MoneyParseError.AMOUNT_MISSING, ex.error)
     }
 
     @Test
     fun blankRate_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseRate("") }
-        assertEquals("Enter a rate", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseRate("") }
+        assertEquals(MoneyParseError.RATE_MISSING, ex.error)
     }
 
     @Test
@@ -110,20 +110,20 @@ class MoneyParserTest {
 
     @Test
     fun zeroAmount_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseAmount("0", "USD") }
-        assertEquals("Amount must be greater than 0", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseAmount("0", "USD") }
+        assertEquals(MoneyParseError.AMOUNT_NOT_POSITIVE, ex.error)
     }
 
     @Test
     fun negativeAmount_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseAmount("-5", "USD") }
-        assertEquals("Amount must be greater than 0", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseAmount("-5", "USD") }
+        assertEquals(MoneyParseError.AMOUNT_NOT_POSITIVE, ex.error)
     }
 
     @Test
     fun zeroRate_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseRate("0") }
-        assertEquals("Rate must be greater than 0", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseRate("0") }
+        assertEquals(MoneyParseError.RATE_NOT_POSITIVE, ex.error)
     }
 
     @Test
@@ -140,19 +140,19 @@ class MoneyParserTest {
 
     @Test
     fun amount_absurdExponent_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseAmount("1E40", "USD") }
-        assertEquals("Enter a realistic amount", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseAmount("1E40", "USD") }
+        assertEquals(MoneyParseError.AMOUNT_OUT_OF_RANGE, ex.error)
     }
 
     @Test
     fun rate_absurdExponent_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseRate("1E2000000000") }
-        assertEquals("Enter a realistic rate", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseRate("1E2000000000") }
+        assertEquals(MoneyParseError.RATE_OUT_OF_RANGE, ex.error)
     }
 
     @Test
     fun openingBalance_absurdExponent_isRejected() {
-        val ex = assertThrows(IllegalArgumentException::class.java) { us.parseOpeningBalance("1E40", "USD") }
-        assertEquals("Enter a realistic amount", ex.message)
+        val ex = assertThrows(MoneyParseException::class.java) { us.parseOpeningBalance("1E40", "USD") }
+        assertEquals(MoneyParseError.AMOUNT_OUT_OF_RANGE, ex.error)
     }
 }

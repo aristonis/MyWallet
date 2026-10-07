@@ -1,10 +1,11 @@
 package org.aristonis.mywallet.ui.onboarding
 
-// UI copy is hardcoded here; localizing strings (RTL/i18n) comes later.
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,13 +21,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.aristonis.mywallet.domain.model.AccountType
+import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
+import org.aristonis.mywallet.ui.account.accountTypeLabel
+import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.SearchableCurrencyField
@@ -71,20 +75,23 @@ private fun OnboardingContent(
         val selectedType = AccountTypeRegistry.BuiltIns.all.firstOrNull { it.key == state.accountTypeKey }
 
         Column(
+            // A first-run form of fixed-height fields; at 200% font scale the Finish button drops off
+            // a compact screen entirely, which would leave the user unable to finish setting up.
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(24.dp)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("Welcome to My Wallet", style = MaterialTheme.typography.headlineMedium)
+            Text(stringResource(R.string.onboarding_title), style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Pick your base currency and add your first account.",
+                stringResource(R.string.onboarding_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
             )
 
             SearchableCurrencyField(
-                label = "Base currency",
+                label = stringResource(R.string.field_base_currency),
                 selected = selectedCurrency,
                 currencies = state.currencies,
                 onSelect = onCurrencySelected,
@@ -93,33 +100,38 @@ private fun OnboardingContent(
             OutlinedTextField(
                 value = state.accountName,
                 onValueChange = onNameChanged,
-                label = { Text("Account name") },
+                label = { Text(stringResource(R.string.field_account_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
 
             LabeledDropdown(
-                label = "Account type",
-                selectedText = selectedType?.displayName ?: "Select…",
+                label = stringResource(R.string.field_account_type),
+                selectedText = selectedType?.let { accountTypeLabel(it.key) }
+                    ?: stringResource(R.string.value_select_prompt),
                 items = AccountTypeRegistry.BuiltIns.all,
-                itemLabel = AccountType::displayName,
+                itemLabel = { accountTypeLabel(it.key) },
                 onSelect = { onTypeSelected(it.key) },
             )
 
             OutlinedTextField(
                 value = state.openingBalanceInput,
                 onValueChange = onOpeningBalanceChanged,
-                label = { Text("Opening balance (optional)") },
+                label = { Text(stringResource(R.string.field_opening_balance)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
             )
 
             state.error?.let { message ->
-                Text(message, color = MaterialTheme.colorScheme.error)
+                Text(
+                    text = message.text(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(8.dp))
 
             Button(
                 onClick = onSubmit,
@@ -129,7 +141,7 @@ private fun OnboardingContent(
                 if (state.isSubmitting) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Finish setup")
+                    Text(stringResource(R.string.onboarding_finish))
                 }
             }
         }
@@ -139,13 +151,13 @@ private fun OnboardingContent(
 @Composable
 private fun CompletedMessage(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("You're all set", style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.onboarding_complete_title), style = MaterialTheme.typography.headlineSmall)
         // Brief end state; the app routes to Home automatically once onboarding saves settings.
-        Text("Your wallet is ready.", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.onboarding_complete_body), style = MaterialTheme.typography.bodyMedium)
     }
 }
 

@@ -14,6 +14,9 @@ import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
+import org.aristonis.mywallet.ui.message.MissingSelectionException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -41,7 +44,7 @@ data class AddTransactionUiState(
     val date: LocalDate,
     val note: String = "",
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: UiMessage? = null,
     val saved: Boolean = false,
 ) {
     /**
@@ -171,10 +174,11 @@ class AddTransactionViewModel @Inject constructor(
                 record(snapshot, account)
                 _state.update { it.copy(isSubmitting = false, saved = true) }
             } catch (e: WalletException) {
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
-                // Bad amount (parse) or a model invariant (amount > 0, no self-transfer) — surface it.
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                // A bad amount or a missing choice names itself; a model invariant (amount > 0, no
+                // self-transfer) does not, and its text was written for a stack trace.
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
     }
@@ -210,8 +214,8 @@ class AddTransactionViewModel @Inject constructor(
     }
 
     private fun requireCategory(snapshot: AddTransactionUiState): Long =
-        snapshot.selectedCategoryId ?: throw IllegalArgumentException("Choose a category")
+        snapshot.selectedCategoryId ?: throw MissingSelectionException(UiMessage.CategoryRequired)
 
     private fun requireDestAccount(snapshot: AddTransactionUiState): Long =
-        snapshot.destAccountId ?: throw IllegalArgumentException("Choose a destination account")
+        snapshot.destAccountId ?: throw MissingSelectionException(UiMessage.DestinationAccountRequired)
 }

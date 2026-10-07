@@ -17,6 +17,8 @@ import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CreateAccount
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import javax.inject.Inject
 
 /** Immutable snapshot the add-account screen renders from. */
@@ -27,7 +29,7 @@ data class AddAccountUiState(
     val accountTypeKey: String = AccountTypeRegistry.BuiltIns.CASH.key,
     val openingBalanceInput: String = "",
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: UiMessage? = null,
     val created: Boolean = false,
 ) {
     val canSubmit: Boolean
@@ -85,10 +87,11 @@ class AddAccountViewModel @Inject constructor(
                 )
                 _state.update { it.copy(isSubmitting = false, created = true) }
             } catch (e: WalletException) {
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
-                // Blank name (Account invariant) or unparseable amount (NumberFormatException) — surface it.
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                // Typed parse and missing-choice failures carry their own message; anything else is a
+                // broken invariant whose text was written for a stack trace, not for a person.
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
     }

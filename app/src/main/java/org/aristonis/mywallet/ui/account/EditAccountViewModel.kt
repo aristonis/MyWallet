@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
@@ -38,7 +40,7 @@ data class EditAccountUiState(
     // True once the loaded account has transactions: its currency is fixed, so the picker is disabled.
     val currencyLocked: Boolean = false,
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: UiMessage? = null,
     val saved: Boolean = false,
 ) {
     val canSubmit: Boolean
@@ -87,7 +89,7 @@ class EditAccountViewModel @Inject constructor(
             val existing = accounts.findById(id)
             ensureActive() // a newer load() cancelled this one — don't overwrite the fresh state
             if (existing == null) {
-                _state.update { it.copy(error = WalletException.AccountNotFound(id).message) }
+                _state.update { it.copy(error = UiMessage.AccountNotFound) }
                 return@launch
             }
             val locked = transactions.observeAll().first().any { it.involvesAccount(id) }
@@ -126,10 +128,10 @@ class EditAccountViewModel @Inject constructor(
                 _state.update { it.copy(isSubmitting = false, saved = true) }
             } catch (e: WalletException) {
                 // Includes AccountCurrencyLocked / AccountNotFound — surface it to the user.
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
                 // Blank name (Account invariant) or unparseable amount (NumberFormatException) — surface it.
-                _state.update { it.copy(isSubmitting = false, error = e.message) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
     }

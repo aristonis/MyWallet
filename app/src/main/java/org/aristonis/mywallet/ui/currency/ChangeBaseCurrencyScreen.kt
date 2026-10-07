@@ -1,7 +1,5 @@
 package org.aristonis.mywallet.ui.currency
 
-// UI copy hardcoded; localizing strings (RTL/i18n) comes later.
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,13 +25,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.R
+import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
 /**
@@ -77,25 +79,31 @@ private fun ChangeBaseCurrencyContent(
 ) {
     var confirming by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold { padding ->
+    Scaffold(
+        topBar = {
+            WalletTopAppBar(title = stringResource(R.string.base_currency_title), onBack = onDone)
+        },
+    ) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Base currency", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                TextButton(onClick = onDone) { Text("Done") }
-            }
             Text(
-                "Everything is totalled in this currency. Your recorded amounts stay exactly as they " +
-                    "are — only what they convert into changes.",
+                stringResource(R.string.base_currency_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text("Currently ${state.currentBase}", style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.base_currency_current, state.currentBase),
+                style = MaterialTheme.typography.titleMedium,
+            )
 
-            state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+            state.error?.let { message ->
+                Text(
+                    message.text(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
@@ -116,7 +124,15 @@ private fun ChangeBaseCurrencyContent(
                     onValueChange = onRateChanged,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    label = { Text("1 ${state.selectedCode} in ${state.currentBase}") },
+                    label = {
+                        Text(
+                            stringResource(
+                                R.string.base_currency_rate_label,
+                                state.selectedCode,
+                                state.currentBase,
+                            ),
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -126,7 +142,10 @@ private fun ChangeBaseCurrencyContent(
                 enabled = state.canApply,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(state.selectedCode?.let { "Switch to $it" } ?: "Choose a currency")
+                Text(
+                    state.selectedCode?.let { stringResource(R.string.base_currency_switch_to, it) }
+                        ?: stringResource(R.string.base_currency_choose),
+                )
             }
         }
     }
@@ -134,21 +153,19 @@ private fun ChangeBaseCurrencyContent(
     if (confirming && state.selectedCode != null) {
         AlertDialog(
             onDismissRequest = { confirming = false },
-            title = { Text("Switch to ${state.selectedCode}?") },
+            title = { Text(stringResource(R.string.base_currency_confirm_title, state.selectedCode)) },
             text = {
-                Text(
-                    "Every exchange rate will be re-expressed against ${state.selectedCode}, replacing " +
-                        "the ones you entered. Your accounts and transactions are not changed. This " +
-                        "cannot be undone.",
-                )
+                Text(stringResource(R.string.base_currency_confirm_body, state.selectedCode))
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirming = false
                     onApply()
-                }) { Text("Switch") }
+                }) { Text(stringResource(R.string.action_switch)) }
             },
-            dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
     }
 }
@@ -157,12 +174,17 @@ private fun ChangeBaseCurrencyContent(
 private fun CurrencyRow(currency: Currency, isSelected: Boolean, onSelect: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("${currency.code} ${currency.symbol}", style = MaterialTheme.typography.bodyLarge)
-            TextButton(onClick = onSelect) { Text(if (isSelected) "Selected" else "Select") }
+            Text(
+                stringResource(R.string.currency_code_and_symbol, currency.code, currency.symbol),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            TextButton(onClick = onSelect) {
+                Text(stringResource(if (isSelected) R.string.action_selected else R.string.action_select))
+            }
         }
     }
 }

@@ -1,7 +1,5 @@
 package org.aristonis.mywallet.ui.category
 
-// UI copy hardcoded; localizing strings (RTL/i18n) comes later.
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,16 +25,26 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.ui.components.MenuAction
+import org.aristonis.mywallet.ui.components.OverflowMenu
+import org.aristonis.mywallet.ui.components.WalletTopAppBar
+import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.label
+import org.aristonis.mywallet.ui.text
+import org.aristonis.mywallet.ui.message.text
 
-private fun ManageCategoryRow.label(): String = category.label()
+@Composable
+private fun ManageCategoryRow.labelText(): String = category.label().text()
 
 /** What the screen is currently asking the user to confirm or type. */
 private sealed interface CategoryPrompt {
@@ -114,7 +122,7 @@ fun ManageCategoriesScreen(
 }
 
 @Composable
-private fun ManageCategoriesContent(
+internal fun ManageCategoriesContent(
     state: ManageCategoriesUiState,
     onCreate: (String, CategoryKind, Long?) -> Unit,
     onRename: (Long, String) -> Unit,
@@ -126,15 +134,21 @@ private fun ManageCategoriesContent(
     // Saved across recreation so a rotation mid-edit does not silently drop what was being typed.
     var prompt by rememberSaveable(stateSaver = CategoryPromptSaver) { mutableStateOf<CategoryPrompt?>(null) }
 
-    Scaffold { padding ->
+    Scaffold(
+        topBar = {
+            WalletTopAppBar(title = stringResource(R.string.categories_title), onBack = onDone)
+        },
+    ) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Categories", style = MaterialTheme.typography.headlineSmall)
-
             state.error?.let { message ->
-                Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    message.text(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             state.lastDelete?.let { outcome ->
                 Text(deleteOutcomeText(outcome), style = MaterialTheme.typography.bodyMedium)
@@ -146,20 +160,31 @@ private fun ManageCategoriesContent(
             }
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
-                categorySection("Expense", CategoryKind.EXPENSE, state.expense, affectedByChild) { prompt = it }
-                categorySection("Income", CategoryKind.INCOME, state.income, affectedByChild) { prompt = it }
+                categorySection(
+                    heading = R.string.categories_expense,
+                    emptyMessage = R.string.categories_expense_empty,
+                    kind = CategoryKind.EXPENSE,
+                    rows = state.expense,
+                    affectedByChild = affectedByChild,
+                ) { prompt = it }
+                categorySection(
+                    heading = R.string.categories_income,
+                    emptyMessage = R.string.categories_income_empty,
+                    kind = CategoryKind.INCOME,
+                    rows = state.income,
+                    affectedByChild = affectedByChild,
+                ) { prompt = it }
             }
-
-            TextButton(onClick = onDone, modifier = Modifier.align(Alignment.End)) { Text("Done") }
         }
     }
 
     when (val current = prompt) {
         null -> Unit
         is CategoryPrompt.Add -> NamePromptDialog(
-            title = current.parentName?.let { "New sub-category under $it" } ?: "New category",
+            title = current.parentName?.let { stringResource(R.string.category_new_sub, it) }
+                ?: stringResource(R.string.category_new),
             initial = "",
-            confirmLabel = "Add",
+            confirmLabel = stringResource(R.string.action_add),
             onConfirm = { name ->
                 onAcknowledge()
                 onCreate(name, current.kind, current.parentId)
@@ -168,9 +193,9 @@ private fun ManageCategoriesContent(
             onDismiss = { prompt = null },
         )
         is CategoryPrompt.Rename -> NamePromptDialog(
-            title = "Rename category",
+            title = stringResource(R.string.category_rename_title),
             initial = current.current,
-            confirmLabel = "Save",
+            confirmLabel = stringResource(R.string.action_save),
             onConfirm = { name ->
                 onAcknowledge()
                 onRename(current.id, name)
@@ -180,16 +205,18 @@ private fun ManageCategoriesContent(
         )
         is CategoryPrompt.Delete -> AlertDialog(
             onDismissRequest = { prompt = null },
-            title = { Text("Delete ${current.name}?") },
+            title = { Text(stringResource(R.string.delete_category_title, current.name)) },
             text = { Text(deleteExplanation(current)) },
             confirmButton = {
                 TextButton(onClick = {
                     onAcknowledge()
                     onDelete(current.id)
                     prompt = null
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { prompt = null }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = { prompt = null }) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
     }
 }
@@ -199,42 +226,42 @@ private fun ManageCategoriesContent(
  * then loses three has been misled at the one moment they were asked to decide.
  */
 /** What actually happened, worded for the case that happened. */
+@Composable
 private fun deleteOutcomeText(outcome: DeleteOutcome): String = when {
-    outcome.affected == 0 -> "Deleted. No transactions were affected."
-    outcome.wasSubCategory && outcome.affected == 1 ->
-        "Deleted. 1 transaction kept its category and lost only the finer label."
+    outcome.affected == 0 -> stringResource(R.string.category_deleted_none)
     outcome.wasSubCategory ->
-        "Deleted. ${outcome.affected} transactions kept their category and lost only the finer label."
-    outcome.affected == 1 -> "Deleted. 1 transaction moved to Uncategorized."
-    else -> "Deleted. ${outcome.affected} transactions moved to Uncategorized."
+        pluralStringResource(R.plurals.category_deleted_sub, outcome.affected, outcome.affected)
+    else -> pluralStringResource(R.plurals.category_deleted_parent, outcome.affected, outcome.affected)
 }
 
+@Composable
 private fun deleteExplanation(prompt: CategoryPrompt.Delete): String {
     // A sub-category delete and a parent delete do different things to the same transactions, so
     // they cannot share one sentence: the first clears the finer label and leaves the spend where it
     // is, the second moves it somewhere else entirely.
     if (prompt.isSubCategory) {
-        return when (prompt.affected) {
-            0 -> "No transactions use it, so nothing changes."
-            1 -> "1 transaction keeps its category and loses only this finer label."
-            else -> "${prompt.affected} transactions keep their category and lose only this finer label."
+        return if (prompt.affected == 0) {
+            stringResource(R.string.delete_category_sub_none)
+        } else {
+            pluralStringResource(R.plurals.delete_category_sub_affected, prompt.affected, prompt.affected)
         }
     }
-    val subCategories = when (prompt.childCount) {
-        0 -> ""
-        1 -> "Its 1 sub-category goes too. "
-        else -> "Its ${prompt.childCount} sub-categories go too. "
+    val subCategories = if (prompt.childCount == 0) {
+        ""
+    } else {
+        pluralStringResource(R.plurals.delete_category_children, prompt.childCount, prompt.childCount)
     }
-    val transactions = when (prompt.affected) {
-        0 -> "No transactions use it, so nothing moves."
-        1 -> "1 transaction moves to Uncategorized — nothing is lost."
-        else -> "${prompt.affected} transactions move to Uncategorized — nothing is lost."
+    val transactions = if (prompt.affected == 0) {
+        stringResource(R.string.delete_category_none)
+    } else {
+        pluralStringResource(R.plurals.delete_category_affected, prompt.affected, prompt.affected)
     }
     return subCategories + transactions
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.categorySection(
-    heading: String,
+    @androidx.annotation.StringRes heading: Int,
+    @androidx.annotation.StringRes emptyMessage: Int,
     kind: CategoryKind,
     rows: List<ManageCategoryRow>,
     affectedByChild: (Long) -> Int,
@@ -246,13 +273,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.categorySection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(heading, style = MaterialTheme.typography.titleMedium)
-            TextButton(onClick = { onPrompt(CategoryPrompt.Add(kind, null, null)) }) { Text("Add") }
+            Text(stringResource(heading), style = MaterialTheme.typography.titleMedium)
+            TextButton(onClick = { onPrompt(CategoryPrompt.Add(kind, null, null)) }) {
+                Text(stringResource(R.string.action_add))
+            }
         }
     }
     if (rows.isEmpty()) {
         item(key = "empty-$kind") {
-            Text("No $heading categories yet.", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(emptyMessage), style = MaterialTheme.typography.bodyMedium)
         }
     }
     items(rows, key = { "row-${it.category.id}" }) { row ->
@@ -266,73 +295,131 @@ private fun CategoryCard(
     affectedByChild: (Long) -> Int,
     onPrompt: (CategoryPrompt) -> Unit,
 ) {
+    // Resolved once, in composition: the click handlers below need the same text and run outside it.
+    val rowLabel = row.labelText()
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column {
-                    Text(row.label(), style = MaterialTheme.typography.bodyLarge)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(rowLabel, style = MaterialTheme.typography.bodyLarge)
                     if (row.affectedTransactions > 0) {
                         Text(
-                            "${row.affectedTransactions} transactions",
+                            pluralStringResource(
+                                R.plurals.category_transaction_count,
+                                row.affectedTransactions,
+                                row.affectedTransactions,
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
-                Row {
-                    TextButton(onClick = {
-                        onPrompt(CategoryPrompt.Add(row.category.kind, row.category.id, row.label()))
-                    }) { Text("Add sub") }
-                    // The bucket is what every other delete falls back to, and its visible label is
-                    // resolved rather than stored, so neither action would mean anything here.
-                    if (!row.isProtected) {
-                        TextButton(onClick = {
-                            onPrompt(CategoryPrompt.Rename(row.category.id, row.category.name))
-                        }) { Text("Rename") }
-                        TextButton(onClick = {
-                            onPrompt(
-                                CategoryPrompt.Delete(
-                                    id = row.category.id,
-                                    name = row.label(),
-                                    affected = row.affectedTransactions,
-                                    childCount = row.children.size,
-                                ),
-                            )
-                        }) { Text("Delete") }
-                    }
-                }
+                OverflowMenu(
+                    contentDescription = stringResource(R.string.cd_row_actions, rowLabel),
+                    actions = categoryActions(row, rowLabel, onPrompt),
+                )
             }
             row.children.forEach { child ->
+                val childLabel = child.label().text()
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(child.label(), style = MaterialTheme.typography.bodyMedium)
-                    Row {
-                        TextButton(onClick = { onPrompt(CategoryPrompt.Rename(child.id, child.name)) }) {
-                            Text("Rename")
-                        }
-                        TextButton(onClick = {
-                            onPrompt(
-                                CategoryPrompt.Delete(
-                                    id = child.id,
-                                    name = child.label(),
-                                    affected = affectedByChild(child.id),
-                                    childCount = 0,
-                                    isSubCategory = true,
-                                ),
-                            )
-                        }) { Text("Delete") }
-                    }
+                    Text(
+                        text = childLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OverflowMenu(
+                        contentDescription = stringResource(R.string.cd_row_actions, childLabel),
+                        actions = subCategoryActions(child, childLabel, affectedByChild, onPrompt),
+                    )
                 }
             }
         }
     }
 }
+
+/**
+ * A parent category can gain a sub-category, and — unless it is the app-owned bucket — be renamed or
+ * deleted. The bucket is what every other delete falls back to, and its label is resolved rather than
+ * stored, so neither action would mean anything for it.
+ */
+@Composable
+private fun categoryActions(
+    row: ManageCategoryRow,
+    rowLabel: String,
+    onPrompt: (CategoryPrompt) -> Unit,
+): List<MenuAction> = buildList {
+    add(
+        MenuAction(
+            label = stringResource(R.string.category_add_sub),
+            onClick = { onPrompt(CategoryPrompt.Add(row.category.kind, row.category.id, rowLabel)) },
+            icon = WalletIcons.Add,
+        ),
+    )
+    if (!row.isProtected) {
+        add(
+            MenuAction(
+                label = stringResource(R.string.action_rename),
+                onClick = { onPrompt(CategoryPrompt.Rename(row.category.id, row.category.name)) },
+                icon = WalletIcons.Edit,
+            ),
+        )
+        add(
+            MenuAction(
+                label = stringResource(R.string.action_delete),
+                onClick = {
+                    onPrompt(
+                        CategoryPrompt.Delete(
+                            id = row.category.id,
+                            name = rowLabel,
+                            affected = row.affectedTransactions,
+                            childCount = row.children.size,
+                        ),
+                    )
+                },
+                icon = WalletIcons.Delete,
+                isDestructive = true,
+            ),
+        )
+    }
+}
+
+/** A sub-category goes no deeper, so it can only be renamed or removed. */
+@Composable
+private fun subCategoryActions(
+    child: Category,
+    childLabel: String,
+    affectedByChild: (Long) -> Int,
+    onPrompt: (CategoryPrompt) -> Unit,
+): List<MenuAction> = listOf(
+    MenuAction(
+        label = stringResource(R.string.action_rename),
+        onClick = { onPrompt(CategoryPrompt.Rename(child.id, child.name)) },
+        icon = WalletIcons.Edit,
+    ),
+    MenuAction(
+        label = stringResource(R.string.action_delete),
+        onClick = {
+            onPrompt(
+                CategoryPrompt.Delete(
+                    id = child.id,
+                    name = childLabel,
+                    affected = affectedByChild(child.id),
+                    childCount = 0,
+                    isSubCategory = true,
+                ),
+            )
+        },
+        icon = WalletIcons.Delete,
+        isDestructive = true,
+    ),
+)
 
 @Composable
 private fun NamePromptDialog(
@@ -351,13 +438,13 @@ private fun NamePromptDialog(
                 value = text,
                 onValueChange = { text = it },
                 singleLine = true,
-                label = { Text("Name") },
+                label = { Text(stringResource(R.string.field_name)) },
             )
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 

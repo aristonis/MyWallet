@@ -1,13 +1,9 @@
 package org.aristonis.mywallet.ui.transaction
 
-// UI copy hardcoded; localizing strings (RTL/i18n) comes later. Amount shown as a plain decimal;
-// per-currency symbol + locale formatting comes later too.
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +19,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -41,21 +38,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.components.LabeledDropdown
+import org.aristonis.mywallet.ui.components.WalletTopAppBar
+import org.aristonis.mywallet.ui.format.rememberDateFormatter
+import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import org.aristonis.mywallet.ui.label
+import org.aristonis.mywallet.ui.text
+import org.aristonis.mywallet.ui.message.text
 
 /**
  * Edit-transaction screen. The type is fixed at load and shown read-only: income/expense may change
@@ -88,11 +92,13 @@ fun EditTransactionScreen(
     }
     // The row is already removed; the snackbar is the undo window. Its action restores the row, dismissal/
     // timeout finalizes — either way the VM sets `deleted`, which the effect above turns into onDone().
+    val deletedMessage = stringResource(R.string.transaction_deleted)
+    val undoLabel = stringResource(R.string.action_undo)
     LaunchedEffect(state.undoableDelete) {
         if (state.undoableDelete != null) {
             val result = snackbarHostState.showSnackbar(
-                message = "Transaction deleted",
-                actionLabel = "Undo",
+                message = deletedMessage,
+                actionLabel = undoLabel,
                 duration = SnackbarDuration.Short,
             )
             when (result) {
@@ -131,7 +137,12 @@ private fun EditTransactionContent(
     onDelete: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+    Scaffold(
+        topBar = {
+            WalletTopAppBar(title = stringResource(R.string.edit_transaction_title), onBack = onCancel)
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { innerPadding ->
         val loaded = state.loaded
         val type = state.type
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
@@ -176,18 +187,20 @@ private fun EditTransactionForm(
 
     Column(
         modifier = Modifier
-            .padding(24.dp)
+            .padding(16.dp)
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Edit transaction", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-            TextButton(onClick = onCancel) { Text("Cancel") }
-        }
-
         // The kind is a fact of the row, not a choice — show it, never let it be re-picked.
         Text(typeLabel(type), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+
+        val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
+        AmountField(
+            value = state.amountInput,
+            label = amountLabel(selectedAccount),
+            onValueChange = onAmountChanged,
+        )
 
         AccountAndCategoryFields(
             state = state,
@@ -197,28 +210,22 @@ private fun EditTransactionForm(
             onSubCategorySelected = onSubCategorySelected,
         )
 
-        val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
-        OutlinedTextField(
-            value = state.amountInput,
-            onValueChange = onAmountChanged,
-            label = { Text(amountLabel(selectedAccount)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
         DateField(date = date, onDateSelected = onDateSelected)
 
         OutlinedTextField(
             value = state.note,
             onValueChange = onNoteChanged,
-            label = { Text("Note (optional)") },
+            label = { Text(stringResource(R.string.field_note)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
 
         state.error?.let { message ->
-            Text(message, color = MaterialTheme.colorScheme.error)
+            Text(
+                text = message.text(),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
 
         Spacer(Modifier.weight(1f))
@@ -231,7 +238,7 @@ private fun EditTransactionForm(
             if (state.isSubmitting) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
-                Text("Save")
+                Text(stringResource(R.string.action_save_transaction))
             }
         }
 
@@ -240,22 +247,24 @@ private fun EditTransactionForm(
             enabled = !state.isSubmitting && state.undoableDelete == null,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Delete", color = MaterialTheme.colorScheme.error)
+            Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
         }
     }
 
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
-            title = { Text("Delete this transaction?") },
-            text = { Text("This removes the transaction. You can undo right after.") },
+            title = { Text(stringResource(R.string.delete_transaction_title)) },
+            text = { Text(stringResource(R.string.delete_transaction_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmingDelete = false
                     onDelete()
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
     }
 }
@@ -273,25 +282,31 @@ private fun AccountAndCategoryFields(
     onSubCategorySelected: (Long?) -> Unit,
 ) {
     if (type == TransactionType.TRANSFER) {
-        LockedField(label = "From account", value = accountLabel(state.selectedAccountId, state.accounts))
-        LockedField(label = "To account", value = accountLabel(state.destAccountId, state.accounts))
+        LockedField(
+            label = stringResource(R.string.field_from_account),
+            value = lockedAccountLabel(state.selectedAccountId, state.accounts),
+        )
+        LockedField(
+            label = stringResource(R.string.field_to_account),
+            value = lockedAccountLabel(state.destAccountId, state.accounts),
+        )
         return
     }
 
     val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
     LabeledDropdown(
-        label = "Account",
-        selectedText = selectedAccount?.let { "${it.name} (${it.currencyCode})" } ?: "Select…",
+        label = stringResource(R.string.field_account),
+        selectedText = selectedAccount?.let { accountLabel(it) } ?: stringResource(R.string.value_select_prompt),
         items = state.accounts,
-        itemLabel = { "${it.name} (${it.currencyCode})" },
+        itemLabel = { accountLabel(it) },
         onSelect = { onAccountSelected(it.id) },
     )
     val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
     LabeledDropdown(
-        label = "Category",
-        selectedText = category?.label() ?: "Select…",
+        label = stringResource(R.string.field_category),
+        selectedText = category?.label()?.text() ?: stringResource(R.string.value_select_prompt),
         items = state.categoriesForType,
-        itemLabel = { it.label() },
+        itemLabel = { it.label().text() },
         onSelect = { onCategorySelected(it.id) },
     )
     // Offered only when the chosen category has children, matching the add form. Without it the
@@ -301,10 +316,10 @@ private fun AccountAndCategoryFields(
     if (subCategories.isNotEmpty()) {
         val chosen = subCategories.firstOrNull { it.id == state.selectedSubCategoryId }
         LabeledDropdown(
-            label = "Sub-category (optional)",
-            selectedText = chosen?.label() ?: "None",
+            label = stringResource(R.string.field_sub_category),
+            selectedText = chosen?.label()?.text() ?: stringResource(R.string.value_none),
             items = subCategories,
-            itemLabel = { it.label() },
+            itemLabel = { it.label().text() },
             onSelect = { onSubCategorySelected(it.id) },
         )
     }
@@ -327,10 +342,12 @@ private fun LockedField(label: String, value: String) {
 private fun DateField(date: LocalDate, onDateSelected: (LocalDate) -> Unit) {
     var showPicker by remember { mutableStateOf(false) }
     Column {
-        Text("Date", style = MaterialTheme.typography.labelMedium)
+        Text(stringResource(R.string.field_date), style = MaterialTheme.typography.labelMedium)
+        // Written the way the reader's locale writes dates; the ISO form is for storage, not for people.
+        val formatDate = rememberDateFormatter()
         OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(date.toString(), modifier = Modifier.weight(1f))
-            Text("▾")
+            Text(formatDate(date), modifier = Modifier.weight(1f))
+            Icon(imageVector = WalletIcons.Date, contentDescription = null)
         }
     }
     if (showPicker) {
@@ -347,10 +364,10 @@ private fun DateField(date: LocalDate, onDateSelected: (LocalDate) -> Unit) {
                         onDateSelected(Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate())
                     }
                     showPicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.action_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showPicker = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         ) {
             DatePicker(state = pickerState)
@@ -358,19 +375,12 @@ private fun DateField(date: LocalDate, onDateSelected: (LocalDate) -> Unit) {
     }
 }
 
-private fun typeLabel(type: TransactionType): String = when (type) {
-    TransactionType.INCOME -> "Income"
-    TransactionType.EXPENSE -> "Expense"
-    TransactionType.TRANSFER -> "Transfer"
-}
-
-private fun amountLabel(account: Account?): String =
-    account?.let { "Amount (${it.currencyCode})" } ?: "Amount"
-
 // An account archived after the transaction was recorded won't be in the (archived-filtered) list; a
 // dash keeps the locked field readable instead of crashing (mirrors the transactions-list defensive read).
-private fun accountLabel(id: Long?, accounts: List<Account>): String =
-    accounts.firstOrNull { it.id == id }?.let { "${it.name} (${it.currencyCode})" } ?: "—"
+@Composable
+private fun lockedAccountLabel(id: Long?, accounts: List<Account>): String =
+    accounts.firstOrNull { it.id == id }?.let { accountLabel(it) }
+        ?: stringResource(R.string.value_missing)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true)

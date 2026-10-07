@@ -28,6 +28,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.aristonis.mywallet.ui.message.UiMessage
 import java.time.LocalDate
 import java.util.Locale
 
@@ -227,7 +228,7 @@ class AddTransactionViewModelTest {
         f.viewModel.submit()
         advanceUntilIdle()
 
-        assertEquals("Amount must be greater than 0", f.viewModel.state.value.error)
+        assertEquals(UiMessage.AmountNotPositive, f.viewModel.state.value.error)
         assertTrue(f.txRepo.added.isEmpty())
     }
 
@@ -243,7 +244,7 @@ class AddTransactionViewModelTest {
         f.viewModel.submit()
         advanceUntilIdle()
 
-        assertEquals("Enter a valid number", f.viewModel.state.value.error)
+        assertEquals(UiMessage.NotANumber, f.viewModel.state.value.error)
         assertTrue(f.txRepo.added.isEmpty())
     }
 

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ExportBackup
@@ -20,12 +21,15 @@ import org.aristonis.mywallet.domain.usecase.RestoreBackup
 import org.aristonis.mywallet.domain.usecase.SetTheme
 import javax.inject.Inject
 
-/** What the backup section is currently doing; a terminal Success/Error carries user-facing copy. */
+/**
+ * What the backup section is currently doing. A terminal Success/Error names the outcome rather than
+ * wording it, so this view model needs no `Context` and the copy stays in one resource file.
+ */
 sealed interface BackupStatus {
     data object Idle : BackupStatus
     data object Working : BackupStatus
-    data class Success(val message: String) : BackupStatus
-    data class Error(val message: String) : BackupStatus
+    data class Success(val message: UiMessage) : BackupStatus
+    data class Error(val message: UiMessage) : BackupStatus
 }
 
 /** Immutable snapshot the settings screen renders the backup section from. */
@@ -60,6 +64,17 @@ class SettingsViewModel @Inject constructor(
             .map { it?.theme ?: ThemePreference.SYSTEM }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemePreference.SYSTEM)
 
+    /**
+     * What the Base currency row states as its current value. Read off the live settings so changing
+     * the base currency moves the row with it, rather than leaving the old code there until restart.
+     * Null until onboarding has written settings — there is nothing to state yet, and a guess would
+     * be wrong.
+     */
+    val baseCurrencyCode: StateFlow<String?> =
+        settings.observeOrNull()
+            .map { it?.baseCurrencyCode }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     /** Persist the chosen theme; the settings flow then reskins the app and moves the selection. */
     fun selectTheme(choice: ThemePreference) {
         viewModelScope.launch { setTheme(choice) }
@@ -89,11 +104,11 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = BackupUiState(BackupStatus.Working)
         try {
             write(exportBackup())
-            _uiState.value = BackupUiState(BackupStatus.Success("Backup saved"))
+            _uiState.value = BackupUiState(BackupStatus.Success(UiMessage.BackupSaved))
         } catch (e: CancellationException) {
             throw e // honour structured concurrency — never swallow cancellation
         } catch (e: Exception) {
-            _uiState.value = BackupUiState(BackupStatus.Error("Couldn't save the backup"))
+            _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupSaveFailed))
         }
     }
 
@@ -109,27 +124,27 @@ class SettingsViewModel @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _uiState.value = BackupUiState(BackupStatus.Error("Couldn't read that file"))
+            _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupFileUnreadable))
             return
         }
         applyRestore(text)
     }
 
-    /** Restore core: apply the decoded text and translate each typed rejection into copy. */
+    /** Restore core: apply the decoded text and name each typed rejection. */
     internal suspend fun applyRestore(text: String) {
         try {
             restoreBackup(text)
-            _uiState.value = BackupUiState(BackupStatus.Success("Backup restored"))
+            _uiState.value = BackupUiState(BackupStatus.Success(UiMessage.BackupRestored))
         } catch (e: WalletException.BackupInvalid) {
-            _uiState.value = BackupUiState(BackupStatus.Error("This file isn't a valid MyWallet backup"))
+            _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupNotRecognized))
         } catch (e: WalletException.BackupVersionUnsupported) {
-            _uiState.value = BackupUiState(BackupStatus.Error("This backup is from a newer version of the app"))
+            _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupFromNewerVersion))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // The file read fine but applying it failed (e.g. a database write error) — surface a
             // restore failure, not the read-failure copy, and never leave it silently swallowed.
-            _uiState.value = BackupUiState(BackupStatus.Error("Couldn't restore the backup"))
+            _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupRestoreFailed))
         }
     }
 }

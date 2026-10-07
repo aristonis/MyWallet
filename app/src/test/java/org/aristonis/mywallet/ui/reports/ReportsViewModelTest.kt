@@ -32,6 +32,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import org.aristonis.mywallet.ui.CategoryLabel
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.Locale
@@ -132,7 +133,7 @@ class ReportsViewModelTest {
         advanceUntilIdle()
 
         val rows = ready(vm.state.value).categories
-        assertEquals(listOf("Food", "Transport"), rows.map { it.name }) // 50 before 15 (desc)
+        assertEquals(listOf(CategoryLabel.Named("Food"), CategoryLabel.Named("Transport")), rows.map { it.label }) // 50 before 15 (desc)
         assertEquals("50.00 USD", rows[0].totalDisplay)
         assertEquals("15.00 USD", rows[1].totalDisplay)
     }
@@ -146,7 +147,7 @@ class ReportsViewModelTest {
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
-        assertEquals("—", ready(vm.state.value).categories.single().name)
+        assertEquals(CategoryLabel.Unknown, ready(vm.state.value).categories.single().label)
     }
 
     @Test
@@ -164,7 +165,7 @@ class ReportsViewModelTest {
         advanceUntilIdle()
 
         val rows = ready(vm.state.value).categories
-        assertEquals(listOf("—", "—"), rows.map { it.name })
+        assertEquals(listOf(CategoryLabel.Unknown, CategoryLabel.Unknown), rows.map { it.label })
         assertEquals(setOf(98L, 99L), rows.map { it.id }.toSet()) // distinct keys despite identical names
     }
 
@@ -214,7 +215,7 @@ class ReportsViewModelTest {
 
         val data = ready(vm.state.value)
         assertEquals("33.00 USD", data.expenseDisplay) // 30 EUR × 1.10
-        assertEquals("Food", data.categories.single().name)
+        assertEquals(CategoryLabel.Named("Food"), data.categories.single().label)
     }
 
     @Test

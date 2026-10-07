@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Transaction
@@ -45,7 +47,7 @@ data class ManageCategoriesUiState(
     val income: List<ManageCategoryRow> = emptyList(),
     val expense: List<ManageCategoryRow> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null,
+    val error: UiMessage? = null,
     /** What the last delete did; one-shot, cleared by [ManageCategoriesViewModel.acknowledge]. */
     val lastDelete: DeleteOutcome? = null,
 )
@@ -165,9 +167,9 @@ class ManageCategoriesViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: WalletException) {
-                _state.update { it.copy(error = e.message) }
+                _state.update { it.copy(error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
-                _state.update { it.copy(error = e.message) }
+                _state.update { it.copy(error = e.toUiMessage()) }
             }
         }
     }

@@ -18,6 +18,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
+import org.aristonis.mywallet.ui.CategoryLabel
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -56,6 +57,7 @@ class TransactionsListViewModelTest {
             categories = FakeCategoryRepository(categories),
             currencies = FakeCurrencyRepository(currencies),
             moneyFormatter = MoneyFormatter(Locale.US),
+            today = { LocalDate.of(2026, 8, 26) },
         )
     }
 
@@ -73,7 +75,7 @@ class TransactionsListViewModelTest {
         val row = f.viewModel.state.value.rows.single()
         assertEquals(TransactionRowType.INCOME, row.type)
         assertEquals("Cash", row.accountName)
-        assertEquals("Salary", row.categoryName)
+        assertEquals(CategoryLabel.Named("Salary"), row.categoryLabel)
         assertEquals(Money.of("50", "USD"), row.amount)
         assertEquals("50.00 USD", row.amountDisplay) // per-currency + locale, no sign (screen adds "+")
         assertNull(row.destAccountName)
@@ -109,7 +111,7 @@ class TransactionsListViewModelTest {
         val row = f.viewModel.state.value.rows.single()
         assertEquals(TransactionRowType.EXPENSE, row.type)
         assertEquals("Cash", row.accountName)
-        assertEquals("Food", row.categoryName)
+        assertEquals(CategoryLabel.Named("Food"), row.categoryLabel)
         assertEquals(Money.of("30", "USD"), row.amount)
     }
 
@@ -132,7 +134,7 @@ class TransactionsListViewModelTest {
         assertEquals(TransactionRowType.TRANSFER, row.type)
         assertEquals("Cash", row.accountName)
         assertEquals("Savings", row.destAccountName)
-        assertNull(row.categoryName)
+        assertNull(row.categoryLabel)
         assertEquals(Money.of("11", "USD"), row.amount)
         assertEquals(Money.of("10.00", "EUR"), row.destAmount)
         // Both legs pre-formatted; the screen renders "−11.00 USD → +10.00 EUR".
@@ -178,7 +180,7 @@ class TransactionsListViewModelTest {
     }
 
     @Test
-    fun missingAccountId_degradesToDash_withoutCrashing() = runTest {
+    fun missingAccountId_degradesToAGap_withoutCrashing() = runTest {
         val f = Fixture(
             transactions = listOf(
                 Transaction.Income(id = 1, accountId = 999, amount = Money.of("5", "USD"), categoryId = 888, date = LocalDate.of(2026, 7, 1)),
@@ -189,7 +191,8 @@ class TransactionsListViewModelTest {
         advanceUntilIdle()
 
         val row = f.viewModel.state.value.rows.single()
-        assertEquals("—", row.accountName)
-        assertEquals("—", row.categoryName)
+        // The view model reports the gap; what a gap looks like is the screen's decision.
+        assertNull(row.accountName)
+        assertEquals(CategoryLabel.Unknown, row.categoryLabel)
     }
 }

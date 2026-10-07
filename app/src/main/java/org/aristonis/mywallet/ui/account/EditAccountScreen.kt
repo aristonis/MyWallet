@@ -1,13 +1,13 @@
 package org.aristonis.mywallet.ui.account
 
-// UI copy hardcoded; localizing strings (RTL/i18n) comes later.
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,21 +26,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.AccountType
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
+import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.SearchableCurrencyField
+import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
-
-private const val CURRENCY_LOCKED_HINT = "Currency is locked once an account has transactions"
 
 /**
  * Edit-account screen. [onDone] returns to the caller (Manage Accounts) — fired on Cancel/back and once
@@ -84,12 +85,16 @@ private fun EditAccountContent(
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Scaffold { innerPadding ->
+    Scaffold(
+        topBar = {
+            WalletTopAppBar(title = stringResource(R.string.edit_account_title), onBack = onCancel)
+        },
+    ) { innerPadding ->
         val error = state.error
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             when {
                 // A missing row is a fail-loud dead end, not a blank editor — show why and offer Back.
-                state.loaded == null && error != null -> MissingAccount(message = error, onCancel = onCancel)
+                state.loaded == null && error != null -> MissingAccount(message = error.text(), onCancel = onCancel)
                 state.loaded == null -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 else -> EditAccountForm(
                     state = state,
@@ -119,19 +124,19 @@ private fun EditAccountForm(
     val selectedType = AccountTypeRegistry.BuiltIns.all.firstOrNull { it.key == state.accountTypeKey }
 
     Column(
-        modifier = Modifier.padding(24.dp).fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Edit account", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-            TextButton(onClick = onCancel) { Text("Cancel") }
-        }
-
         if (state.currencyLocked) {
-            LockedCurrencyField(currencyCode = state.selectedCurrencyCode ?: "—")
+            LockedCurrencyField(
+                currencyCode = state.selectedCurrencyCode ?: stringResource(R.string.value_missing),
+            )
         } else {
             SearchableCurrencyField(
-                label = "Currency",
+                label = stringResource(R.string.field_currency),
                 selected = selectedCurrency,
                 currencies = state.currencies,
                 onSelect = onCurrencySelected,
@@ -141,33 +146,34 @@ private fun EditAccountForm(
         OutlinedTextField(
             value = state.name,
             onValueChange = onNameChanged,
-            label = { Text("Account name") },
+            label = { Text(stringResource(R.string.field_account_name)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
 
         LabeledDropdown(
-            label = "Account type",
-            selectedText = selectedType?.displayName ?: "Select…",
+            label = stringResource(R.string.field_account_type),
+            selectedText = selectedType?.let { accountTypeLabel(it.key) }
+                ?: stringResource(R.string.value_select_prompt),
             items = AccountTypeRegistry.BuiltIns.all,
-            itemLabel = AccountType::displayName,
+            itemLabel = { accountTypeLabel(it.key) },
             onSelect = { onTypeSelected(it.key) },
         )
 
         OutlinedTextField(
             value = state.openingBalanceInput,
             onValueChange = onOpeningBalanceChanged,
-            label = { Text("Opening balance (optional)") },
+            label = { Text(stringResource(R.string.field_opening_balance)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
         )
 
         state.error?.let { message ->
-            Text(message, color = MaterialTheme.colorScheme.error)
+            Text(message.text(), color = MaterialTheme.colorScheme.error)
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(8.dp))
 
         Button(
             onClick = onSubmit,
@@ -177,7 +183,7 @@ private fun EditAccountForm(
             if (state.isSubmitting) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
-                Text("Save")
+                Text(stringResource(R.string.action_save_account))
             }
         }
     }
@@ -187,12 +193,12 @@ private fun EditAccountForm(
 @Composable
 private fun LockedCurrencyField(currencyCode: String) {
     Column {
-        Text("Currency", style = MaterialTheme.typography.labelMedium)
+        Text(stringResource(R.string.field_currency), style = MaterialTheme.typography.labelMedium)
         OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
             Text(currencyCode, modifier = Modifier.weight(1f))
         }
         Text(
-            CURRENCY_LOCKED_HINT,
+            stringResource(R.string.account_currency_locked),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -202,11 +208,14 @@ private fun LockedCurrencyField(currencyCode: String) {
 @Composable
 private fun MissingAccount(message: String, onCancel: () -> Unit) {
     Column(
-        modifier = Modifier.padding(24.dp).fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(message, color = MaterialTheme.colorScheme.error)
-        TextButton(onClick = onCancel) { Text("Back") }
+        TextButton(onClick = onCancel) { Text(stringResource(R.string.action_back)) }
     }
 }
 

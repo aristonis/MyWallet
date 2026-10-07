@@ -3,8 +3,10 @@ package org.aristonis.mywallet.ui.account
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,22 +18,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.aristonis.mywallet.domain.model.AccountType
+import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
+import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.SearchableCurrencyField
+import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
 /**
@@ -72,24 +75,24 @@ private fun AddAccountContent(
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Scaffold { innerPadding ->
+    Scaffold(
+        topBar = {
+            WalletTopAppBar(title = stringResource(R.string.add_account_title), onBack = onCancel)
+        },
+    ) { innerPadding ->
         val selectedCurrency = state.currencies.firstOrNull { it.code == state.selectedCurrencyCode }
         val selectedType = AccountTypeRegistry.BuiltIns.all.firstOrNull { it.key == state.accountTypeKey }
 
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(24.dp)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Add account", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = onCancel) { Text("Cancel") }
-            }
-
             SearchableCurrencyField(
-                label = "Currency",
+                label = stringResource(R.string.field_currency),
                 selected = selectedCurrency,
                 currencies = state.currencies,
                 onSelect = onCurrencySelected,
@@ -98,33 +101,34 @@ private fun AddAccountContent(
             OutlinedTextField(
                 value = state.name,
                 onValueChange = onNameChanged,
-                label = { Text("Account name") },
+                label = { Text(stringResource(R.string.field_account_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
 
             LabeledDropdown(
-                label = "Account type",
-                selectedText = selectedType?.displayName ?: "Select…",
+                label = stringResource(R.string.field_account_type),
+                selectedText = selectedType?.let { accountTypeLabel(it.key) }
+                    ?: stringResource(R.string.value_select_prompt),
                 items = AccountTypeRegistry.BuiltIns.all,
-                itemLabel = AccountType::displayName,
+                itemLabel = { accountTypeLabel(it.key) },
                 onSelect = { onTypeSelected(it.key) },
             )
 
             OutlinedTextField(
                 value = state.openingBalanceInput,
                 onValueChange = onOpeningBalanceChanged,
-                label = { Text("Opening balance (optional)") },
+                label = { Text(stringResource(R.string.field_opening_balance)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
             )
 
             state.error?.let { message ->
-                Text(message, color = MaterialTheme.colorScheme.error)
+                Text(message.text(), color = MaterialTheme.colorScheme.error)
             }
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(8.dp))
 
             Button(
                 onClick = onSubmit,
@@ -134,7 +138,7 @@ private fun AddAccountContent(
                 if (state.isSubmitting) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Add account")
+                    Text(stringResource(R.string.action_save_account))
                 }
             }
         }

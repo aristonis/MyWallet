@@ -1,6 +1,6 @@
 package org.aristonis.mywallet.ui.rates
 
-// UI copy hardcoded; localizing strings (RTL/i18n) comes later. Rate shown as a plain decimal.
+// The rate itself is shown as a plain decimal, not as money: it is a ratio, not an amount.
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -19,16 +19,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.R
+import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.components.EmptyState
+import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.math.BigDecimal
 
@@ -53,39 +57,42 @@ fun ManageRatesScreen(
 }
 
 @Composable
-private fun ManageRatesContent(
+internal fun ManageRatesContent(
     state: ManageRatesUiState,
     onInputChanged: (String, String) -> Unit,
     onSave: (String) -> Unit,
     onDone: () -> Unit,
 ) {
-    Scaffold { innerPadding ->
+    Scaffold(
+        topBar = {
+            WalletTopAppBar(title = stringResource(R.string.rates_title), onBack = onDone)
+        },
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(24.dp)
+                .padding(16.dp)
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Exchange rates", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = onDone) { Text("Done") }
-            }
-
             val base = state.baseCurrencyCode
             when {
                 state.isLoading -> CircularProgressIndicator()
 
-                state.rows.isEmpty() -> Text(
-                    "All your accounts are already in your base currency — no rates needed.",
-                    style = MaterialTheme.typography.bodyMedium,
+                state.rows.isEmpty() -> EmptyState(
+                    message = stringResource(R.string.rates_not_needed),
                 )
 
                 else -> {
                     base?.let {
-                        Text("Enter how much 1 unit is worth in $it.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.rates_hint, it), style = MaterialTheme.typography.bodySmall)
                     }
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyColumn(
+                    // Without a bound the list asks for the height of all its rows, pushing the
+                    // last of them past the bottom of the screen where no scroll can reach them.
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
                         items(state.rows, key = { it.currencyCode }) { row ->
                             RateRowCard(row = row, base = base, onInputChanged = onInputChanged, onSave = onSave)
                         }
@@ -108,14 +115,18 @@ private fun RateRowCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("${row.currencyCode} (${row.symbol})", style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.rates_currency_heading, row.currencyCode, row.symbol),
+                style = MaterialTheme.typography.titleMedium,
+            )
 
             val current = row.currentRate
             Text(
-                if (current != null) {
-                    "1 ${row.currencyCode} = ${current.toPlainString()}${base?.let { " $it" } ?: ""}"
-                } else {
-                    "No rate set yet"
+                when {
+                    current == null -> stringResource(R.string.rates_unset)
+                    base != null ->
+                        stringResource(R.string.rates_current_in_base, row.currencyCode, current.toPlainString(), base)
+                    else -> stringResource(R.string.rates_current, row.currencyCode, current.toPlainString())
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -128,17 +139,28 @@ private fun RateRowCard(
                 OutlinedTextField(
                     value = row.input,
                     onValueChange = { onInputChanged(row.currencyCode, it) },
-                    label = { Text(base?.let { "Rate in $it" } ?: "Rate") },
+                    label = {
+                        Text(
+                            base?.let { stringResource(R.string.field_rate_in_base, it) }
+                                ?: stringResource(R.string.field_rate),
+                        )
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = row.error != null,
                     modifier = Modifier.weight(1f),
                 )
-                Button(onClick = { onSave(row.currencyCode) }) { Text("Save") }
+                Button(onClick = { onSave(row.currencyCode) }) {
+                    Text(stringResource(R.string.action_save_rate))
+                }
             }
 
             row.error?.let { message ->
-                Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    message.text(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }

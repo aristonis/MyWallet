@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
@@ -30,7 +32,7 @@ data class ChangeBaseCurrencyUiState(
     val needsRate: Boolean = false,
     val rateInput: String = "",
     val isWorking: Boolean = false,
-    val error: String? = null,
+    val error: UiMessage? = null,
     val applied: Boolean = false,
 ) {
     val canApply: Boolean
@@ -108,9 +110,9 @@ class ChangeBaseCurrencyViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: WalletException) {
-                _state.update { it.copy(isWorking = false, error = e.message) }
+                _state.update { it.copy(isWorking = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
-                _state.update { it.copy(isWorking = false, error = e.message) }
+                _state.update { it.copy(isWorking = false, error = e.toUiMessage()) }
             }
         }
     }

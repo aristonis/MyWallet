@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.involvesAccount
 import org.aristonis.mywallet.domain.port.AccountRepository
@@ -27,7 +29,7 @@ data class ManageAccountRow(val account: Account, val hasTransactions: Boolean)
 data class ManageAccountsUiState(
     val rows: List<ManageAccountRow> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null,
+    val error: UiMessage? = null,
 )
 
 /**
@@ -70,7 +72,7 @@ class ManageAccountsViewModel @Inject constructor(
                 action()
                 _state.update { it.copy(error = null) }
             } catch (e: WalletException) {
-                _state.update { it.copy(error = e.message) }
+                _state.update { it.copy(error = e.toUiMessage()) }
             }
         }
     }

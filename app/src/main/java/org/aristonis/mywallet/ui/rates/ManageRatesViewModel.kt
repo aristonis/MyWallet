@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
@@ -30,7 +32,7 @@ data class RateRow(
     val symbol: String,
     val currentRate: BigDecimal?,
     val input: String,
-    val error: String? = null,
+    val error: UiMessage? = null,
 )
 
 /** Immutable snapshot the manage-rates screen renders from. */
@@ -91,10 +93,10 @@ class ManageRatesViewModel @Inject constructor(
                 setExchangeRate(currencyCode, rate)
                 updateRow(currencyCode) { it.copy(error = null) } // currentRate refreshes from the stream
             } catch (e: WalletException.CurrencyNotFound) {
-                updateRow(currencyCode) { it.copy(error = e.message) }
+                updateRow(currencyCode) { it.copy(error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
-                // Blank / unparseable / out-of-range / non-positive — parseRate framed a user-facing message.
-                updateRow(currencyCode) { it.copy(error = e.message) }
+                // Blank / unparseable / out-of-range / non-positive — parseRate names which one.
+                updateRow(currencyCode) { it.copy(error = e.toUiMessage()) }
             }
         }
     }
