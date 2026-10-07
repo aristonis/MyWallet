@@ -12,9 +12,9 @@ enum class CategoryKind { INCOME, EXPENSE }
  * identity, so a bucket cannot be orphaned by anything that happens to its text.
  *
  * For such a row [name] is a stored PLACEHOLDER and is never shown: the layer that writes it has no
- * resources and no locale, so it cannot produce a label anyone would want to read. The displayed
- * text comes from [displayName], which resolves it from [systemKey] instead. That is also why
- * renaming one is refused — there is nothing the user could usefully rename.
+ * resources and no locale, so it cannot produce a label anyone would want to read. The UI keys its
+ * label off [systemKey] instead, which is what makes the bucket translatable without touching a
+ * single stored row. That is also why renaming one is refused — there is nothing to usefully rename.
  */
 data class Category(
     val id: Long = 0,
@@ -29,15 +29,6 @@ data class Category(
 
     /** App-owned rows are protected: they can be neither renamed nor deleted. */
     val isSystem: Boolean get() = systemKey != null
-
-    /**
-     * What to show for this category. A user category is its own [name]; an app-owned bucket goes
-     * through [resolveSystemLabel], which is where the UI hands back a localized string for the
-     * given [systemKey]. Keeping the seam here means only one place ever decides which of the two
-     * applies, so no screen can end up printing a bucket's raw placeholder.
-     */
-    fun displayName(resolveSystemLabel: (String) -> String): String =
-        systemKey?.let(resolveSystemLabel) ?: name
 
     companion object {
         /** The reserved key of the fallback bucket that absorbs deleted [kind] categories. */

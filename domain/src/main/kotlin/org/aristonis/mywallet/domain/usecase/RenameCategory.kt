@@ -10,9 +10,9 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
  * expense.
  *
  * The two Uncategorized buckets are refused. Their stored name is a placeholder that no screen ever
- * shows — the label comes from the system key, via [org.aristonis.mywallet.domain.model.Category.displayName]
- * — so a rename would write text nobody would see and leave the bucket looking unchanged. Refusing
- * says so plainly instead of accepting an edit with no effect.
+ * shows — the label is keyed off the system key instead — so a rename would write text nobody would
+ * see and leave the bucket looking unchanged. Refusing says so plainly instead of accepting an edit
+ * with no effect.
  */
 class RenameCategory(
     private val categories: CategoryRepository,

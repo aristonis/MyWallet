@@ -1,10 +1,15 @@
 package org.aristonis.mywallet.domain.model
 
-/** A kind of account (Cash / Card / Savings / …). Cosmetic classification; keyed by [key]. */
-data class AccountType(val key: String, val displayName: String) {
+/**
+ * A kind of account (cash / card / savings / …). Cosmetic classification, identified by [key].
+ *
+ * There is no display name here on purpose. This layer has no resources and no locale, so any name
+ * it held would be one hardcoded language leaking upward — and the key is the identity anyway, so a
+ * type cannot be broken by anything that happens to its text.
+ */
+data class AccountType(val key: String) {
     init {
         require(key.isNotBlank()) { "account type key must not be blank" }
-        require(displayName.isNotBlank()) { "account type displayName must not be blank" }
     }
 }
 
@@ -26,11 +31,11 @@ class AccountTypeRegistry(initial: List<AccountType> = BuiltIns.all) {
     fun byKey(key: String): AccountType? = registry[key]
 
     object BuiltIns {
-        val CASH = AccountType("cash", "Cash")
-        val CARD = AccountType("card", "Card")
-        val SAVINGS = AccountType("savings", "Savings")
-        val BANK = AccountType("bank", "Bank")
-        val OTHER = AccountType("other", "Other")
+        val CASH = AccountType("cash")
+        val CARD = AccountType("card")
+        val SAVINGS = AccountType("savings")
+        val BANK = AccountType("bank")
+        val OTHER = AccountType("other")
         val all = listOf(CASH, CARD, SAVINGS, BANK, OTHER)
     }
 }
