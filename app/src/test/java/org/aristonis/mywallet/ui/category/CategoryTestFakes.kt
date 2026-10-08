@@ -2,6 +2,8 @@ package org.aristonis.mywallet.ui.category
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.aristonis.mywallet.domain.model.DateRange
+import kotlinx.coroutines.flow.map
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -46,6 +48,8 @@ internal class FakeManageCategoryRepository(initial: List<Category> = emptyList(
 internal class FakeCategoryTransactionRepository(initial: List<Transaction> = emptyList()) : TransactionRepository {
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Transaction>> = items
+    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
+        items.map { all -> all.filter { it.date in range } }
     override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
     override suspend fun add(transaction: Transaction): Long = error("the manage screen does not add transactions")
     override suspend fun update(transaction: Transaction) = error("the manage screen does not edit transactions")

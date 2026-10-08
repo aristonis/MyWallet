@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.aristonis.mywallet.domain.model.DateRange
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -237,6 +239,8 @@ class ReportsViewModelTest {
 private class FakeTransactionRepository(initial: List<Transaction>) : TransactionRepository {
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Transaction>> = items
+    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
+        items.map { all -> all.filter { it.date in range } }
     override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
     override suspend fun add(transaction: Transaction): Long = 1
     override suspend fun update(transaction: Transaction) { items.value = items.value.map { if (it.id == transaction.id) transaction else it } }

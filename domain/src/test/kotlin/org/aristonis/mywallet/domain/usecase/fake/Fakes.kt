@@ -2,6 +2,8 @@ package org.aristonis.mywallet.domain.usecase.fake
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.aristonis.mywallet.domain.model.DateRange
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
@@ -87,7 +89,22 @@ class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : Tran
     /** Everything currently persisted, for assertions. */
     val added: List<Transaction> get() = items.value
 
-    override fun observeAll(): Flow<List<Transaction>> = items
+    /** How many times a caller asked for the whole table; a ranged read should leave this at 0. */
+    var observeAllCalls = 0
+        private set
+
+    /** Every range a caller asked for, in order. */
+    val observedRanges = mutableListOf<DateRange>()
+
+    override fun observeAll(): Flow<List<Transaction>> {
+        observeAllCalls++
+        return items
+    }
+
+    override fun observeBetween(range: DateRange): Flow<List<Transaction>> {
+        observedRanges += range
+        return items.map { all -> all.filter { it.date in range } }
+    }
 
     override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
 

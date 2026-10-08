@@ -4,6 +4,7 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Settings
@@ -52,6 +53,13 @@ interface CategoryRepository {
 
 interface TransactionRepository {
     fun observeAll(): Flow<List<Transaction>>
+
+    /**
+     * Live transactions dated inside the inclusive [range], newest first (date desc, then id desc, the
+     * same order as [observeAll]). The filter runs in storage so a month never loads the whole history;
+     * [DateRange.ALL_TIME] returns everything.
+     */
+    fun observeBetween(range: DateRange): Flow<List<Transaction>>
 
     /** The transaction with [id], or null if none — used to guard an edit against a stale/deleted row. */
     suspend fun findById(id: Long): Transaction?

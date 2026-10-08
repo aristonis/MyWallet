@@ -23,7 +23,8 @@ sealed interface PeriodSummaryResult {
 }
 
 /**
- * Live income / expense / net over an inclusive [DateRange], in the base currency. Transfers are excluded
+ * Live income / expense / net over an inclusive [DateRange], in the base currency. Only that range is
+ * read from the repository, never the whole history. Transfers are excluded
  * (internal movement, not earning/spending). Opening balances are not transactions, so also excluded.
  * If an in-period income/expense is in a currency with no rate yet, emits [PeriodSummaryResult.MissingRate]
  * for the first such currency instead of a silently wrong total.
@@ -34,14 +35,14 @@ class ComputePeriodSummary(
 ) {
     operator fun invoke(range: DateRange): Flow<PeriodSummaryResult> =
         combine(
-            transactions.observeAll(),
+            transactions.observeBetween(range),
             fx.observeFx(),
         ) { txs, snapshot ->
             val base = snapshot.baseCurrencyCode
             val ratesToBase = snapshot.ratesToBase
             // Every report decision (what counts, and on which side) comes from reportEntry(), so a new
             // transaction kind can't slip past the rate check or out of the totals here.
-            val entries = txs.filter { it.date in range }.mapNotNull { it.reportEntry() }
+            val entries = txs.mapNotNull { it.reportEntry() }
 
             // Detect a missing rate up front (before any conversion throws) so the result stays a
             // value, not an exception — that is what keeps this flow live across a later rate change.

@@ -15,6 +15,7 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
@@ -41,6 +42,9 @@ class RoomAccountRepository(private val dao: AccountDao) : AccountRepository {
 
 class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRepository {
     override fun observeAll(): Flow<List<Transaction>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
+    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
+        dao.observeBetween(range.start, range.endInclusive).map { rows -> rows.map { it.toDomain() } }
+
     override suspend fun findById(id: Long): Transaction? = dao.findById(id)?.toDomain()
     override suspend fun add(transaction: Transaction): Long = dao.insert(transaction.toEntity())
     override suspend fun update(transaction: Transaction) = dao.update(transaction.toEntity())

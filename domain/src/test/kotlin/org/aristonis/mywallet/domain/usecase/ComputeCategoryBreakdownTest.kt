@@ -208,4 +208,15 @@ class ComputeCategoryBreakdownTest {
         assertEquals(usd("0.72"), food.subCategories.single().total)
         assertEquals(usd("0.72"), food.total)
     }
+
+    @Test
+    fun readsOnlyTheRequestedRangeFromTheRepository() = runTest {
+        val repo = FakeTransactionRepository(listOf(expense(1, usd("3"), category = 7)))
+        val usecase = ComputeCategoryBreakdown(repo, fakeFx(currencies = currencies, base = "USD"))
+
+        usecase(july).first()
+
+        assertEquals(listOf(july), repo.observedRanges)
+        assertEquals(0, repo.observeAllCalls)
+    }
 }

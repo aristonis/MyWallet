@@ -8,11 +8,16 @@ import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import org.aristonis.mywallet.domain.error.WalletException
+import java.time.LocalDate
 
 @Dao
 interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY date DESC, id DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
+
+    /** Same order as [observeAll], restricted to the inclusive [start]..[end] dates; served by the date index. */
+    @Query("SELECT * FROM transactions WHERE date BETWEEN :start AND :end ORDER BY date DESC, id DESC")
+    fun observeBetween(start: LocalDate, end: LocalDate): Flow<List<TransactionEntity>>
 
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun findById(id: Long): TransactionEntity?

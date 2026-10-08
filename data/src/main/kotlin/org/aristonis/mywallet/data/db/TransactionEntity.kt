@@ -17,6 +17,10 @@ import java.time.LocalDate
  * save the transaction again. [categoryId] deliberately has no such constraint — an income or
  * expense must always name a category, so a deleted one is reassigned to the fallback bucket rather
  * than nulled.
+ *
+ * The [date] index serves ranged reads. One column is enough: `id` is the rowid and so rides along in
+ * every index entry, which lets `ORDER BY date DESC, id DESC` be read straight off the index with no
+ * temporary sort.
  */
 @Entity(
     tableName = "transactions",
@@ -28,7 +32,7 @@ import java.time.LocalDate
             onDelete = ForeignKey.SET_NULL,
         ),
     ],
-    indices = [Index(value = ["subCategoryId"])],
+    indices = [Index(value = ["subCategoryId"]), Index(value = ["date"])],
 )
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

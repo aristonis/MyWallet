@@ -26,7 +26,8 @@ sealed interface CategoryBreakdownResult {
 
 /**
  * Live income and expense totals per category, and per sub-category within each, over an inclusive
- * [DateRange], in the base currency. Transfers are internal movement and are left out. Categories and
+ * [DateRange], in the base currency. Only that range is read from the repository, never the whole
+ * history. Transfers are internal movement and are left out. Categories and
  * sub-categories come biggest total first; ties fall back to id ascending (the no-sub-category
  * remainder last) so the order is deterministic. If an in-range income or expense is in a currency
  * with no rate yet, emits [CategoryBreakdownResult.MissingRate] for the first such currency instead of
@@ -38,14 +39,14 @@ class ComputeCategoryBreakdown(
 ) {
     operator fun invoke(range: DateRange): Flow<CategoryBreakdownResult> =
         combine(
-            transactions.observeAll(),
+            transactions.observeBetween(range),
             fx.observeFx(),
         ) { txs, snapshot ->
             val base = snapshot.baseCurrencyCode
             val ratesToBase = snapshot.ratesToBase
             // Every report decision (what counts, and on which side) comes from reportEntry(), so a new
             // transaction kind can't slip past the rate check or out of the totals here.
-            val entries = txs.filter { it.date in range }.mapNotNull { it.reportEntry() }
+            val entries = txs.mapNotNull { it.reportEntry() }
 
             // Detect a missing rate up front (before any conversion throws) so the result stays a
             // value, not an exception; that keeps the flow live across a later rate change. Every

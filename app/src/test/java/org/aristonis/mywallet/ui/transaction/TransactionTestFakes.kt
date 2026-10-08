@@ -2,6 +2,8 @@ package org.aristonis.mywallet.ui.transaction
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.aristonis.mywallet.domain.model.DateRange
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
@@ -56,6 +58,8 @@ internal class FakeTransactionRepository(initial: List<Transaction> = emptyList(
     val added: List<Transaction> get() = items.value
 
     override fun observeAll(): Flow<List<Transaction>> = items
+    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
+        items.map { all -> all.filter { it.date in range } }
     override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
     override suspend fun add(transaction: Transaction): Long {
         items.value = items.value + transaction

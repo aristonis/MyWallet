@@ -7,11 +7,10 @@ import androidx.room.TypeConverters
 /**
  * The Room database — all six tables and their DAOs.
  *
- * The version stays at 1 and no `Migration` exists, because the app has never been released: no
- * database of an older shape is installed anywhere, so a schema change is made by editing the
- * entities and reinstalling. The first release ends that. From the build that ships, every
- * installed copy is somebody's only record of their money, and each further change needs a version
- * bump plus a migration that carries the existing rows forward.
+ * Version 1 is installed on a device holding real records, so the schema is no longer edited in
+ * place. Every change bumps the version and adds a migration in Migrations.kt that carries the
+ * existing rows forward, with a MigrationTestHelper test that starts from the previous version's
+ * exported schema.
  *
  * `exportSchema = true` is what makes that possible: the JSON under `data/schemas/` is the only
  * record of what a version's tables were, and a migration can neither be written nor tested
@@ -26,7 +25,7 @@ import androidx.room.TypeConverters
         RateEntity::class,
         SettingsEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

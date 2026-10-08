@@ -9,6 +9,13 @@ plugins {
 // Adapters layer: Room and the repository implementations. Depends only on :domain.
 android {
     namespace = "org.aristonis.mywallet.data"
+
+    // MigrationTestHelper builds the starting database from these exported schemas.
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDir(layout.projectDirectory.dir("schemas"))
+        }
+    }
     compileSdk = 37
 
     defaultConfig {
@@ -59,6 +66,7 @@ dependencies {
 
     // Instrumented tests: real in-memory Room exercising the backup/restore transaction on-device.
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.kotlinx.coroutines.test)
 

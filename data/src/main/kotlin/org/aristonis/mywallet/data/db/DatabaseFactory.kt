@@ -22,6 +22,7 @@ object DatabaseFactory {
     fun create(context: Context): WalletDatabase =
         Room.databaseBuilder(context, WalletDatabase::class.java, "wallet.db")
             .addCallback(SeedCallback)
+            .addMigrations(*ALL_MIGRATIONS)
             .build()
 
     internal object SeedCallback : RoomDatabase.Callback() {

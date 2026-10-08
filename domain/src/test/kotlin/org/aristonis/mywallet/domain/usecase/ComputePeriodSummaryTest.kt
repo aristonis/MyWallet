@@ -110,4 +110,19 @@ class ComputePeriodSummaryTest {
         val summary = usecase(txs).invoke(DateRange(from, to)).first().summary()
         assertEquals(usd("60"), summary.income)
     }
+
+    @Test
+    fun readsOnlyTheRequestedRangeFromTheRepository() = runTest {
+        val range = DateRange(LocalDate.of(2026, 8, 3), LocalDate.of(2026, 8, 17))
+        val repo = FakeTransactionRepository(emptyList())
+        val usecase = ComputePeriodSummary(
+            transactions = repo,
+            fx = fakeFx(currencies = listOf(Currency("USD", "$", 2)), base = "USD"),
+        )
+
+        usecase(range).first()
+
+        assertEquals(listOf(range), repo.observedRanges)
+        assertEquals(0, repo.observeAllCalls)
+    }
 }
