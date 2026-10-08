@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.ui.navigation
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -62,7 +63,11 @@ fun WalletNavHost(
         NavHost(
             navController = navController,
             startDestination = WalletTab.HOME.route,
-            modifier = Modifier.padding(innerPadding),
+            // The bottom bar already sits above the system navigation bar, so the padding that clears
+            // the bar clears that too. Marking it consumed stops each screen's own Scaffold from padding
+            // for the system bar again, which left an empty strip above the bottom bar. A screen shown
+            // without the bottom bar gets no padding here and still clears the system bar itself.
+            modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
         ) {
             graph(navController)
         }
