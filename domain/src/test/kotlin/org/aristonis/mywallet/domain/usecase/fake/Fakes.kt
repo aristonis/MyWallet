@@ -207,3 +207,14 @@ class FakeBackupRepository(
         restoredWith = serialized
     }
 }
+
+/** Runs the block directly: the fakes have no transaction to open, and ordering is what tests check. */
+class DirectTransactionRunner : org.aristonis.mywallet.domain.port.TransactionRunner {
+    var runs = 0
+        private set
+
+    override suspend fun <T> inTransaction(block: suspend () -> T): T {
+        runs++
+        return block()
+    }
+}

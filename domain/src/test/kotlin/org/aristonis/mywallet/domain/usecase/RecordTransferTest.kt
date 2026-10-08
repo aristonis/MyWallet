@@ -123,4 +123,85 @@ class RecordTransferTest {
             rates = emptyList(),
         ).invoke(sourceAccountId = 1, destAccountId = 2, amount = Money.of("5", "USD"), date = today)
     }
+
+    // Base SYP; 1 $ = 4 SYP and 1 € = 4.4 SYP are the saved rates.
+    private val sypBase = listOf(Currency("SYP", "£S", 2), Currency("USD", "$", 2), Currency("EUR", "€", 2))
+    private val savedRates = listOf(ExchangeRate("USD", BigDecimal("4")), ExchangeRate("EUR", BigDecimal("4.4")))
+
+    @Test
+    fun typedRatesPriceThisTransferOnly() = runTest {
+        val tx = FakeTransactionRepository()
+        val rates = FakeRateRepository(savedRates)
+        val transfer = RecordTransfer(
+            accounts = FakeAccountRepository(listOf(account(1, "USD"), account(2, "SYP"))),
+            currencies = FakeCurrencyRepository(sypBase),
+            rates = rates,
+            settings = FakeSettingsRepository(Settings(baseCurrencyCode = "SYP")),
+            transactions = tx,
+        )
+
+        transfer(1, 2, Money.of("2", "USD"), today, rateOverrides = mapOf("USD" to BigDecimal("5")))
+
+        val saved = tx.added.single() as Transaction.Transfer
+        assertEquals(Money.of("10", "SYP"), saved.destAmount)
+        assertEquals(BigDecimal("4"), rates.findByCode("USD")!!.rateToBase) // Settings untouched
+    }
+
+    @Test
+    fun aTypedRateStandsInForAMissingSavedOne() = runTest {
+        val tx = FakeTransactionRepository()
+        val transfer = RecordTransfer(
+            accounts = FakeAccountRepository(listOf(account(1, "USD"), account(2, "SYP"))),
+            currencies = FakeCurrencyRepository(sypBase),
+            rates = FakeRateRepository(emptyList()),
+            settings = FakeSettingsRepository(Settings(baseCurrencyCode = "SYP")),
+            transactions = tx,
+        )
+
+        transfer(1, 2, Money.of("2", "USD"), today, rateOverrides = mapOf("USD" to BigDecimal("4")))
+
+        assertEquals(Money.of("8", "SYP"), (tx.added.single() as Transaction.Transfer).destAmount)
+    }
+
+    @Test
+    fun aCrossTransferMixesTypedAndSavedRates() = runTest {
+        val tx = FakeTransactionRepository()
+        val transfer = RecordTransfer(
+            accounts = FakeAccountRepository(listOf(account(1, "USD"), account(2, "EUR"))),
+            currencies = FakeCurrencyRepository(sypBase),
+            rates = FakeRateRepository(savedRates),
+            settings = FakeSettingsRepository(Settings(baseCurrencyCode = "SYP")),
+            transactions = tx,
+        )
+
+        // 100 $ at 4.4 SYP = 440 SYP, at 4.4 SYP per € = 100 €.
+        transfer(1, 2, Money.of("100", "USD"), today, rateOverrides = mapOf("USD" to BigDecimal("4.4")))
+
+        assertEquals(Money.of("100", "EUR"), (tx.added.single() as Transaction.Transfer).destAmount)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun aTypedRateMustBePositive() = runTest {
+        RecordTransfer(
+            accounts = FakeAccountRepository(listOf(account(1, "USD"), account(2, "SYP"))),
+            currencies = FakeCurrencyRepository(sypBase),
+            rates = FakeRateRepository(savedRates),
+            settings = FakeSettingsRepository(Settings(baseCurrencyCode = "SYP")),
+            transactions = FakeTransactionRepository(),
+        ).invoke(1, 2, Money.of("2", "USD"), today, rateOverrides = mapOf("USD" to BigDecimal.ZERO))
+    }
+
+    @Test
+    fun aTypedRateForTheBaseCurrencyIsIgnored() = runTest {
+        val tx = FakeTransactionRepository()
+        RecordTransfer(
+            accounts = FakeAccountRepository(listOf(account(1, "USD"), account(2, "SYP"))),
+            currencies = FakeCurrencyRepository(sypBase),
+            rates = FakeRateRepository(savedRates),
+            settings = FakeSettingsRepository(Settings(baseCurrencyCode = "SYP")),
+            transactions = tx,
+        ).invoke(1, 2, Money.of("2", "USD"), today, rateOverrides = mapOf("SYP" to BigDecimal("9")))
+
+        assertEquals(Money.of("8", "SYP"), (tx.added.single() as Transaction.Transfer).destAmount)
+    }
 }
