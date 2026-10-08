@@ -7,10 +7,11 @@ import androidx.room.TypeConverters
 /**
  * The Room database — all six tables and their DAOs.
  *
- * Version 1 is installed on a device holding real records, so the schema is no longer edited in
- * place. Every change bumps the version and adds a migration in Migrations.kt that carries the
- * existing rows forward, with a MigrationTestHelper test that starts from the previous version's
- * exported schema.
+ * A schema version is frozen once a release ships it: installed copies are somebody's only record
+ * of their money, so that shape is never edited again. The next release's changes all go into one
+ * new version with one migration in Migrations.kt that carries the existing rows forward, proven by
+ * a MigrationTestHelper test that starts from the shipped version's exported schema. A version no
+ * release has shipped yet is still open, so it is edited rather than stacked on.
  *
  * `exportSchema = true` is what makes that possible: the JSON under `data/schemas/` is the only
  * record of what a version's tables were, and a migration can neither be written nor tested

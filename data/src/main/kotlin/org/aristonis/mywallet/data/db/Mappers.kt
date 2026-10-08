@@ -68,10 +68,20 @@ fun ExchangeRate.toEntity(): RateEntity = RateEntity(currencyCode = currencyCode
 
 // --- Settings ---
 fun SettingsEntity.toDomain(): Settings =
-    Settings(baseCurrencyCode = baseCurrencyCode, theme = ThemePreference.valueOf(theme), schemaVersion = schemaVersion)
+    Settings(
+        baseCurrencyCode = baseCurrencyCode,
+        theme = ThemePreference.valueOf(theme),
+        schemaVersion = schemaVersion,
+        saveTransactionRates = saveTransactionRates,
+    )
 
 fun Settings.toEntity(): SettingsEntity =
-    SettingsEntity(baseCurrencyCode = baseCurrencyCode, theme = theme.name, schemaVersion = schemaVersion)
+    SettingsEntity(
+        baseCurrencyCode = baseCurrencyCode,
+        theme = theme.name,
+        schemaVersion = schemaVersion,
+        saveTransactionRates = saveTransactionRates,
+    )
 
 // --- Transaction (single-table inheritance) ---
 fun TransactionEntity.toDomain(): Transaction = when (type) {

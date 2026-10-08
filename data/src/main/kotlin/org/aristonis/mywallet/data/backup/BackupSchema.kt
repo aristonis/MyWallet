@@ -1,5 +1,7 @@
 package org.aristonis.mywallet.data.backup
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import org.aristonis.mywallet.data.db.SETTINGS_ROW_ID
 import java.time.LocalDate
@@ -73,6 +75,12 @@ data class SettingsDto(
     val baseCurrencyCode: String,
     val theme: String,
     val schemaVersion: Int,
+    // Declared last with a default so a backup written before the switch existed still reads, as on.
+    // Left out while it holds that default: the first release rejects keys it does not know, so a
+    // backup taken with the switch untouched stays one that release can restore.
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val saveTransactionRates: Boolean = true,
 )
 
 @Serializable

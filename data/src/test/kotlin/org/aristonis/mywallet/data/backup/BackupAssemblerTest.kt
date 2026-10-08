@@ -164,4 +164,16 @@ class BackupAssemblerTest {
 
         assertEquals(1, decodeValidated(BackupCodec.encode(transfersOnly)).transactions.size)
     }
+
+    @Test
+    fun aBackupFromANewerBuildSaysSoEvenWithFieldsThisBuildDoesNotKnow() {
+        val newer = BackupCodec.encode(build())
+            .replaceFirst(Regex("\"version\"\\s*:\\s*1"), "\"version\": 2")
+            .replaceFirst("{", "{\n    \"debts\": [],")
+
+        val error = runCatching { decodeValidated(newer) }.exceptionOrNull()
+
+        assertTrue("was: $error", error is WalletException.BackupVersionUnsupported)
+        assertEquals(2, (error as WalletException.BackupVersionUnsupported).version)
+    }
 }

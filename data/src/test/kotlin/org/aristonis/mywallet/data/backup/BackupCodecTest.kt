@@ -2,6 +2,7 @@ package org.aristonis.mywallet.data.backup
 
 import kotlinx.serialization.SerializationException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -79,5 +80,28 @@ class BackupCodecTest {
     @Test(expected = SerializationException::class)
     fun decode_rejectsMissingRequiredFields() {
         BackupCodec.decode("{}")
+    }
+
+    @Test
+    fun theRateSwitchSurvivesARoundTrip() {
+        val backup = sampleBackup().let { it.copy(settings = it.settings!!.copy(saveTransactionRates = false)) }
+
+        assertEquals(false, BackupCodec.decode(BackupCodec.encode(backup)).settings!!.saveTransactionRates)
+    }
+
+    @Test
+    fun aBackupFromBeforeTheSwitchRestoresWithItOn() {
+        val json = BackupCodec.encode(sampleBackup())
+        val older = Regex(",?\\s*\"saveTransactionRates\"\\s*:\\s*(true|false)").replace(json, "")
+        check(!older.contains("saveTransactionRates")) { "fixture still carries the field" }
+
+        assertEquals(true, BackupCodec.decode(older).settings!!.saveTransactionRates)
+    }
+
+    @Test
+    fun theSwitchAtItsDefaultIsLeftOutSoTheFirstReleaseCanStillRestore() {
+        // The released build rejects keys it does not know, so a backup taken with everything at its
+        // defaults must look exactly like one that build wrote itself.
+        assertFalse(BackupCodec.encode(sampleBackup()).contains("saveTransactionRates"))
     }
 }

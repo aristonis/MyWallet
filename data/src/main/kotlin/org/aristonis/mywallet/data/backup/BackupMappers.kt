@@ -73,7 +73,19 @@ fun RateDto.toEntity(): RateEntity = RateEntity(currencyCode = currencyCode, rat
 
 // --- Settings ---
 fun SettingsEntity.toDto(): SettingsDto =
-    SettingsDto(id = id, baseCurrencyCode = baseCurrencyCode, theme = theme, schemaVersion = schemaVersion)
+    SettingsDto(
+        id = id,
+        baseCurrencyCode = baseCurrencyCode,
+        theme = theme,
+        schemaVersion = schemaVersion,
+        saveTransactionRates = saveTransactionRates,
+    )
 
 fun SettingsDto.toEntity(): SettingsEntity =
-    SettingsEntity(id = id, baseCurrencyCode = baseCurrencyCode, theme = theme, schemaVersion = schemaVersion)
+    SettingsEntity(
+        id = id,
+        baseCurrencyCode = baseCurrencyCode,
+        theme = theme,
+        schemaVersion = schemaVersion,
+        saveTransactionRates = saveTransactionRates,
+    )

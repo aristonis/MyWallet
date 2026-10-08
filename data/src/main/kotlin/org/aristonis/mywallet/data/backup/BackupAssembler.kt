@@ -12,12 +12,10 @@ import org.aristonis.mywallet.domain.error.WalletException
 /**
  * The backup format this build reads and writes. A restore of any other version is rejected.
  *
- * Categories gained a system-key field without this number moving, which is deliberate: the app has
- * never been released, so no backup file exists anywhere that could be affected, and bumping would
- * add an upgrade branch guarding a situation that cannot arise. The known cost, accepted: a backup
- * written now carries the new field, and an older build — which rejects unknown keys — would call it
- * invalid rather than "written by a newer app". That stops being an acceptable trade the moment a
- * build ships to anyone, so the first release is when this number starts moving with the format.
+ * Fields added since the first release (the rate switch) carry defaults, so an older backup still
+ * reads and this number did not move. A change an older build could not read must bump it. The
+ * version is read on its own before the strict decode, so a backup from a newer build is reported
+ * as such even when it carries fields this build has never heard of.
  */
 const val CURRENT_BACKUP_VERSION = 1
 
@@ -50,6 +48,10 @@ fun buildBackup(
  * becomes a [WalletException.BackupVersionUnsupported]. Only a valid current-version backup returns.
  */
 fun decodeValidated(text: String): WalletBackup {
+    val version = versionOf(text)
+    if (version != null && version != CURRENT_BACKUP_VERSION) {
+        throw WalletException.BackupVersionUnsupported(version)
+    }
     val backup = try {
         BackupCodec.decode(text)
     } catch (e: SerializationException) {
@@ -105,4 +107,16 @@ fun decodeValidated(text: String): WalletBackup {
         throw WalletException.BackupInvalid()
     }
     return backup
+}
+
+/** Reads only the format version, tolerating every other field; null when the text is not a backup. */
+private fun versionOf(text: String): Int? = runCatching {
+    VersionPeek.json.decodeFromString(VersionPeek.serializer(), text).version
+}.getOrNull()
+
+@kotlinx.serialization.Serializable
+private data class VersionPeek(val version: Int? = null) {
+    companion object {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    }
 }

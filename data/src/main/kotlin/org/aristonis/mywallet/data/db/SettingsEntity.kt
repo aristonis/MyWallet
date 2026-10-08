@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -12,4 +13,6 @@ data class SettingsEntity(
     val baseCurrencyCode: String,
     val theme: String, // SYSTEM | LIGHT | DARK
     val schemaVersion: Int,
+    // Must equal the migration's DEFAULT so Room's schema check passes on a migrated database.
+    @ColumnInfo(defaultValue = "1") val saveTransactionRates: Boolean = true,
 )
