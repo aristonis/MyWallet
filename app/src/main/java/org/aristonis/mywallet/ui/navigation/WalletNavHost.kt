@@ -7,6 +7,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -30,6 +31,7 @@ import org.aristonis.mywallet.ui.settings.SettingsScreen
 import org.aristonis.mywallet.ui.transaction.AddTransactionScreen
 import org.aristonis.mywallet.ui.transaction.EditTransactionScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListScreen
+import org.aristonis.mywallet.ui.transaction.TransactionsListViewModel
 
 /**
  * The tabbed shell.
@@ -123,8 +125,9 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
                 onSettings = { nav.switchTab(WalletTab.SETTINGS) },
             )
         }
+        // Home shows every date, so a saved entry is always in view and there is nothing to say.
         composable(tab.child(Leaf.ADD_TRANSACTION)) {
-            AddTransactionScreen(onDone = { nav.popBackStack() })
+            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { nav.popBackStack() })
         }
         composable(tab.child(Leaf.ADD_ACCOUNT)) {
             AddAccountScreen(onDone = { nav.popBackStack() })
@@ -148,17 +151,26 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
 private fun NavGraphBuilder.transactionsGraph(nav: NavHostController) {
     val tab = WalletTab.TRANSACTIONS
     navigation(startDestination = tab.rootRoute, route = tab.route) {
-        composable(tab.rootRoute) {
+        // The list may be narrowed to some dates, so the editors hand back the date they saved on and
+        // the list says so when the entry landed outside them.
+        composable(tab.rootRoute) { entry ->
+            val viewModel: TransactionsListViewModel = hiltViewModel()
+            SavedDateEffect(entry, viewModel::onEntrySaved)
             TransactionsListScreen(
                 onAddTransaction = { nav.navigate(tab.child(Leaf.ADD_TRANSACTION)) },
                 onEditTransaction = { id -> nav.navigate(tab.child(Leaf.EDIT_TRANSACTION, id)) },
+                viewModel = viewModel,
             )
         }
         composable(tab.child(Leaf.ADD_TRANSACTION)) {
-            AddTransactionScreen(onDone = { nav.popBackStack() })
+            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) })
         }
         editorRoute(tab, Leaf.EDIT_TRANSACTION) { id ->
-            EditTransactionScreen(transactionId = id, onDone = { nav.popBackStack() })
+            EditTransactionScreen(
+                transactionId = id,
+                onDone = { nav.popBackStack() },
+                onSaved = { date -> nav.returnSavedDate(date) },
+            )
         }
     }
 }

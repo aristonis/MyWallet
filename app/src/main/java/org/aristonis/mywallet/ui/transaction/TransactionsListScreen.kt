@@ -15,9 +15,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -70,12 +78,17 @@ fun TransactionsListScreen(
         windowActions = viewModel.windowActions,
         onAddTransaction = onAddTransaction,
         onEditTransaction = onEditTransaction,
+        onShowSavedEntry = viewModel::showSavedEntry,
+        onSavedEntryMessageDone = viewModel::dismissSavedEntryMessage,
     )
 }
 
 /**
  * The date bar stays fixed under the app bar while the days scroll beneath it, so narrowing or
  * stepping the dates never means scrolling back to the top first.
+ *
+ * An entry just saved outside the dates gets a snackbar naming its day, with an action that moves the
+ * dates onto it. [onShowSavedEntry] and [onSavedEntryMessageDone] report how the snackbar ended.
  */
 @Composable
 internal fun TransactionsListContent(
@@ -83,8 +96,18 @@ internal fun TransactionsListContent(
     windowActions: DateWindowActions,
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit,
+    onShowSavedEntry: () -> Unit,
+    onSavedEntryMessageDone: () -> Unit,
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    SavedOutsideSnackbar(
+        savedOn = state.savedOutsideWindow,
+        snackbarHostState = snackbarHostState,
+        onShow = onShowSavedEntry,
+        onDone = onSavedEntryMessageDone,
+    )
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             WalletTopAppBar(
                 title = stringResource(R.string.transactions_title),
@@ -110,6 +133,37 @@ internal fun TransactionsListContent(
                 modifier = Modifier.padding(horizontal = SCREEN_PADDING),
             )
             TransactionsBody(state = state, onEditTransaction = onEditTransaction)
+        }
+    }
+}
+
+/**
+ * Says where an entry saved outside the dates went. Long rather than short: the user has to read a
+ * date and decide whether to go to it, which takes longer than reading a confirmation.
+ */
+@Composable
+private fun SavedOutsideSnackbar(
+    savedOn: LocalDate?,
+    snackbarHostState: SnackbarHostState,
+    onShow: () -> Unit,
+    onDone: () -> Unit,
+) {
+    val formatDay = rememberDayFormatter(currentYear = LocalDate.now().year)
+    val message = savedOn?.let { stringResource(R.string.transactions_saved_outside, bidiIsolate(formatDay(it))) }
+    val actionLabel = stringResource(R.string.action_show)
+    val currentOnShow by rememberUpdatedState(onShow)
+    val currentOnDone by rememberUpdatedState(onDone)
+    val pending by rememberUpdatedState(savedOn)
+    // A message not answered while the list was on screen is let go when the list leaves it (an editor
+    // opened, another tab, a rotation), so no snackbar comes back later about an old save.
+    DisposableEffect(Unit) {
+        onDispose { if (pending != null) currentOnDone() }
+    }
+    LaunchedEffect(savedOn) {
+        if (message == null) return@LaunchedEffect
+        when (snackbarHostState.showSnackbar(message, actionLabel, duration = SnackbarDuration.Long)) {
+            SnackbarResult.ActionPerformed -> currentOnShow()
+            SnackbarResult.Dismissed -> currentOnDone()
         }
     }
 }
@@ -302,6 +356,8 @@ private fun TransactionsListPreview() {
             windowActions = DateWindowActions.None,
             onAddTransaction = {},
             onEditTransaction = {},
+            onShowSavedEntry = {},
+            onSavedEntryMessageDone = {},
         )
     }
 }

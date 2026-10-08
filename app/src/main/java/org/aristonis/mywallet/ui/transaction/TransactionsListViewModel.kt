@@ -85,6 +85,11 @@ data class TransactionsUiState(
     val isLoading: Boolean = true,
     /** The dates the list is narrowed to; the [sections] always belong to this window. */
     val window: TrackingWindow = EVERYTHING,
+    /**
+     * The date of an entry just saved outside the dates in force, or null. Without a word the entry
+     * would simply be missing from the list the user returns to, so the screen offers to show it.
+     */
+    val savedOutsideWindow: LocalDate? = null,
 ) {
     /** Every row, newest first, ignoring day boundaries. Derived so the two can never disagree. */
     val rows: List<TransactionRow> get() = sections.flatMap { it.rows }
@@ -147,10 +152,16 @@ class TransactionsListViewModel @Inject constructor(
         transactions.observeBetween(window.range).map { WindowedTransactions(window, it) }
     }
 
+    /** The date of an entry saved outside the window, until the user acts on it or lets it go. */
+    private val savedOutside = MutableStateFlow<LocalDate?>(null)
+
     /**
      * The sections are built inside the combine, upstream of [flowOn], so the building happens on
      * [defaultDispatcher]; only the finished state is handed back. Before the first emission the state
      * is loading on the saved window, so the date bar shows the right dates from the start.
+     *
+     * The saved-entry message joins the finished state downstream of the building, so showing or
+     * clearing it copies one value instead of sorting and grouping the whole window again.
      */
     val state: StateFlow<TransactionsUiState> =
         combine(
@@ -172,6 +183,7 @@ class TransactionsListViewModel @Inject constructor(
             )
         }
             .flowOn(defaultDispatcher)
+            .combine(savedOutside) { built, saved -> built.copy(savedOutsideWindow = saved) }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -179,7 +191,16 @@ class TransactionsListViewModel @Inject constructor(
             )
 
     /** The date bar's callbacks, already wired to this screen's window. */
-    val windowActions: DateWindowActions get() = holder.actions
+    val windowActions: DateWindowActions = holder.actions.let { moves ->
+        // Once other dates are on screen, "outside these dates" describes something else.
+        DateWindowActions(
+            onSelectPeriod = { savedOutside.value = null; moves.onSelectPeriod(it) },
+            onStep = { savedOutside.value = null; moves.onStep(it) },
+            onJumpTo = { savedOutside.value = null; moves.onJumpTo(it) },
+            onSelectRange = { first, second -> savedOutside.value = null; moves.onSelectRange(first, second) },
+            onClearRange = { savedOutside.value = null; moves.onClearRange() },
+        )
+    }
 
     /**
      * The screen is back in view. A window that was following today moves along with it, and the
@@ -188,6 +209,31 @@ class TransactionsListViewModel @Inject constructor(
     fun onScreenStart() {
         holder.refreshToday()
         currentDay.value = today.today()
+    }
+
+    /**
+     * An entry dated [date] was just saved from this tab. The window in force decides, not the last
+     * state shown: the user may have changed the dates a moment ago, before the list was rebuilt for
+     * them. All time holds every date, so it never has anything to say. Each save replaces the last
+     * message, so a save inside the dates also clears one the user never answered.
+     */
+    fun onEntrySaved(date: LocalDate) {
+        savedOutside.value = date.takeUnless { it in holder.window.value.range }
+    }
+
+    /**
+     * Moves the window onto the saved entry and drops the message. The period kind is kept; a custom
+     * range has no neighbour that would hold the entry, so it gives way to the entry's month.
+     */
+    fun showSavedEntry() {
+        val date = savedOutside.value ?: return
+        holder.jumpTo(date)
+        savedOutside.value = null
+    }
+
+    /** The user let the message go; the window stays where they put it. */
+    fun dismissSavedEntryMessage() {
+        savedOutside.value = null
     }
 
     /**

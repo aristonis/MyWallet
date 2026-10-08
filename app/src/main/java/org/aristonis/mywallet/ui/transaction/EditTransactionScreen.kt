@@ -65,13 +65,16 @@ import org.aristonis.mywallet.ui.message.text
  * Edit-transaction screen. The type is fixed at load and shown read-only: income/expense may change
  * account/category/amount/date/note; a transfer's account legs are locked (shown disabled) so only its
  * amount/date/note move. A Delete button confirms then removes the row, then offers a one-tap Undo via a
- * snackbar before leaving. [onDone] returns to Home — fired on Cancel/back and once the edit is saved or
- * the delete settles (undone or let go, via the VM's one-shot flags). No nav library.
+ * snackbar before leaving. [onDone] leaves on Cancel/back and once the delete settles (undone or let go,
+ * via the VM's one-shot flags). [onSaved] leaves once the edit is saved and carries the entry's date,
+ * so a list showing only some dates can say when the entry moved outside them. A delete hands back no
+ * date: there is no entry left to show.
  */
 @Composable
 fun EditTransactionScreen(
     transactionId: Long,
     onDone: () -> Unit,
+    onSaved: (LocalDate) -> Unit,
     viewModel: EditTransactionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -80,7 +83,9 @@ fun EditTransactionScreen(
     LaunchedEffect(transactionId) { viewModel.load(transactionId) }
     LaunchedEffect(state.saved) {
         if (state.saved) {
-            onDone()
+            // An untouched date field means the entry kept the date it was loaded with.
+            val savedDate = state.date ?: state.loaded?.date
+            if (savedDate != null) onSaved(savedDate) else onDone()
             viewModel.acknowledgeSaved()
         }
     }

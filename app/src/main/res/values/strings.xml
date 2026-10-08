@@ -19,6 +19,7 @@
     <string name="action_back">Back</string>
     <string name="action_ok">OK</string>
     <string name="action_undo">Undo</string>
+    <string name="action_show">Show</string>
     <string name="action_rename">Rename</string>
     <string name="action_archive">Archive</string>
     <string name="action_unarchive">Unarchive</string>
@@ -89,6 +90,8 @@
     <string name="transactions_title">Transactions</string>
     <string name="transactions_empty">No transactions yet. Add your first transaction.</string>
     <string name="transactions_empty_range">Nothing in this range.</string>
+    <!-- An entry was just saved on a day the chosen dates do not cover. %1$s is that day, e.g. "Aug 30". -->
+    <string name="transactions_saved_outside">Saved for %1$s, outside these dates</string>
     <!-- Day headers. Today keeps its date; yesterday does not need one. -->
     <string name="date_today">Today · %1$s</string>
     <string name="date_yesterday">Yesterday</string>
