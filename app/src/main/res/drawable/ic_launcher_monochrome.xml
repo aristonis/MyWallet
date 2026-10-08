@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The same wallet mark for Android themed icons. One colour throughout — the system recolours this
-    layer to match the user's wallpaper, so the mint dot has to become part of the outline here
-    instead of an accent that would silently vanish.
+    The same closed ledger for Android themed icons. The system uses only this layer's alpha and
+    recolours it to match the wallpaper, so both shapes are one colour here. The ribbon still reads
+    because the cover's notch leaves a real gap around it, not just a change of colour.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -10,17 +10,10 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:pathData="M34,36 L74,36 A8,8 0 0 1 82,44 L82,66 A8,8 0 0 1 74,74 L34,74 A8,8 0 0 1 26,66 L26,44 A8,8 0 0 1 34,36 Z"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M38,32 H51 V61.24 L59,53.24 L67,61.24 V32 H70 A6,6 0 0 1 76,38 V70 A6,6 0 0 1 70,76 H38 A6,6 0 0 1 32,70 V38 A6,6 0 0 1 38,32 Z M43.5,40.5 V67.5 A2.5,2.5 0 0 1 38.5,67.5 V40.5 A2.5,2.5 0 0 1 43.5,40.5 Z" />
     <path
-        android:pathData="M38,55 L56,55"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4.5"
-        android:strokeLineCap="round" />
-    <path
-        android:pathData="M65.5,55 a4.5,4.5 0 1 0 9,0 a4.5,4.5 0 1 0 -9,0 Z"
-        android:fillColor="#FFFFFF" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,26 H64 V54 L59,49 L54,54 Z" />
 </vector>
