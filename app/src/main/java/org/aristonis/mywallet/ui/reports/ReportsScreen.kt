@@ -29,8 +29,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.TrackingPeriod
@@ -46,6 +44,7 @@ import org.aristonis.mywallet.ui.theme.amountColor
 import org.aristonis.mywallet.ui.window.DateRangeAction
 import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.window.DateWindowBar
+import org.aristonis.mywallet.ui.window.RefreshOnStart
 import java.time.LocalDate
 
 private val SCREEN_PADDING = 16.dp
@@ -61,7 +60,7 @@ private val LINE_SPACING = 8.dp
 @Composable
 fun ReportsScreen(viewModel: ReportsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onScreenStart() }
+    RefreshOnStart { viewModel.onScreenStart() }
     ReportsContent(state = state, windowActions = viewModel.windowActions)
 }
 
