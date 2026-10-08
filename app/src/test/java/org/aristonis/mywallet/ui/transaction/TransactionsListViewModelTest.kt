@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.ThreadRecordingList
 import org.aristonis.mywallet.namedWorkThread
@@ -22,10 +23,15 @@ import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.DateRange
+import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.junit.Test
@@ -69,6 +75,7 @@ class TransactionsListViewModelTest {
             today = { LocalDate.of(2026, 8, 26) },
             savedStateHandle = SavedStateHandle(),
             defaultDispatcher = dispatcher,
+            errors = RecordingErrorReporter(),
         )
     }
 
@@ -229,6 +236,7 @@ class TransactionsListViewModelTest {
             today = { LocalDate.of(2026, 8, 26) },
             savedStateHandle = SavedStateHandle(),
             defaultDispatcher = dispatcher,
+            errors = RecordingErrorReporter(),
         )
         val screen = backgroundScope.launch { viewModel.state.collect {} }
         advanceUntilIdle()
@@ -266,6 +274,7 @@ class TransactionsListViewModelTest {
                 today = { LocalDate.of(2026, 8, 26) },
                 savedStateHandle = SavedStateHandle(),
                 defaultDispatcher = work.asCoroutineDispatcher(),
+                errors = RecordingErrorReporter(),
             )
 
             val built = viewModel.state.first { !it.isLoading }
@@ -292,6 +301,7 @@ class TransactionsListViewModelTest {
             today = { LocalDate.of(2026, 8, 26) },
             savedStateHandle = SavedStateHandle(),
             defaultDispatcher = dispatcher,
+            errors = RecordingErrorReporter(),
         )
         val before = backgroundScope.launch { viewModel.state.collect {} }
         advanceUntilIdle()
@@ -304,6 +314,56 @@ class TransactionsListViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, repo.readsOpened)
+    }
+
+
+    private fun listOver(repo: FakeTransactionRepository, errors: RecordingErrorReporter = RecordingErrorReporter()) = TransactionsListViewModel(
+        transactions = repo,
+        accounts = FakeAccountRepository(listOf(cash)),
+        categories = FakeCategoryRepository(listOf(food)),
+        currencies = FakeCurrencyRepository(currencies),
+        moneyFormatter = MoneyFormatter(Locale.US),
+        today = { LocalDate.of(2026, 8, 26) },
+        savedStateHandle = SavedStateHandle(),
+        defaultDispatcher = dispatcher,
+        errors = errors,
+    )
+
+    @Test
+    fun aFailedReadShowsAnError() = runTest {
+        val repo = FakeTransactionRepository(
+            listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
+        ).apply { unreadableRange = DateRange.ALL_TIME }
+        val errors = RecordingErrorReporter()
+        val viewModel = listOver(repo, errors)
+        watch(viewModel)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state.loadFailed)
+        // Shown as a message, but never swallowed: the cause is kept for whoever diagnoses it.
+        assertEquals(listOf("a stored row could not be read"), errors.reported.map { it.message })
+        assertFalse(state.isLoading)
+        assertEquals(emptyList<TransactionRow>(), state.rows)
+    }
+
+    @Test
+    fun aFailedReadRecoversWhenTheDatesChange() = runTest {
+        // The failure belongs to the dates it was read for; picking other dates reads again.
+        val repo = FakeTransactionRepository(
+            listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
+        ).apply { unreadableRange = DateRange.ALL_TIME }
+        val viewModel = listOver(repo)
+        watch(viewModel)
+        advanceUntilIdle()
+
+        viewModel.windowActions.onSelectPeriod(TrackingPeriod.MONTH)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertFalse(state.loadFailed)
+        assertEquals(TrackingPeriod.MONTH, (state.window as TrackingWindow.Period).period)
+        assertEquals(listOf(1L), state.rows.map { it.id })
     }
 
     private companion object {

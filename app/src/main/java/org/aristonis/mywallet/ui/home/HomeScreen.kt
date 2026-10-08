@@ -98,9 +98,12 @@ internal fun HomeContent(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item(key = "net-worth") {
-                Column(modifier = Modifier.padding(bottom = 16.dp)) {
-                    NetWorthHero(state.netWorth, onManageRates)
+            // A failed read has no figure coming, so no spinner promising one; the message below says why.
+            if (!state.loadFailed) {
+                item(key = "net-worth") {
+                    Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                        NetWorthHero(state.netWorth, onManageRates)
+                    }
                 }
             }
             item(key = "accounts-header") {
@@ -110,10 +113,20 @@ internal fun HomeContent(
                     }
                 }
             }
-            // Before the first read an empty list means "unknown", not "no accounts", so no prompt yet.
-            // The net-worth figure above already shows the screen is loading; one spinner is enough.
-            if (!state.isLoading && state.accounts.isEmpty()) {
-                item(key = "accounts-empty") {
+            when {
+                // A failed read is not an empty wallet: offering a first account would suggest the
+                // user's accounts are gone.
+                state.loadFailed -> item(key = "accounts-unreadable") {
+                    EmptyState(
+                        message = stringResource(R.string.data_unreadable),
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                }
+
+                // Before the first read an empty list means "unknown", not "no accounts", so no prompt
+                // yet. The net-worth figure above already shows the screen is loading; one spinner is
+                // enough.
+                !state.isLoading && state.accounts.isEmpty() -> item(key = "accounts-empty") {
                     EmptyState(
                         message = stringResource(R.string.home_no_accounts),
                         actionLabel = stringResource(R.string.home_create_first_account),
@@ -121,8 +134,8 @@ internal fun HomeContent(
                         modifier = Modifier.padding(top = 16.dp),
                     )
                 }
-            } else {
-                items(state.accounts, key = { it.account.id }) { row ->
+
+                else -> items(state.accounts, key = { it.account.id }) { row ->
                     AccountCard(row, onManageRates)
                 }
             }

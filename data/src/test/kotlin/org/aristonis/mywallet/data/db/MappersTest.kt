@@ -10,6 +10,7 @@ import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.domain.model.Transaction
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -69,5 +70,19 @@ class MappersTest {
             rateUsed = BigDecimal("0.92"), date = today, note = "move",
         )
         assertEquals(t, t.toEntity().toDomain())
+    }
+
+    @Test
+    fun anUnknownTransactionTypeFailsLoudly() {
+        // A row from a newer build, or a hand-edited backup, must stop the read rather than be skipped:
+        // a skipped row would leave every balance and total silently wrong. The screens catch this.
+        val row = TransactionEntity(
+            type = "LOAN", date = LocalDate.of(2026, 8, 1),
+            primaryAccountId = 1, primaryAmount = "5", primaryCurrency = "USD",
+        )
+
+        val failure = assertThrows(IllegalStateException::class.java) { row.toDomain() }
+
+        assertEquals("unknown transaction type: LOAN", failure.message)
     }
 }

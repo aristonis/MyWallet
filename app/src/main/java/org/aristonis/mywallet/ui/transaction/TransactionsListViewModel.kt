@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
@@ -28,12 +29,14 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.di.DefaultDispatcher
+import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.window.TrackingWindowHolder
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.label
 
@@ -90,6 +93,11 @@ data class TransactionsUiState(
      * would simply be missing from the list the user returns to, so the screen offers to show it.
      */
     val savedOutsideWindow: LocalDate? = null,
+    /**
+     * The window's transactions could not be read. The screen says so instead of listing nothing:
+     * an empty list would read as "nothing in these dates", which is a different, wrong statement.
+     */
+    val loadFailed: Boolean = false,
 ) {
     /** Every row, newest first, ignoring day boundaries. Derived so the two can never disagree. */
     val rows: List<TransactionRow> get() = sections.flatMap { it.rows }
@@ -102,8 +110,11 @@ data class TransactionsUiState(
         get() = (window as? TrackingWindow.Period)?.period == TrackingPeriod.ALL_TIME
 }
 
-/** The transactions of one window, kept with the window they were read for. */
-private data class WindowedTransactions(val window: TrackingWindow, val transactions: List<Transaction>)
+/**
+ * The transactions of one window, kept with the window they were read for. A null [transactions]
+ * means the read failed: the failure is a value here so it belongs to that window alone.
+ */
+private data class WindowedTransactions(val window: TrackingWindow, val transactions: List<Transaction>?)
 
 /**
  * The transactions history. The window's transactions are joined with the accounts, categories and
@@ -132,6 +143,7 @@ class TransactionsListViewModel @Inject constructor(
     private val today: TodayProvider,
     savedStateHandle: SavedStateHandle,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    private val errors: ErrorReporter,
 ) : ViewModel() {
 
     private val holder = TrackingWindowHolder(
@@ -148,8 +160,20 @@ class TransactionsListViewModel @Inject constructor(
      */
     private val currentDay = MutableStateFlow(today.today())
 
+    /**
+     * A read that throws (a stored row that cannot be decoded) is caught here, on the window's own
+     * read, and becomes a failed value for that window. Caught any further down, the whole chain
+     * would complete and the date bar would stop doing anything until the screen was rebuilt; caught
+     * here, only this read ends, and choosing other dates (or the screen coming back after its reads
+     * stopped) reads again.
+     */
     private val windowed: Flow<WindowedTransactions> = holder.window.flatMapLatest { window ->
-        transactions.observeBetween(window.range).map { WindowedTransactions(window, it) }
+        transactions.observeBetween(window.range)
+            .map<List<Transaction>, WindowedTransactions> { WindowedTransactions(window, it) }
+            .catch { error ->
+                errors.report("Transactions for ${window.range} could not be read", error)
+                emit(WindowedTransactions(window, null))
+            }
     }
 
     /** The date of an entry saved outside the window, until the user acts on it or lets it go. */
@@ -162,6 +186,10 @@ class TransactionsListViewModel @Inject constructor(
      *
      * The saved-entry message joins the finished state downstream of the building, so showing or
      * clearing it copies one value instead of sorting and grouping the whole window again.
+     *
+     * There is deliberately no catch at the end of this chain: a catch completes the flow it guards,
+     * and the list would freeze on the failure. Failures are turned into state where they happen, in
+     * [windowed] and in [stateFor].
      */
     val state: StateFlow<TransactionsUiState> =
         combine(
@@ -176,11 +204,7 @@ class TransactionsListViewModel @Inject constructor(
                 categoriesById = categoryList.associateBy { it.id },
                 currencies = currencyList,
             )
-            TransactionsUiState(
-                sections = buildSections(read.transactions, lookups, day),
-                isLoading = false,
-                window = read.window,
-            )
+            stateFor(read, lookups, day)
         }
             .flowOn(defaultDispatcher)
             .combine(savedOutside) { built, saved -> built.copy(savedOutsideWindow = saved) }
@@ -234,6 +258,29 @@ class TransactionsListViewModel @Inject constructor(
     /** The user let the message go; the window stays where they put it. */
     fun dismissSavedEntryMessage() {
         savedOutside.value = null
+    }
+
+    /**
+     * The state for one emission. Building is guarded too: a row the formatter cannot handle would
+     * otherwise throw out of the combine and take the list down with it. The guard covers this one
+     * emission only, so the next change of data or dates builds again. Cancellation is not a failure
+     * and is passed on.
+     */
+    private fun stateFor(read: WindowedTransactions, lookups: Lookups, day: LocalDate): TransactionsUiState {
+        val failed = TransactionsUiState(isLoading = false, window = read.window, loadFailed = true)
+        val transactions = read.transactions ?: return failed
+        return try {
+            TransactionsUiState(
+                sections = buildSections(transactions, lookups, day),
+                isLoading = false,
+                window = read.window,
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            errors.report("Transactions for ${read.window.range} could not be listed", e)
+            failed
+        }
     }
 
     /**

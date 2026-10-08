@@ -10,6 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -18,6 +19,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
@@ -64,16 +66,18 @@ class HomeViewModelTest {
         rates: List<ExchangeRate> = emptyList(),
         base: String = "USD",
         work: CoroutineDispatcher = dispatcher,
+        transactions: TransactionRepository = FakeTransactionRepository(),
+        errors: RecordingErrorReporter = RecordingErrorReporter(),
     ): HomeViewModel {
         val accountRepo = FakeAccountRepository(accounts)
-        val txRepo = FakeTransactionRepository()
+        val txRepo = transactions
         val currencyRepo = FakeCurrencyRepository(currencies)
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         val getBalances = GetAccountBalances(accountRepo, txRepo)
         val getBalancesInBase = GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
         val computeNetWorth = ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
-        return HomeViewModel(getBalancesInBase, computeNetWorth, currencyRepo, settingsRepo, moneyFormatter, work)
+        return HomeViewModel(getBalancesInBase, computeNetWorth, currencyRepo, settingsRepo, moneyFormatter, work, errors)
     }
 
     @Test
@@ -181,6 +185,7 @@ class HomeViewModelTest {
             settingsRepo,
             moneyFormatter,
             dispatcher,
+            RecordingErrorReporter(),
         )
 
         backgroundScope.launch { vm.state.collect {} }
@@ -231,6 +236,26 @@ class HomeViewModelTest {
         } finally {
             work.shutdown()
         }
+    }
+
+    @Test
+    fun aFailedReadShowsAnError() = runTest {
+        val unreadable = object : TransactionRepository by FakeTransactionRepository() {
+            override fun observeAll(): Flow<List<Transaction>> = flow { throw IllegalStateException("a stored row could not be read") }
+        }
+        val errors = RecordingErrorReporter()
+        val vm = buildVm(
+            accounts = listOf(account("USD", "100")),
+            currencies = listOf(Currency("USD", "$", 2)),
+            transactions = unreadable,
+            errors = errors,
+        )
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.loadFailed)
+        assertFalse(vm.state.value.isLoading)
+        assertEquals(listOf("a stored row could not be read"), errors.reported.map { it.message })
     }
 }
 

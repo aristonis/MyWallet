@@ -177,6 +177,12 @@ private fun TransactionsBody(state: TransactionsUiState, onEditTransaction: (Lon
             CircularProgressIndicator()
         }
 
+        // Said in place of the list, under the date bar, so other dates can still be chosen; an empty
+        // message here would claim there is nothing to show, which is not known.
+        state.loadFailed -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
+            EmptyState(message = stringResource(R.string.data_unreadable))
+        }
+
         // An empty filter is not an empty wallet: inviting a first transaction while the user's
         // history sits just outside the chosen dates would read as lost data.
         state.sections.isEmpty() -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
@@ -272,8 +278,8 @@ private fun headline(row: TransactionRow): String {
 /** The quieter second line: which account the money moved through. */
 @Composable
 private fun supporting(row: TransactionRow): String? = when (row.type) {
+    TransactionRowType.INCOME, TransactionRowType.EXPENSE -> row.accountName ?: stringResource(R.string.value_missing)
     TransactionRowType.TRANSFER -> row.note
-    else -> row.accountName ?: stringResource(R.string.value_missing)
 }
 
 @Composable
@@ -307,7 +313,7 @@ private fun amountLine(row: TransactionRow): String = when (row.type) {
         } else {
             row.amountDisplay
         }
-    else -> signedAmount(row.type.amountRole(), row.amountDisplay)
+    TransactionRowType.INCOME, TransactionRowType.EXPENSE -> signedAmount(row.type.amountRole(), row.amountDisplay)
 }
 
 @Preview(showBackground = true)

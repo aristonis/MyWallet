@@ -124,4 +124,27 @@ class TransactionsListWindowContentTest {
 
         assertTrue(letGo)
     }
+
+    @Test
+    fun aFailedReadSaysSo() {
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                TransactionsListContent(
+                    state = TransactionsUiState(
+                        isLoading = false,
+                        window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 10)),
+                        loadFailed = true,
+                    ),
+                    windowActions = DateWindowActions.None,
+                    onAddTransaction = {},
+                    onEditTransaction = {},
+                    onShowSavedEntry = {},
+                    onSavedEntryMessageDone = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Some of your data could not be read", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Nothing in this range.").assertDoesNotExist()
+    }
 }

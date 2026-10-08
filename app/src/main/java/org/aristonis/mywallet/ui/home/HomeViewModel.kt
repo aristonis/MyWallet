@@ -6,11 +6,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.di.DefaultDispatcher
+import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.AccountBalanceInBase
 import org.aristonis.mywallet.domain.model.Currency
@@ -53,10 +55,20 @@ data class HomeUiState(
      * from a wallet with no accounts, and a slow start flashes the "needs an account" prompt.
      */
     val isLoading: Boolean = true,
+    /**
+     * Stored data could not be read. The screen says so instead of showing an empty wallet, which
+     * would invite the user to create a first account they already have.
+     */
+    val loadFailed: Boolean = false,
 )
 
 /**
  * Home: total net worth (base currency, warns on a missing rate) + per-account native balances.
+ *
+ * A read that throws (a stored row that cannot be decoded) becomes a failed state instead of
+ * crashing the app. Home has no dates to change, so nothing re-reads straight away: the catch ends
+ * the reads, and the next start of the screen (once the reads have stopped while it was hidden)
+ * subscribes and reads again.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -66,6 +78,7 @@ class HomeViewModel @Inject constructor(
     settings: SettingsRepository,
     private val moneyFormatter: MoneyFormatter,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    private val errors: ErrorReporter,
 ) : ViewModel() {
 
     val state: StateFlow<HomeUiState> =
@@ -89,6 +102,10 @@ class HomeViewModel @Inject constructor(
             // Balances are summed over the whole history and converted again on every write; that
             // belongs off the main thread, where the other screens already build theirs.
             .flowOn(defaultDispatcher)
+            .catch { error ->
+                errors.report("Home could not read the wallet", error)
+                emit(HomeUiState(isLoading = false, loadFailed = true))
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HomeUiState())
 
     private fun netWorthState(result: NetWorth, currencies: List<Currency>): NetWorthState =

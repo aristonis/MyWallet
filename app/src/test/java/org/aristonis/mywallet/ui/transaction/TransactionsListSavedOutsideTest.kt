@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
@@ -53,6 +54,7 @@ class TransactionsListSavedOutsideTest {
         today = { today },
         savedStateHandle = SavedStateHandle(),
         defaultDispatcher = dispatcher,
+        errors = RecordingErrorReporter(),
     ).also { watch(it) }
 
     private fun TestScope.onSeptember(): TransactionsListViewModel {

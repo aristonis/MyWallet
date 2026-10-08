@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.model.Account
@@ -63,9 +64,13 @@ internal class FakeTransactionRepository(initial: List<Transaction> = emptyList(
 
     override fun observeAll(): Flow<List<Transaction>> = items
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        items.map { all -> all.filter { it.date in range } }
+        (if (range == unreadableRange) flow { throw IllegalStateException("a stored row could not be read") } else items)
+            .map { all -> all.filter { it.date in range } }
             .onStart { activeReads++; readsOpened++ }
             .onCompletion { activeReads-- }
+
+    /** A read over exactly this range fails, as one over a row the app cannot decode would. */
+    var unreadableRange: DateRange? = null
 
     /** Ranged reads someone is still collecting; zero once every screen has stopped watching. */
     var activeReads = 0

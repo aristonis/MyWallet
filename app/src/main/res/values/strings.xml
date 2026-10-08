@@ -34,6 +34,8 @@
     <string name="value_none">None</string>
     <!-- An em dash standing in for a value that could not be resolved. -->
     <string name="value_missing">—</string>
+    <!-- Stored data could not be read; shown in place of a list instead of an empty one. -->
+    <string name="data_unreadable">Some of your data could not be read</string>
 
     <!-- Icon labels for screen readers. Purely decorative icons pass a null description instead. -->
     <string name="cd_navigate_back">Back</string>
