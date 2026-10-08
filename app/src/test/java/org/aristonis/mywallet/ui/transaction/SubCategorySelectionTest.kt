@@ -1,5 +1,8 @@
 package org.aristonis.mywallet.ui.transaction
 
+import org.aristonis.mywallet.domain.usecase.RecordWithTypedRates
+import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -80,6 +83,10 @@ class SubCategorySelectionTest {
             ),
             today = TodayProvider { today },
             moneyParser = MoneyParser(Locale.US),
+            fx = FakeFxRepository(FakeCurrencyRepository(), FakeRateRepository(), FakeSettingsRepository()),
+            settings = FakeSettingsRepository(),
+            moneyFormatter = MoneyFormatter(Locale.US),
+            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(FakeCurrencyRepository(), FakeRateRepository())),
         )
     }
 
@@ -186,6 +193,10 @@ class SubCategorySelectionTest {
             ),
             today = TodayProvider { today },
             moneyParser = MoneyParser(Locale.US),
+            fx = FakeFxRepository(FakeCurrencyRepository(), FakeRateRepository(), FakeSettingsRepository()),
+            settings = FakeSettingsRepository(),
+            moneyFormatter = MoneyFormatter(Locale.US),
+            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(FakeCurrencyRepository(), FakeRateRepository())),
         )
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectType(TransactionType.INCOME)

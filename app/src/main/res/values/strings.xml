@@ -101,6 +101,20 @@
     <!-- Add and edit transaction -->
     <string name="add_transaction_title">Add transaction</string>
     <string name="edit_transaction_title">Edit transaction</string>
+    <!-- 1 USD = [rate] SYP; %1$s is the currency code the rate is for. -->
+    <string name="add_transaction_rate_lead">1 %1$s =</string>
+    <string name="add_transaction_rate_read_only">To change this rate, edit it under Currencies &amp; rates, or turn on saving rates in Settings.</string>
+    <string name="add_transaction_rate_required">Enter a rate to continue.</string>
+    <!-- Label of a rate field: %1$s is the currency the rate is for, %2$s the base currency, e.g. "USD rate in SYP". -->
+    <string name="add_transaction_rate_label">%1$s rate in %2$s</string>
+    <!-- %1$s is an example rate in the device's own number format, e.g. "4.5" or "4,5". -->
+    <string name="add_transaction_rate_unreadable">Enter a rate this app can read, like %1$s</string>
+    <!-- "≈" rather than "=": the figure is a guide, and the rate behind it is a manual one. %1$s is e.g. "8.00 SYP". -->
+    <string name="add_transaction_base_equivalent">≈ %1$s</string>
+    <!-- What 1 unit of the source buys: %1$s source code, %2$s the rate, %3$s destination code, e.g. "1 USD = 1.1 EUR". -->
+    <string name="add_transaction_pair_rate">1 %1$s = %2$s %3$s</string>
+    <!-- %1$s is the converted amount, e.g. "110.00 EUR". -->
+    <string name="add_transaction_you_receive">You receive %1$s</string>
     <string name="transaction_type_income">Income</string>
     <string name="transaction_type_expense">Expense</string>
     <string name="transaction_type_transfer">Transfer</string>
@@ -175,6 +189,8 @@
     <string name="settings_accounts">Accounts</string>
     <string name="settings_categories">Categories</string>
     <string name="settings_rates">Currencies &amp; rates</string>
+    <string name="settings_save_transaction_rates">Save rates I enter on transactions</string>
+    <string name="settings_save_transaction_rates_body">On: a rate you type on a transaction becomes the saved rate. Off: it is used for that transfer only.</string>
     <string name="settings_section_currencies">Currencies</string>
     <string name="settings_section_data">Data</string>
     <string name="settings_section_about">About</string>

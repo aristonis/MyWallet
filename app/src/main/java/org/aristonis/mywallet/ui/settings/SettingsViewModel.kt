@@ -18,6 +18,7 @@ import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ExportBackup
 import org.aristonis.mywallet.domain.usecase.RestoreBackup
+import org.aristonis.mywallet.domain.usecase.SetSaveTransactionRates
 import org.aristonis.mywallet.domain.usecase.SetTheme
 import javax.inject.Inject
 
@@ -53,6 +54,7 @@ class SettingsViewModel @Inject constructor(
     private val restoreBackup: RestoreBackup,
     private val documentIo: DocumentIo,
     private val setTheme: SetTheme,
+    private val setSaveTransactionRates: SetSaveTransactionRates,
     settings: SettingsRepository,
 ) : ViewModel() {
 
@@ -74,6 +76,20 @@ class SettingsViewModel @Inject constructor(
         settings.observeOrNull()
             .map { it?.baseCurrencyCode }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * Whether a rate typed on a transaction form also becomes the saved rate. Shown as on until
+     * settings load, matching the stored default, so the switch does not flick off and back.
+     */
+    val saveTransactionRates: StateFlow<Boolean> =
+        settings.observeOrNull()
+            .map { it?.saveTransactionRates ?: true }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setSaveTransactionRates(enabled: Boolean) {
+        // `.invoke` names the use case; a bare call would resolve to this function and recurse.
+        viewModelScope.launch { setSaveTransactionRates.invoke(enabled) }
+    }
 
     /** Persist the chosen theme; the settings flow then reskins the app and moves the selection. */
     fun selectTheme(choice: ThemePreference) {

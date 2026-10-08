@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.settings
 
+import org.aristonis.mywallet.domain.usecase.SetSaveTransactionRates
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,6 +38,7 @@ class SettingsBaseCurrencyTest {
         restoreBackup = RestoreBackup(FakeBackupRepository()),
         documentIo = FakeDocumentIo(),
         setTheme = SetTheme(settings),
+        setSaveTransactionRates = SetSaveTransactionRates(settings),
         settings = settings,
     )
 

@@ -20,6 +20,7 @@ import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ExportBackup
 import org.aristonis.mywallet.domain.usecase.RestoreBackup
+import org.aristonis.mywallet.domain.usecase.SetSaveTransactionRates
 import org.aristonis.mywallet.domain.usecase.SetTheme
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -51,6 +52,7 @@ class SettingsViewModelTest {
         restoreBackup = RestoreBackup(repo),
         documentIo = FakeDocumentIo(),
         setTheme = SetTheme(settings),
+        setSaveTransactionRates = SetSaveTransactionRates(settings),
         settings = settings,
     )
 
@@ -154,5 +156,20 @@ class SettingsViewModelTest {
         assertEquals(ThemePreference.DARK, settings.get().theme)
         assertEquals("USD", settings.get().baseCurrencyCode) // theme change leaves base currency alone
         assertEquals(ThemePreference.DARK, vm.theme.value)
+    }
+
+    @Test
+    fun theRateSwitchIsOnByDefaultAndCanBeTurnedOff() = runTest {
+        val settings = FakeSettingsRepository(Settings(baseCurrencyCode = "SYP"))
+        val vm = viewModel(FakeBackupRepository(), settings)
+        backgroundScope.launch { vm.saveTransactionRates.collect {} }
+        advanceUntilIdle()
+        assertEquals(true, vm.saveTransactionRates.value)
+
+        vm.setSaveTransactionRates(false)
+        advanceUntilIdle()
+
+        assertEquals(false, settings.get().saveTransactionRates)
+        assertEquals(false, vm.saveTransactionRates.value)
     }
 }

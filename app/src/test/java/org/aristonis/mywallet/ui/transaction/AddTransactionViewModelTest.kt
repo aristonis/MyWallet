@@ -1,5 +1,8 @@
 package org.aristonis.mywallet.ui.transaction
 
+import org.aristonis.mywallet.domain.usecase.RecordWithTypedRates
+import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -79,6 +82,10 @@ class AddTransactionViewModelTest {
             recordTransfer = RecordTransfer(accountRepo, currencyRepo, rateRepo, settingsRepo, txRepo),
             today = TodayProvider { today },
             moneyParser = MoneyParser(Locale.US),
+            fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
+            settings = settingsRepo,
+            moneyFormatter = MoneyFormatter(Locale.US),
+            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(FakeCurrencyRepository(), FakeRateRepository())),
         )
 
         suspend fun balanceOf(accountId: Long): Money =
@@ -314,6 +321,10 @@ class AddTransactionViewModelTest {
             ),
             today = TodayProvider { todayValue },
             moneyParser = MoneyParser(Locale.US),
+            fx = FakeFxRepository(FakeCurrencyRepository(), FakeRateRepository(), FakeSettingsRepository()),
+            settings = FakeSettingsRepository(),
+            moneyFormatter = MoneyFormatter(Locale.US),
+            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(FakeCurrencyRepository(), FakeRateRepository())),
         )
         advanceUntilIdle()
 

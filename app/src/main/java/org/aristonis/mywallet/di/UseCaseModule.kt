@@ -24,11 +24,14 @@ import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.RecordExpense
 import org.aristonis.mywallet.domain.usecase.RecordIncome
 import org.aristonis.mywallet.domain.usecase.RecordTransfer
+import org.aristonis.mywallet.domain.usecase.RecordWithTypedRates
+import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.usecase.RestoreBackup
 import org.aristonis.mywallet.domain.usecase.RestoreTransaction
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
+import org.aristonis.mywallet.domain.usecase.SetSaveTransactionRates
 import org.aristonis.mywallet.domain.usecase.SetTheme
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
 import org.aristonis.mywallet.domain.usecase.UpdateTransaction
@@ -64,6 +67,10 @@ object UseCaseModule {
 
     @Provides @Singleton
     fun provideSetTheme(settings: SettingsRepository): SetTheme = SetTheme(settings)
+
+    @Provides @Singleton
+    fun provideSetSaveTransactionRates(settings: SettingsRepository): SetSaveTransactionRates =
+        SetSaveTransactionRates(settings)
 
     @Provides @Singleton
     fun provideCreateAccount(
@@ -154,6 +161,12 @@ object UseCaseModule {
         settings: SettingsRepository,
         transactions: TransactionRepository,
     ): RecordTransfer = RecordTransfer(accounts, currencies, rates, settings, transactions)
+
+    @Provides @Singleton
+    fun provideRecordWithTypedRates(
+        runner: TransactionRunner,
+        setExchangeRate: SetExchangeRate,
+    ): RecordWithTypedRates = RecordWithTypedRates(runner, setExchangeRate)
 
     @Provides @Singleton
     fun provideUpdateTransaction(

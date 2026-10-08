@@ -117,3 +117,8 @@ internal class FakeFxRepository(
             )
         }
 }
+
+/** Runs the block directly; the app tests check what gets written, not database transactions. */
+internal class DirectTransactionRunner : org.aristonis.mywallet.domain.port.TransactionRunner {
+    override suspend fun <T> inTransaction(block: suspend () -> T): T = block()
+}

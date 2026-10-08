@@ -46,6 +46,7 @@ import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
+import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.rememberDateFormatter
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
@@ -82,6 +83,7 @@ fun AddTransactionScreen(
         onSubCategorySelected = viewModel::selectSubCategory,
         onDestAccountSelected = viewModel::selectDestAccount,
         onAmountChanged = viewModel::setAmount,
+        onRateChanged = viewModel::setRate,
         onDateSelected = viewModel::setDate,
         onNoteChanged = viewModel::setNote,
         onSubmit = viewModel::submit,
@@ -98,6 +100,7 @@ private fun AddTransactionContent(
     onSubCategorySelected: (Long?) -> Unit,
     onDestAccountSelected: (Long) -> Unit,
     onAmountChanged: (String) -> Unit,
+    onRateChanged: (currencyCode: String, input: String) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onNoteChanged: (String) -> Unit,
     onSubmit: () -> Unit,
@@ -123,6 +126,9 @@ private fun AddTransactionContent(
                 value = state.amountInput,
                 label = amountLabel(selectedAccount),
                 onValueChange = onAmountChanged,
+                supportingText = state.baseEquivalent?.let {
+                    stringResource(R.string.add_transaction_base_equivalent, bidiIsolate(it))
+                },
             )
             LabeledDropdown(
                 label = stringResource(
@@ -171,6 +177,8 @@ private fun AddTransactionContent(
                     }
                 }
             }
+
+            RateSection(state = state, onRateChanged = onRateChanged)
 
             DateField(date = state.date, onDateSelected = onDateSelected)
 
@@ -285,6 +293,7 @@ private fun AddTransactionPreview() {
             onDestAccountSelected = {},
             onSubCategorySelected = {},
             onAmountChanged = {},
+            onRateChanged = { _, _ -> },
             onDateSelected = {},
             onNoteChanged = {},
             onSubmit = {},
@@ -326,11 +335,13 @@ internal fun AmountField(
     label: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    supportingText: String? = null,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
+        supportingText = supportingText?.let { hint -> { Text(hint) } },
         singleLine = true,
         textStyle = MaterialTheme.typography.headlineSmall,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

@@ -30,6 +30,8 @@ import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.data.repo.RoomFxRepository
 import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
 import org.aristonis.mywallet.data.repo.RoomBaseCurrencyRepository
+import org.aristonis.mywallet.data.repo.RoomTransactionRunner
+import org.aristonis.mywallet.domain.port.TransactionRunner
 
 /** Binds each domain port to its Room implementation. This is the seam where the app chooses Room. */
 @Module
@@ -60,6 +62,9 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideFxRepository(db: WalletDatabase): FxRepository = RoomFxRepository(db)
+
+    @Provides @Singleton
+    fun provideTransactionRunner(db: WalletDatabase): TransactionRunner = RoomTransactionRunner(db)
 
     @Provides @Singleton
     fun provideBackupRepository(

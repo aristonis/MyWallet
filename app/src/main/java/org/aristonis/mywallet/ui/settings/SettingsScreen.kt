@@ -75,6 +75,7 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val baseCurrency by viewModel.baseCurrencyCode.collectAsStateWithLifecycle()
+    val saveTransactionRates by viewModel.saveTransactionRates.collectAsStateWithLifecycle()
 
     // Export writes a real application/json document. Import accepts "*/*" on purpose: many file
     // providers report a .json as octet-stream or text/plain and would hide it under a strict filter,
@@ -95,6 +96,8 @@ fun SettingsScreen(
         state = state,
         currentTheme = theme,
         baseCurrencyCode = baseCurrency,
+        saveTransactionRates = saveTransactionRates,
+        onSaveTransactionRatesChanged = viewModel::setSaveTransactionRates,
         onThemeSelected = viewModel::selectTheme,
         onExport = { exportLauncher.launch("mywallet-backup-${LocalDate.now()}.json") },
         onImport = { importLauncher.launch(arrayOf("*/*")) },
@@ -122,6 +125,8 @@ private fun SettingsContent(
     state: BackupUiState,
     currentTheme: ThemePreference,
     baseCurrencyCode: String?,
+    saveTransactionRates: Boolean,
+    onSaveTransactionRatesChanged: (Boolean) -> Unit,
     onThemeSelected: (ThemePreference) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -190,6 +195,13 @@ private fun SettingsContent(
                     label = stringResource(R.string.settings_rates),
                     icon = WalletIcons.Rates,
                     onClick = onManageRates,
+                )
+                SettingsSwitchRow(
+                    label = stringResource(R.string.settings_save_transaction_rates),
+                    supporting = stringResource(R.string.settings_save_transaction_rates_body),
+                    checked = saveTransactionRates,
+                    onCheckedChange = onSaveTransactionRatesChanged,
+                    icon = WalletIcons.Edit,
                 )
             }
 
@@ -330,6 +342,8 @@ private fun SettingsPreview() {
             state = BackupUiState(),
             currentTheme = ThemePreference.SYSTEM,
             baseCurrencyCode = "USD",
+            saveTransactionRates = true,
+            onSaveTransactionRatesChanged = {},
             onThemeSelected = {},
             onExport = {},
             onImport = {},
