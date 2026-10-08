@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
@@ -27,6 +29,8 @@ import java.time.LocalDate
 class TransactionsListWindowContentTest {
 
     @get:Rule val compose = createComposeRule()
+
+    private fun text(id: Int) = InstrumentationRegistry.getInstrumentation().targetContext.getString(id)
 
     private fun show(window: TrackingWindow) {
         compose.setContent {
@@ -144,7 +148,7 @@ class TransactionsListWindowContentTest {
             }
         }
 
-        compose.onNodeWithText("Some of your data could not be read", substring = true).assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.transactions_data_unreadable)).assertIsDisplayed()
         compose.onNodeWithText("Nothing in this range.").assertDoesNotExist()
     }
 }

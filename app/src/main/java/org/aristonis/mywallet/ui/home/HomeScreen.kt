@@ -118,7 +118,7 @@ internal fun HomeContent(
                 // user's accounts are gone.
                 state.loadFailed -> item(key = "accounts-unreadable") {
                     EmptyState(
-                        message = stringResource(R.string.data_unreadable),
+                        message = stringResource(R.string.home_data_unreadable),
                         modifier = Modifier.padding(top = 16.dp),
                     )
                 }

@@ -34,8 +34,11 @@
     <string name="value_none">None</string>
     <!-- An em dash standing in for a value that could not be resolved. -->
     <string name="value_missing">—</string>
-    <!-- Stored data could not be read; shown in place of a list instead of an empty one. -->
-    <string name="data_unreadable">Some of your data could not be read</string>
+    <!-- Stored data could not be read; shown in place of Home's accounts. Export still works then, because
+         it copies the stored rows without reading them into the app. -->
+    <string name="home_data_unreadable">Some of your data could not be read. Your data has not been changed. Update MyWallet, or export a backup from Settings.</string>
+    <!-- The same on the Transactions list; the failure belongs to the dates shown, so others may work. -->
+    <string name="transactions_data_unreadable">Some of your data could not be read. Other dates may still show.</string>
 
     <!-- Icon labels for screen readers. Purely decorative icons pass a null description instead. -->
     <string name="cd_navigate_back">Back</string>

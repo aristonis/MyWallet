@@ -180,7 +180,7 @@ private fun TransactionsBody(state: TransactionsUiState, onEditTransaction: (Lon
         // Said in place of the list, under the date bar, so other dates can still be chosen; an empty
         // message here would claim there is nothing to show, which is not known.
         state.loadFailed -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
-            EmptyState(message = stringResource(R.string.data_unreadable))
+            EmptyState(message = stringResource(R.string.transactions_data_unreadable))
         }
 
         // An empty filter is not an empty wallet: inviting a first transaction while the user's
