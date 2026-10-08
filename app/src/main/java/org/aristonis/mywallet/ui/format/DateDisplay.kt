@@ -4,6 +4,9 @@ import android.text.format.DateFormat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
+import org.aristonis.mywallet.domain.model.DateRange
+import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -65,9 +68,9 @@ fun rememberDateFormatter(): (LocalDate) -> String {
 }
 
 @Composable
-private fun currentLocale(): Locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
+internal fun currentLocale(): Locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
 
-private fun formatterFor(skeleton: String, locale: Locale): DateTimeFormatter =
+internal fun formatterFor(skeleton: String, locale: Locale): DateTimeFormatter =
     DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale)
 
 /**
@@ -83,3 +86,67 @@ private const val POP_DIRECTIONAL_ISOLATE = "\u2069"
 
 /** Wraps a substituted value so the sentence around it cannot reorder its parts. */
 fun bidiIsolate(value: String): String = FIRST_STRONG_ISOLATE + value + POP_DIRECTIONAL_ISOLATE
+
+/** A whole month, as a reader names it: "August 2026", or the locale's own order and month name. */
+internal const val MONTH_YEAR_SKELETON = "yMMMM"
+
+/** A year on its own, in the locale's digits. */
+internal const val YEAR_SKELETON = "y"
+
+/** The opening end of a range, whose year the closing end already states. */
+private const val RANGE_START_SKELETON = "MMMd"
+
+/** The closing end of a range, which carries the year for both — or either end, across a new year. */
+private const val RANGE_END_SKELETON = "yMMMd"
+
+/**
+ * Joins the two ends of a range. Punctuation rather than a word, so there is nothing to translate,
+ * and each end is isolated so a right-to-left paragraph cannot pull the parts of one date apart.
+ */
+private const val RANGE_SEPARATOR = " \u2013 "
+
+/**
+ * What the date bar calls the span a report covers, or null for all time, whose bounds are a
+ * sentinel and not dates anybody chose (the caller shows its own "All time" text instead).
+ */
+internal fun windowLabel(window: TrackingWindow, locale: Locale): String? = when (window) {
+    is TrackingWindow.Custom -> rangeLabel(window.range, locale)
+    is TrackingWindow.Period -> when (window.period) {
+        TrackingPeriod.DAY -> formatterFor(FULL_DATE_SKELETON, locale).format(window.anchor)
+        TrackingPeriod.WEEK -> rangeLabel(window.range, locale)
+        TrackingPeriod.MONTH -> formatterFor(MONTH_YEAR_SKELETON, locale).format(window.anchor)
+        TrackingPeriod.YEAR -> formatterFor(YEAR_SKELETON, locale).format(window.anchor)
+        TrackingPeriod.ALL_TIME -> null
+    }
+}
+
+private fun rangeLabel(range: DateRange, locale: Locale): String? {
+    if (range.isAllTime) return null
+    // One day is a date, not a range: "Aug 3 – Aug 3, 2026" would make the reader check both ends.
+    if (range.start == range.endInclusive) return formatterFor(RANGE_END_SKELETON, locale).format(range.start)
+    // A range that crosses into a new year names both years, or "Dec 29 – Jan 4, 2027" would leave
+    // the reader to guess which December.
+    val sameYear = range.start.year == range.endInclusive.year
+    val startSkeleton = if (sameYear) RANGE_START_SKELETON else RANGE_END_SKELETON
+    val start = formatterFor(startSkeleton, locale).format(range.start)
+    val end = formatterFor(RANGE_END_SKELETON, locale).format(range.endInclusive)
+    return bidiIsolate(start) + RANGE_SEPARATOR + bidiIsolate(end)
+}
+
+/** [windowLabel] in the reader's locale, recomputed only when the window or the locale changes. */
+@Composable
+fun rememberWindowLabel(window: TrackingWindow): String? {
+    val locale = currentLocale()
+    return remember(window, locale) { windowLabel(window, locale) }
+}
+
+/** Formats with one skeleton in the reader's locale; for pickers that name months and years. */
+@Composable
+internal fun rememberSkeletonFormatter(skeleton: String): (LocalDate) -> String {
+    val locale = currentLocale()
+    return remember(skeleton, locale) {
+        val formatter = formatterFor(skeleton, locale)
+        val format: (LocalDate) -> String = { date -> formatter.format(date) }
+        format
+    }
+}

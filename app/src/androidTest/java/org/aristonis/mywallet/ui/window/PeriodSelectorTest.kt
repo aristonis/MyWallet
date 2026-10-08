@@ -1,4 +1,4 @@
-package org.aristonis.mywallet.ui.reports
+package org.aristonis.mywallet.ui.window
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
@@ -16,11 +16,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
 
 /**
  * Five segments share one row's width equally, so each label gets a fifth of the screen. At 200% text
@@ -48,17 +50,9 @@ class PeriodSelectorTest {
                 CompositionLocalProvider(
                     LocalDensity provides Density(density = base.density, fontScale = fontScale),
                 ) {
-                    ReportsContent(
-                        state = ReportsUiState(
-                            selectedPeriod = selected,
-                            data = ReportsData.Ready(
-                                incomeDisplay = "100.00 USD",
-                                expenseDisplay = "40.00 USD",
-                                netDisplay = "60.00 USD",
-                                categories = emptyList(),
-                            ),
-                        ),
-                        onSelectPeriod = onSelectPeriod,
+                    DateWindowBar(
+                        window = TrackingWindow.Period(selected, LocalDate.of(2026, 7, 15)),
+                        actions = DateWindowActions(onSelectPeriod = onSelectPeriod),
                     )
                 }
             }

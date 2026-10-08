@@ -144,6 +144,28 @@
     <string name="period_month">Month</string>
     <string name="period_year">Year</string>
     <string name="period_all_time">All time</string>
+    <!-- Shown in place of a period when the user picked their own start and end dates. -->
+    <string name="period_custom">Custom dates</string>
+    <string name="reports_income_by_category">Income by category</string>
+    <string name="reports_no_income">No income this period.</string>
+    <!-- The part of a category's total that was not given any finer label. -->
+    <string name="category_no_sub_category">No sub-category</string>
+    <string name="cd_sub_categories_of">Sub-categories of %1$s</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
+    <string name="cd_previous_period">Previous period</string>
+    <string name="cd_next_period">Next period</string>
+    <string name="cd_clear_date_range">Clear date range</string>
+    <string name="cd_choose_dates">Choose dates</string>
+    <string name="cd_previous_year">Previous year</string>
+    <string name="cd_next_year">Next year</string>
+    <string name="pick_month_title">Choose a month</string>
+    <string name="pick_year_title">Choose a year</string>
+    <!-- What tapping the date label does; a screen reader reads it after "Double-tap to". -->
+    <string name="action_choose_day">Choose a day</string>
+    <string name="action_choose_week">Choose a week</string>
+    <string name="action_choose_month">Choose a month</string>
+    <string name="action_choose_year">Choose a year</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

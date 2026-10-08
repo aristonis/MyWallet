@@ -12,7 +12,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.aristonis.mywallet.domain.model.DateRange
+import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * `LocalDate.toString()` gives "2026-08-26". That is ISO — right for storage, and not how anyone
@@ -76,5 +80,51 @@ class DateDisplayTest {
         assertEquals(DAY_SKELETON, daySkeletonFor(date, currentYear = 2026))
         assertEquals(DAY_WITH_YEAR_SKELETON, daySkeletonFor(date, currentYear = 2027))
         assertEquals(DAY_WITH_YEAR_SKELETON, daySkeletonFor(date, currentYear = 2025))
+    }
+
+    @Test
+    fun monthWindowReadsAsMonthAndYear() {
+        val label = windowLabel(TrackingWindow.Period(TrackingPeriod.MONTH, date), Locale.US)
+        assertEquals("August 2026", label)
+    }
+
+    @Test
+    fun monthYearIsLocalized() {
+        val label = windowLabel(TrackingWindow.Period(TrackingPeriod.MONTH, date), Locale.forLanguageTag("ar-EG"))
+        assertTrue("label was: $label", label!!.contains("أغسطس"))
+    }
+
+    @Test
+    fun yearWindowReadsAsTheYear() {
+        assertEquals("2026", windowLabel(TrackingWindow.Period(TrackingPeriod.YEAR, date), Locale.US))
+    }
+
+    @Test
+    fun customWindowShowsBothEnds() {
+        val range = DateRange(LocalDate.of(2026, 8, 3), LocalDate.of(2026, 8, 17))
+        val label = windowLabel(TrackingWindow.Custom(range), Locale.US)!!
+
+        assertTrue("label was: $label", label.contains("Aug 3") && label.contains("17"))
+    }
+
+    @Test
+    fun allTimeHasNoDateLabel() {
+        assertEquals(null, windowLabel(TrackingWindow.Period(TrackingPeriod.ALL_TIME, date), Locale.US))
+    }
+
+    @Test
+    fun aSingleDayRangeReadsAsOneDate() {
+        val day = LocalDate.of(2026, 8, 3)
+        val label = windowLabel(TrackingWindow.Custom(DateRange(day, day)), Locale.US)!!
+
+        assertFalse("label was: $label", label.contains("–"))
+        assertTrue("label was: $label", label.contains("Aug") && label.contains("3") && label.contains("2026"))
+    }
+
+    @Test
+    fun aWeekAcrossNewYearNamesBothYears() {
+        val label = windowLabel(TrackingWindow.Period(TrackingPeriod.WEEK, LocalDate.of(2026, 12, 30)), Locale.US)!!
+
+        assertTrue("label was: $label", label.contains("2026") && label.contains("2027"))
     }
 }

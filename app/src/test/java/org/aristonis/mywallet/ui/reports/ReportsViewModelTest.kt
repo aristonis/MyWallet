@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.reports
 
+import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +23,7 @@ import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
@@ -63,6 +65,7 @@ class ReportsViewModelTest {
         currencies: List<Currency> = usdEur,
         rateRepo: RateRepository = FakeRateRepository(emptyList()),
         base: String = "USD",
+        savedState: SavedStateHandle = SavedStateHandle(),
     ): ReportsViewModel {
         val txRepo = FakeTransactionRepository(transactions)
         val currencyRepo = FakeCurrencyRepository(currencies)
@@ -75,14 +78,15 @@ class ReportsViewModelTest {
             currencies = currencyRepo,
             moneyFormatter = moneyFormatter,
             today = TodayProvider { julRef },
+            savedStateHandle = savedState,
         )
     }
 
-    private fun income(amount: Money, category: Long, date: LocalDate) =
-        Transaction.Income(id = 0, accountId = 1, amount = amount, categoryId = category, date = date)
+    private fun income(amount: Money, category: Long, date: LocalDate, sub: Long? = null) =
+        Transaction.Income(id = 0, accountId = 1, amount = amount, categoryId = category, subCategoryId = sub, date = date)
 
-    private fun expense(amount: Money, category: Long, date: LocalDate) =
-        Transaction.Expense(id = 0, accountId = 1, amount = amount, categoryId = category, date = date)
+    private fun expense(amount: Money, category: Long, date: LocalDate, sub: Long? = null) =
+        Transaction.Expense(id = 0, accountId = 1, amount = amount, categoryId = category, subCategoryId = sub, date = date)
 
     private fun ready(state: ReportsUiState): ReportsData.Ready = state.data as ReportsData.Ready
 
@@ -98,7 +102,7 @@ class ReportsViewModelTest {
         advanceUntilIdle()
 
         val state = vm.state.value
-        assertEquals(TrackingPeriod.MONTH, state.selectedPeriod)
+        assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, julRef), state.window)
         val data = ready(state)
         assertEquals("100.00 USD", data.incomeDisplay)
         assertEquals("30.00 USD", data.expenseDisplay)
@@ -118,23 +122,25 @@ class ReportsViewModelTest {
     }
 
     @Test
-    fun categoryBreakdown_resolvesNames_expenseOnly_sortedByTotalDesc() = runTest {
+    fun categoryBreakdown_resolvesNames_splitsIncomeFromExpense_sortedByTotalDesc() = runTest {
         val vm = buildVm(
             transactions = listOf(
                 expense(usd("15"), category = 9, date = LocalDate.of(2026, 7, 5)),
                 expense(usd("30"), category = 7, date = LocalDate.of(2026, 7, 6)),
                 expense(usd("20"), category = 7, date = LocalDate.of(2026, 7, 7)),
-                income(usd("500"), category = 1, date = LocalDate.of(2026, 7, 8)), // ignored
+                income(usd("500"), category = 1, date = LocalDate.of(2026, 7, 8)),
             ),
             categories = listOf(
                 Category(id = 7, name = "Food", kind = CategoryKind.EXPENSE),
                 Category(id = 9, name = "Transport", kind = CategoryKind.EXPENSE),
+                Category(id = 1, name = "Salary", kind = CategoryKind.INCOME),
             ),
         )
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
-        val rows = ready(vm.state.value).categories
+        assertEquals(listOf(CategoryLabel.Named("Salary")), ready(vm.state.value).incomeCategories.map { it.label })
+        val rows = ready(vm.state.value).expenseCategories
         assertEquals(listOf(CategoryLabel.Named("Food"), CategoryLabel.Named("Transport")), rows.map { it.label }) // 50 before 15 (desc)
         assertEquals("50.00 USD", rows[0].totalDisplay)
         assertEquals("15.00 USD", rows[1].totalDisplay)
@@ -149,7 +155,7 @@ class ReportsViewModelTest {
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
-        assertEquals(CategoryLabel.Unknown, ready(vm.state.value).categories.single().label)
+        assertEquals(CategoryLabel.Unknown, ready(vm.state.value).expenseCategories.single().label)
     }
 
     @Test
@@ -166,7 +172,7 @@ class ReportsViewModelTest {
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
-        val rows = ready(vm.state.value).categories
+        val rows = ready(vm.state.value).expenseCategories
         assertEquals(listOf(CategoryLabel.Unknown, CategoryLabel.Unknown), rows.map { it.label })
         assertEquals(setOf(98L, 99L), rows.map { it.id }.toSet()) // distinct keys despite identical names
     }
@@ -183,7 +189,7 @@ class ReportsViewModelTest {
 
         vm.selectPeriod(TrackingPeriod.DAY)
         advanceUntilIdle()
-        assertEquals(TrackingPeriod.DAY, vm.state.value.selectedPeriod)
+        assertEquals(TrackingWindow.Period(TrackingPeriod.DAY, julRef), vm.state.value.window)
         assertEquals("0.00 USD", ready(vm.state.value).incomeDisplay) // Jul 10 is outside the Jul 15 day
     }
 
@@ -217,7 +223,7 @@ class ReportsViewModelTest {
 
         val data = ready(vm.state.value)
         assertEquals("33.00 USD", data.expenseDisplay) // 30 EUR × 1.10
-        assertEquals(CategoryLabel.Named("Food"), data.categories.single().label)
+        assertEquals(CategoryLabel.Named("Food"), data.expenseCategories.single().label)
     }
 
     @Test
@@ -230,7 +236,135 @@ class ReportsViewModelTest {
         assertEquals("0.00 USD", data.incomeDisplay)
         assertEquals("0.00 USD", data.expenseDisplay)
         assertEquals("0.00 USD", data.netDisplay)
-        assertEquals(emptyList<CategoryRow>(), data.categories)
+        assertEquals(emptyList<CategoryRow>(), data.expenseCategories)
+        assertEquals(emptyList<CategoryRow>(), data.incomeCategories)
+    }
+
+    @Test
+    fun subCategoriesBecomeRowsUnderTheirCategory_withTheRemainderLast() = runTest {
+        val vm = buildVm(
+            transactions = listOf(
+                expense(usd("30"), category = 7, date = LocalDate.of(2026, 7, 5), sub = 71),
+                expense(usd("5"), category = 7, date = LocalDate.of(2026, 7, 6)),
+                expense(usd("9"), category = 9, date = LocalDate.of(2026, 7, 7)),
+            ),
+            categories = listOf(
+                Category(id = 7, name = "Food", kind = CategoryKind.EXPENSE),
+                Category(id = 71, name = "Groceries", kind = CategoryKind.EXPENSE, parentId = 7),
+                Category(id = 9, name = "Transport", kind = CategoryKind.EXPENSE),
+            ),
+        )
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        val (food, transport) = ready(vm.state.value).expenseCategories
+        assertEquals(
+            listOf(CategoryLabel.Named("Groceries"), CategoryLabel.NoSubCategory),
+            food.subCategories.map { it.label },
+        )
+        assertEquals(listOf("30.00 USD", "5.00 USD"), food.subCategories.map { it.totalDisplay })
+        assertEquals(true, food.canExpand)
+        assertEquals(false, transport.canExpand) // only the remainder: nothing to open
+    }
+
+    @Test
+    fun canStepIntoTheFuture() = runTest {
+        val vm = buildVm(transactions = listOf(income(usd("40"), category = 1, date = LocalDate.of(2026, 8, 10))))
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        vm.step(1)
+        advanceUntilIdle()
+
+        assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 15)), vm.state.value.window)
+        assertEquals("40.00 USD", ready(vm.state.value).incomeDisplay)
+    }
+
+    @Test
+    fun pickingAMonthMovesTheAnchorAndArrowsStepFromIt() = runTest {
+        val vm = buildVm(transactions = emptyList())
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        vm.jumpTo(LocalDate.of(2025, 3, 3))
+        vm.step(1)
+        advanceUntilIdle()
+
+        assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2025, 4, 3)), vm.state.value.window)
+    }
+
+    @Test
+    fun aCustomRangeIsOrderedWhicheverDateWasPickedFirst() = runTest {
+        val vm = buildVm(transactions = emptyList())
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        vm.selectRange(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 3))
+        advanceUntilIdle()
+
+        assertEquals(
+            TrackingWindow.Custom(DateRange(LocalDate.of(2026, 8, 3), LocalDate.of(2026, 8, 17))),
+            vm.state.value.window,
+        )
+    }
+
+    @Test
+    fun clearingACustomRangeReturnsToTheCurrentMonth() = runTest {
+        val vm = buildVm(transactions = emptyList())
+        backgroundScope.launch { vm.state.collect {} }
+        vm.selectRange(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 9))
+        advanceUntilIdle()
+
+        vm.clearRange()
+        advanceUntilIdle()
+
+        assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, julRef), vm.state.value.window)
+    }
+
+    @Test
+    fun windowSurvivesRecreation() = runTest {
+        val saved = SavedStateHandle()
+        val first = buildVm(transactions = emptyList(), savedState = saved)
+        backgroundScope.launch { first.state.collect {} }
+        first.step(-1)
+        first.selectPeriod(TrackingPeriod.YEAR)
+        advanceUntilIdle()
+        // June, then switched to its year: anchored on June 1 since today (Jul 15) was outside June.
+        assertEquals(TrackingWindow.Period(TrackingPeriod.YEAR, LocalDate.of(2026, 6, 1)), first.state.value.window)
+
+        val restored = buildVm(transactions = emptyList(), savedState = saved)
+        backgroundScope.launch { restored.state.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(first.state.value.window, restored.state.value.window)
+    }
+
+    @Test
+    fun customWindowSurvivesRecreation() = runTest {
+        val saved = SavedStateHandle()
+        val first = buildVm(transactions = emptyList(), savedState = saved)
+        backgroundScope.launch { first.state.collect {} }
+        first.selectRange(LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 9))
+        advanceUntilIdle()
+
+        val restored = buildVm(transactions = emptyList(), savedState = saved)
+        backgroundScope.launch { restored.state.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(first.state.value.window, restored.state.value.window)
+    }
+
+    @Test
+    fun pickingADayFromACustomRangeOpensThatMonth() = runTest {
+        val vm = buildVm(transactions = emptyList())
+        backgroundScope.launch { vm.state.collect {} }
+        vm.selectRange(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 9))
+        advanceUntilIdle()
+
+        vm.jumpTo(LocalDate.of(2026, 5, 20))
+        advanceUntilIdle()
+
+        assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 5, 20)), vm.state.value.window)
     }
 }
 

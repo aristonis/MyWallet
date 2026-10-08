@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.icons
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.AccountBalance
@@ -15,10 +16,12 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.CurrencyExchange
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Home
@@ -42,8 +45,8 @@ import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 /**
  * The app's icon vocabulary, named by what it means rather than by which glyph it happens to be.
  * Screens go through these names so swapping a glyph is one edit here, and so two screens can never
- * end up illustrating the same idea with two different icons. Material Symbols Rounded throughout —
- * see docs/Design.md section 3.2.
+ * end up illustrating the same idea with two different icons. Material Symbols Rounded throughout,
+ * so every glyph shares the same soft corners and stroke weight.
  */
 object WalletIcons {
     // Bottom navigation
@@ -78,6 +81,11 @@ object WalletIcons {
     val Filter: ImageVector = Icons.Rounded.FilterList
     val Date: ImageVector = Icons.Rounded.CalendarToday
     val Forward: ImageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight
+    val DateRange: ImageVector = Icons.Rounded.DateRange
+
+    // Stepping through time. Auto-mirrored so "earlier" points the way a right-to-left reader reads.
+    val Previous: ImageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft
+    val Next: ImageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight
 
     // Settings
     val Rates: ImageVector = Icons.Rounded.CurrencyExchange
@@ -101,6 +109,7 @@ object WalletIcons {
     val Back: ImageVector = Icons.AutoMirrored.Rounded.ArrowBack
     val Close: ImageVector = Icons.Rounded.Close
     val Expand: ImageVector = Icons.Rounded.ExpandMore
+    val Collapse: ImageVector = Icons.Rounded.ExpandLess
 }
 
 /**

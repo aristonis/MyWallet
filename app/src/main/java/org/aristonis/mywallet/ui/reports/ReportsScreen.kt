@@ -10,82 +10,91 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import org.aristonis.mywallet.ui.icons.WalletIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
-import org.aristonis.mywallet.ui.CategoryLabel
-import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.domain.model.TrackingPeriod
-import org.aristonis.mywallet.ui.components.EmptyState
+import org.aristonis.mywallet.domain.model.TrackingWindow
+import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.components.MoneyText
-import org.aristonis.mywallet.ui.components.SectionHeader
 import org.aristonis.mywallet.ui.components.StatusCard
 import org.aristonis.mywallet.ui.components.StatusTone
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.AmountRole
-import org.aristonis.mywallet.ui.theme.amountColor
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
+import org.aristonis.mywallet.ui.theme.amountColor
+import org.aristonis.mywallet.ui.window.DateRangeAction
+import org.aristonis.mywallet.ui.window.DateWindowActions
+import org.aristonis.mywallet.ui.window.DateWindowBar
+import java.time.LocalDate
 
-/**
- * Reports: income / expense / net and spending-by-category over a selectable period. Read-only.
- * [onDone] returns to Home (Done button and system back) — no nav library, the parent toggles it.
- */
+private val SCREEN_PADDING = 16.dp
+private val REGION_SPACING = 16.dp
+private val LINE_SPACING = 8.dp
+
+/** Tracking: income / expense / net and both by-category breakdowns over a chosen span. Read-only. */
 @Composable
 fun ReportsScreen(viewModel: ReportsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    ReportsContent(state = state, onSelectPeriod = viewModel::selectPeriod)
+    ReportsContent(
+        state = state,
+        windowActions = DateWindowActions(
+            onSelectPeriod = viewModel::selectPeriod,
+            onStep = viewModel::step,
+            onJumpTo = viewModel::jumpTo,
+            onSelectRange = viewModel::selectRange,
+            onClearRange = viewModel::clearRange,
+        ),
+    )
 }
 
+/**
+ * The date bar stays fixed above a bounded list, so stepping to another month never means scrolling
+ * back up to find the arrows.
+ *
+ * Which categories are open lives here rather than in the list: a step to a month with a missing
+ * rate swaps the list for a warning, and stepping back should find the same categories still open.
+ */
 @Composable
-internal fun ReportsContent(
-    state: ReportsUiState,
-    onSelectPeriod: (TrackingPeriod) -> Unit,
-) {
+internal fun ReportsContent(state: ReportsUiState, windowActions: DateWindowActions) {
+    val expanded = rememberSaveable(stateSaver = ExpandedIdsSaver) { mutableStateOf(emptySet<Long>()) }
+    val onToggle: (Long) -> Unit = remember(expanded) {
+        { id -> expanded.value = if (id in expanded.value) expanded.value - id else expanded.value + id }
+    }
     Scaffold(
-        topBar = { WalletTopAppBar(title = stringResource(R.string.tracking_title)) },
+        topBar = {
+            WalletTopAppBar(
+                title = stringResource(R.string.tracking_title),
+                actions = { DateRangeAction(window = state.window, onSelectRange = windowActions.onSelectRange) },
+            )
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(SCREEN_PADDING)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(REGION_SPACING),
         ) {
-            PeriodSelector(selected = state.selectedPeriod, onSelectPeriod = onSelectPeriod)
+            DateWindowBar(window = state.window, actions = windowActions)
 
             when (val data = state.data) {
                 ReportsData.Loading -> CircularProgressIndicator()
@@ -96,109 +105,47 @@ internal fun ReportsContent(
                     iconDescription = stringResource(R.string.cd_warning),
                 )
 
-                is ReportsData.Ready -> {
-                    SummaryCard(data)
-                    SectionHeader(title = stringResource(R.string.reports_spending_by_category))
-                    if (data.categories.isEmpty()) {
-                        EmptyState(message = stringResource(R.string.reports_no_spending))
-                    } else {
-                        LazyColumn(
-                    // Without a bound the list asks for the height of all its rows, pushing the
-                    // last of them past the bottom of the screen where no scroll can reach them.
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items(data.categories, key = { it.id }) { row -> CategoryRowCard(row) }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Which period the report covers.
- *
- * A segmented row is the right control for this — exactly one period is always in effect, and the row
- * says "pick one of these" rather than "toggle any of these". But its five segments share the width
- * equally, so each label gets a fifth of the screen: at large text sizes "All time" and "Month" have
- * nowhere to go but truncation, and a control whose options cannot be read is not a control.
- *
- * Past that point the same single choice moves into a menu, where a label gets the full width. The
- * choice, the options and the selection semantics are identical; only the shape changes.
- */
-@Composable
-private fun PeriodSelector(selected: TrackingPeriod, onSelectPeriod: (TrackingPeriod) -> Unit) {
-    if (LocalDensity.current.fontScale >= LARGE_TEXT_SCALE) {
-        PeriodMenu(current = selected, onSelectPeriod = onSelectPeriod)
-    } else {
-        PeriodSegments(selected = selected, onSelectPeriod = onSelectPeriod)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PeriodSegments(selected: TrackingPeriod, onSelectPeriod: (TrackingPeriod) -> Unit) {
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        TrackingPeriod.entries.forEachIndexed { index, period ->
-            SegmentedButton(
-                selected = period == selected,
-                onClick = { onSelectPeriod(period) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = TrackingPeriod.entries.size),
-            ) {
-                Text(periodLabel(period), maxLines = 1)
-            }
-        }
-    }
-}
-
-/**
- * The same five periods at a text size the row cannot hold. Each entry carries radio-button
- * semantics inside a selectable group, so a screen reader still announces this as one choice out of
- * five with one in effect — which is what the segmented row was saying visually.
- */
-@Composable
-private fun PeriodMenu(current: TrackingPeriod, onSelectPeriod: (TrackingPeriod) -> Unit) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    // The button shows only the period, which on its own says nothing about what it controls.
-    val label = stringResource(R.string.cd_period_selector, periodLabel(current))
-
-    Box(modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(
-            onClick = { expanded = true },
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = label },
-        ) {
-            Text(periodLabel(current), modifier = Modifier.weight(1f))
-            Icon(imageVector = WalletIcons.Expand, contentDescription = null)
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.selectableGroup(),
-        ) {
-            TrackingPeriod.entries.forEach { period ->
-                val isCurrent = period == current
-                DropdownMenuItem(
-                    text = { Text(periodLabel(period)) },
-                    trailingIcon = {
-                        if (isCurrent) {
-                            Icon(imageVector = WalletIcons.Selected, contentDescription = null)
-                        }
-                    },
-                    onClick = {
-                        expanded = false
-                        onSelectPeriod(period)
-                    },
-                    modifier = Modifier.semantics {
-                        role = Role.RadioButton
-                        selected = isCurrent
-                    },
+                is ReportsData.Ready -> ReportList(
+                    data = data,
+                    expandedIds = expanded.value,
+                    onToggle = onToggle,
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
+    }
+}
+
+/**
+ * The summary and both breakdowns in one scrolling list. It is bounded by [modifier]: without a
+ * bound the list asks for the height of all its rows, pushing the last of them past the bottom of
+ * the screen where no scroll can reach them.
+ */
+@Composable
+private fun ReportList(
+    data: ReportsData.Ready,
+    expandedIds: Set<Long>,
+    onToggle: (Long) -> Unit,
+    modifier: Modifier,
+) {
+    LazyColumn(modifier = modifier) {
+        item(key = "summary") { SummaryCard(data) }
+        categorySection(
+            section = CategorySection.INCOME,
+            title = R.string.reports_income_by_category,
+            emptyText = R.string.reports_no_income,
+            rows = data.incomeCategories,
+            expandedIds = expandedIds,
+            onToggle = onToggle,
+        )
+        categorySection(
+            section = CategorySection.EXPENSE,
+            title = R.string.reports_spending_by_category,
+            emptyText = R.string.reports_no_spending,
+            rows = data.expenseCategories,
+            expandedIds = expandedIds,
+            onToggle = onToggle,
+        )
     }
 }
 
@@ -210,8 +157,8 @@ private fun PeriodMenu(current: TrackingPeriod, onSelectPeriod: (TrackingPeriod)
 private fun SummaryCard(data: ReportsData.Ready) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(SCREEN_PADDING),
+            verticalArrangement = Arrangement.spacedBy(LINE_SPACING),
         ) {
             SummaryLine(stringResource(R.string.reports_income), data.incomeDisplay, amountColor(AmountRole.INCOME))
             SummaryLine(stringResource(R.string.reports_expenses), data.expenseDisplay, amountColor(AmountRole.EXPENSE))
@@ -230,8 +177,8 @@ private fun SummaryCard(data: ReportsData.Ready) {
 private fun SummaryLine(
     label: String,
     amount: String,
-    amountColor: androidx.compose.ui.graphics.Color,
-    labelStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge,
+    amountColor: Color,
+    labelStyle: TextStyle = MaterialTheme.typography.bodyLarge,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = labelStyle, modifier = Modifier.weight(1f))
@@ -239,55 +186,34 @@ private fun SummaryLine(
     }
 }
 
-@Composable
-private fun CategoryRowCard(row: CategoryRow) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(row.label.text(), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            MoneyText(row.totalDisplay, style = MaterialTheme.typography.titleMedium)
-        }
-    }
-}
-
-/**
- * Where the segmented row stops being usable. Below this the five labels still share the width
- * legibly; at and above it the longest of them no longer fits its fifth of a compact screen.
- */
-private const val LARGE_TEXT_SCALE = 1.3f
-
-@Composable
-private fun periodLabel(period: TrackingPeriod): String = stringResource(
-    when (period) {
-        TrackingPeriod.DAY -> R.string.period_day
-        TrackingPeriod.WEEK -> R.string.period_week
-        TrackingPeriod.MONTH -> R.string.period_month
-        TrackingPeriod.YEAR -> R.string.period_year
-        TrackingPeriod.ALL_TIME -> R.string.period_all_time
-    },
-)
-
 @Preview(showBackground = true)
 @Composable
 private fun ReportsPreview() {
     MyWalletTheme(dynamicColor = false) {
         ReportsContent(
             state = ReportsUiState(
-                selectedPeriod = TrackingPeriod.MONTH,
+                window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 10)),
                 data = ReportsData.Ready(
                     incomeDisplay = "2,000.00 USD",
                     expenseDisplay = "1,275.50 USD",
                     netDisplay = "724.50 USD",
-                    categories = listOf(
-                        CategoryRow(1, CategoryLabel.Named("Food"), "620.00 USD"),
-                        CategoryRow(2, CategoryLabel.Named("Transport"), "410.50 USD"),
-                        CategoryRow(3, CategoryLabel.Named("Other"), "245.00 USD"),
+                    incomeCategories = listOf(
+                        CategoryRow(10, CategoryLabel.Named("Salary"), "2,000.00 USD", subCategories = emptyList()),
+                    ),
+                    expenseCategories = listOf(
+                        CategoryRow(
+                            1, CategoryLabel.Named("Food"), "620.00 USD",
+                            subCategories = listOf(
+                                SubCategoryRow(11, CategoryLabel.Named("Groceries"), "500.00 USD"),
+                                SubCategoryRow(null, CategoryLabel.NoSubCategory, "120.00 USD"),
+                            ),
+                        ),
+                        CategoryRow(2, CategoryLabel.Named("Transport"), "410.50 USD", subCategories = emptyList()),
+                        CategoryRow(3, CategoryLabel.Named("Other"), "245.00 USD", subCategories = emptyList()),
                     ),
                 ),
             ),
-            onSelectPeriod = {},
+            windowActions = DateWindowActions(),
         )
     }
 }

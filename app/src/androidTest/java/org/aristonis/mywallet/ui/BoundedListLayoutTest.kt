@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.account.ManageAccountRow
 import org.aristonis.mywallet.ui.account.ManageAccountsContent
 import org.aristonis.mywallet.ui.account.ManageAccountsUiState
@@ -23,12 +24,14 @@ import org.aristonis.mywallet.ui.rates.ManageRatesUiState
 import org.aristonis.mywallet.ui.rates.RateRow
 import org.aristonis.mywallet.ui.reports.CategoryRow
 import org.aristonis.mywallet.ui.reports.ReportsContent
+import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.reports.ReportsData
 import org.aristonis.mywallet.ui.reports.ReportsUiState
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
 import java.math.BigDecimal
 
 /**
@@ -201,20 +204,22 @@ class BoundedListLayoutTest {
                 id = index.toLong(),
                 label = CategoryLabel.Named("Category $index"),
                 totalDisplay = "$index.00 USD",
+                subCategories = emptyList(),
             )
         }
         show {
             ReportsContent(
                 state = ReportsUiState(
-                    selectedPeriod = TrackingPeriod.MONTH,
+                    window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 7, 15)),
                     data = ReportsData.Ready(
                         incomeDisplay = "100.00 USD",
                         expenseDisplay = "40.00 USD",
                         netDisplay = "60.00 USD",
-                        categories = categories,
+                        incomeCategories = emptyList(),
+                        expenseCategories = categories,
                     ),
                 ),
-                onSelectPeriod = {},
+                windowActions = DateWindowActions(),
             )
         }
 
@@ -222,5 +227,6 @@ class BoundedListLayoutTest {
         scrollToLast("Category $rowCount")
         compose.onNodeWithText("Category $rowCount").assertIsDisplayed()
         compose.onNodeWithText("Month").assertIsDisplayed()
+        compose.onNodeWithText("July 2026").assertIsDisplayed()
     }
 }

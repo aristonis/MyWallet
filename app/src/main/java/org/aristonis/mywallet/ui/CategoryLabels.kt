@@ -22,6 +22,12 @@ sealed interface CategoryLabel {
 
     /** A category id that resolved to nothing — a deleted row still referenced somewhere. */
     data object Unknown : CategoryLabel
+
+    /**
+     * The share of a category's total that carried no sub-category. It is a real amount with no
+     * category row behind it, so it needs a name of its own rather than borrowing the parent's.
+     */
+    data object NoSubCategory : CategoryLabel
 }
 
 fun Category.label(): CategoryLabel =
@@ -33,4 +39,5 @@ fun CategoryLabel.text(): String = when (this) {
     is CategoryLabel.Named -> name
     is CategoryLabel.SystemBucket -> stringResource(R.string.category_uncategorized)
     CategoryLabel.Unknown -> stringResource(R.string.value_missing)
+    CategoryLabel.NoSubCategory -> stringResource(R.string.category_no_sub_category)
 }

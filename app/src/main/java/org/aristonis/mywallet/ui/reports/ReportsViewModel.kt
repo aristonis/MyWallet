@@ -1,43 +1,66 @@
 package org.aristonis.mywallet.ui.reports
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.updateAndGet
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryTotal
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.DateRange
+import org.aristonis.mywallet.domain.model.SubCategoryTotal
 import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.service.PeriodRanges
 import org.aristonis.mywallet.domain.usecase.CategoryBreakdownResult
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.aristonis.mywallet.domain.usecase.PeriodSummaryResult
-import org.aristonis.mywallet.ui.format.display
-import javax.inject.Inject
 import org.aristonis.mywallet.ui.CategoryLabel
+import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.label
+import org.aristonis.mywallet.ui.window.readWindow
+import org.aristonis.mywallet.ui.window.writeWindow
+import java.time.LocalDate
+import javax.inject.Inject
 
 /**
- * One row of the spending-by-category list: [id] is the category id (a stable list key — names are
- * not unique and unknown ids all render as a dash), [name] is already resolved for display, and
- * [totalDisplay] is the total pre-formatted per currency + locale.
+ * One category in a by-category list. [id] is the category id, used as the list key because names
+ * are not unique and every unknown id renders as the same dash. [subCategories] keep the domain's
+ * order, biggest first, with the unlabelled remainder among them.
  */
-data class CategoryRow(val id: Long, val label: CategoryLabel, val totalDisplay: String)
+data class CategoryRow(
+    val id: Long,
+    val label: CategoryLabel,
+    val totalDisplay: String,
+    val subCategories: List<SubCategoryRow>,
+) {
+    /**
+     * Whether opening the row would show anything new. A category whose only part is its own
+     * remainder would open onto a copy of itself, so it offers no toggle.
+     */
+    val canExpand: Boolean get() = subCategories.any { it.id != null }
+}
+
+/** One part of a category's total. A null [id] is the share recorded without a sub-category. */
+data class SubCategoryRow(val id: Long?, val label: CategoryLabel, val totalDisplay: String)
 
 /**
  * The report body. A missing rate is a first-class value (not a spinner and not a wrong number), so
  * the screen shows a prompt; because the underlying use-cases emit it as a value the flow stays live
- * and this resolves to [Ready] the moment the rate is set. Mirrors Home's [NetWorthState].
+ * and this resolves to [Ready] the moment the rate is set. Mirrors Home's net-worth state.
  */
 sealed interface ReportsData {
     data object Loading : ReportsData
@@ -46,66 +69,91 @@ sealed interface ReportsData {
         val incomeDisplay: String,
         val expenseDisplay: String,
         val netDisplay: String,
-        val categories: List<CategoryRow>,
+        val incomeCategories: List<CategoryRow>,
+        val expenseCategories: List<CategoryRow>,
     ) : ReportsData
 }
 
-/** What the Reports screen renders. [selectedPeriod] is always known (drives the picker). */
+/** What the Tracking screen renders: the span it covers, and the numbers for that span. */
 data class ReportsUiState(
-    val selectedPeriod: TrackingPeriod = TrackingPeriod.MONTH,
+    val window: TrackingWindow,
     val data: ReportsData = ReportsData.Loading,
 )
 
 /**
- * Reports: income / expense / net and spending-by-category over a selectable [TrackingPeriod].
- * The period is reactive — selecting one re-drives both use-cases (via [flatMapLatest]), re-reading
- * "today" each time so the range tracks the current day. The category breakdown is joined with the
- * categories stream to turn ids into names, so a rename refreshes the report on its own.
+ * Tracking: income / expense / net and both by-category breakdowns over a [TrackingWindow].
+ *
+ * The window is the single input. Every action produces a new one, it is written to the saved state
+ * so a recreated screen shows the same dates, and its range re-drives both use cases through
+ * [flatMapLatest]. Categories and currencies are joined in so a rename or a new rate refreshes the
+ * report without the user touching anything. They do not depend on the dates, so they are joined
+ * outside the window switch: stepping through months keeps one subscription to each instead of
+ * reopening both on every tap.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ReportsViewModel @Inject constructor(
     private val computePeriodSummary: ComputePeriodSummary,
     private val computeCategoryBreakdown: ComputeCategoryBreakdown,
-    private val categories: CategoryRepository,
-    private val currencies: CurrencyRepository,
+    categories: CategoryRepository,
+    currencies: CurrencyRepository,
     private val moneyFormatter: MoneyFormatter,
     private val today: TodayProvider,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val period = MutableStateFlow(TrackingPeriod.MONTH)
+    private val window = MutableStateFlow(
+        savedStateHandle.readWindow(WINDOW_KEY) ?: TrackingWindow.Period(TrackingPeriod.MONTH, today.today()),
+    )
+
+    private val windowResults: Flow<WindowResults> = window.flatMapLatest { current ->
+        combine(computePeriodSummary(current.range), computeCategoryBreakdown(current.range)) { summary, breakdown ->
+            WindowResults(current, summary, breakdown)
+        }
+    }
+
+    private val lookups: Flow<Lookups> = combine(categories.observeAll(), currencies.observeAll(), ::Lookups)
 
     val state: StateFlow<ReportsUiState> =
-        period.flatMapLatest { selected ->
-            // "today" is read per period change, not once at injection, so the range tracks the day.
-            val range = PeriodRanges.of(selected, today.today())
-            combine(
-                computePeriodSummary(range),
-                computeCategoryBreakdown(range),
-                categories.observeAll(),
-                currencies.observeAll(),
-            ) { summary, breakdown, categoryList, currencyList ->
-                ReportsUiState(
-                    selectedPeriod = selected,
-                    data = toData(summary, breakdown, categoryList, currencyList),
-                )
-            }
+        combine(windowResults, lookups) { results, lookup ->
+            ReportsUiState(window = results.window, data = toData(results, lookup))
         }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-            ReportsUiState(),
+            ReportsUiState(window = window.value),
         )
 
-    fun selectPeriod(newPeriod: TrackingPeriod) {
-        period.value = newPeriod
+    /** Switches period, keeping today in view when the current window holds it. */
+    fun selectPeriod(newPeriod: TrackingPeriod) = update { it.withPeriod(newPeriod, today.today()) }
+
+    /** Moves to a neighbouring period; a custom range has none, so this leaves it alone. */
+    fun step(steps: Long) = update { it.stepped(steps) }
+
+    /** Shows the period that holds [anchor]. Leaving a custom range lands on its month. */
+    fun jumpTo(anchor: LocalDate) = update { current ->
+        val period = (current as? TrackingWindow.Period)?.period ?: TrackingPeriod.MONTH
+        TrackingWindow.Period(period, anchor)
     }
 
-    private fun toData(
-        summary: PeriodSummaryResult,
-        breakdown: CategoryBreakdownResult,
-        categoryList: List<Category>,
-        currencyList: List<Currency>,
-    ): ReportsData {
+    /**
+     * Covers exactly the days between [first] and [second]. A range picker reports them in the order
+     * they were tapped, and a range must not start after it ends, so they are ordered here.
+     */
+    fun selectRange(first: LocalDate, second: LocalDate) = update {
+        TrackingWindow.Custom(DateRange(minOf(first, second), maxOf(first, second)))
+    }
+
+    /** Leaves a custom range for the month the user is living in, the screen's starting point. */
+    fun clearRange() = update { TrackingWindow.Period(TrackingPeriod.MONTH, today.today()) }
+
+    private fun update(transform: (TrackingWindow) -> TrackingWindow) {
+        savedStateHandle.writeWindow(WINDOW_KEY, window.updateAndGet(transform))
+    }
+
+    private fun toData(results: WindowResults, lookup: Lookups): ReportsData {
+        val summary = results.summary
+        val breakdown = results.breakdown
+        val currencyList = lookup.currencies
         // Exhaustive matching (not casts) so adding a result variant later is a compile error; a
         // missing rate from EITHER use-case surfaces as the prompt.
         val periodSummary = when (summary) {
@@ -114,32 +162,56 @@ class ReportsViewModel @Inject constructor(
         }
         val totals = when (breakdown) {
             is CategoryBreakdownResult.MissingRate -> return ReportsData.MissingRate(breakdown.currencyCode)
-            is CategoryBreakdownResult.Resolved -> breakdown.breakdown.expense
+            is CategoryBreakdownResult.Resolved -> breakdown.breakdown
         }
-        // The breakdown already comes biggest spend first (ties by id); keep its order as-is.
-        val rows = totals
-            .map {
-                CategoryRow(
-                    id = it.categoryId,
-                    label = categoryName(it.categoryId, categoryList),
-                    totalDisplay = moneyFormatter.display(it.total, currencyList),
-                )
-            }
-
+        val rows = CategoryRows(lookup.categories.associateBy { it.id }, currencyList)
         return ReportsData.Ready(
             incomeDisplay = moneyFormatter.display(periodSummary.income, currencyList),
             expenseDisplay = moneyFormatter.display(periodSummary.expense, currencyList),
             netDisplay = moneyFormatter.display(periodSummary.net, currencyList),
-            categories = rows,
+            incomeCategories = totals.income.map(rows::of),
+            expenseCategories = totals.expense.map(rows::of),
         )
     }
 
-    // A deleted/unknown category id degrades to an Unknown label instead of dropping the row
-    // (defensive read). What that looks like on screen is the screen's business, not this one's.
-    private fun categoryName(id: Long, categories: List<Category>): CategoryLabel =
-        categories.firstOrNull { it.id == id }?.label() ?: CategoryLabel.Unknown
+    /**
+     * Turns domain totals into display rows. The domain has already ordered them biggest first (ties
+     * by id), so the order is kept as-is.
+     */
+    private inner class CategoryRows(
+        private val byId: Map<Long, Category>,
+        private val currencyList: List<Currency>,
+    ) {
+        fun of(total: CategoryTotal) = CategoryRow(
+            id = total.categoryId,
+            label = labelOf(total.categoryId),
+            totalDisplay = moneyFormatter.display(total.total, currencyList),
+            subCategories = total.subCategories.map(::subOf),
+        )
+
+        private fun subOf(total: SubCategoryTotal) = SubCategoryRow(
+            id = total.subCategoryId,
+            label = total.subCategoryId?.let(::labelOf) ?: CategoryLabel.NoSubCategory,
+            totalDisplay = moneyFormatter.display(total.total, currencyList),
+        )
+
+        // A deleted/unknown id degrades to an Unknown label instead of dropping the row; the money
+        // is still real. What that looks like on screen is the screen's business, not this one's.
+        private fun labelOf(id: Long): CategoryLabel = byId[id]?.label() ?: CategoryLabel.Unknown
+    }
+
+    /** What the use cases computed for one window, kept with the window they computed it for. */
+    private data class WindowResults(
+        val window: TrackingWindow,
+        val summary: PeriodSummaryResult,
+        val breakdown: CategoryBreakdownResult,
+    )
+
+    /** The names and currencies the numbers are dressed in; the same for every window. */
+    private data class Lookups(val categories: List<Category>, val currencies: List<Currency>)
 
     private companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
+        private const val WINDOW_KEY = "trackingWindow"
     }
 }
