@@ -7,6 +7,7 @@ import org.aristonis.mywallet.data.db.CurrencyEntity
 import org.aristonis.mywallet.data.db.RateEntity
 import org.aristonis.mywallet.data.db.SettingsEntity
 import org.aristonis.mywallet.data.db.TransactionEntity
+import org.aristonis.mywallet.data.db.toDomain
 import org.aristonis.mywallet.domain.error.WalletException
 
 /**
@@ -106,7 +107,34 @@ fun decodeValidated(text: String): WalletBackup {
     if (treeIsBroken) {
         throw WalletException.BackupInvalid()
     }
+    if (!everyRowIsReadable(backup)) {
+        throw WalletException.BackupInvalid()
+    }
     return backup
+}
+
+/**
+ * Whether the app could read every row back once restored. Kinds, themes and amounts are plain
+ * strings in the file, so the JSON decode accepts values the app cannot turn into a transaction, a
+ * theme or a number: a kind added by a newer build, a hand edit. Restored, such a row fails every read
+ * of its table, and a bad theme stops the app at launch, before Settings can be reached to restore
+ * anything else. Each row is read the way the database will read it, so nothing that passes here can
+ * fail there.
+ */
+private fun everyRowIsReadable(backup: WalletBackup): Boolean = try {
+    backup.settings?.toEntity()?.toDomain()
+    backup.accounts.forEach { it.toEntity().toDomain() }
+    backup.categories.forEach { it.toEntity().toDomain() }
+    backup.currencies.forEach { it.toEntity().toDomain() }
+    backup.rates.forEach { it.toEntity().toDomain() }
+    backup.transactions.forEach { it.toEntity().toDomain() }
+    true
+} catch (e: IllegalArgumentException) {
+    // An unknown enum name, or a number that does not parse (NumberFormatException is one of these).
+    false
+} catch (e: IllegalStateException) {
+    // An unknown transaction kind, or a transfer missing one of its legs.
+    false
 }
 
 /** Reads only the format version, tolerating every other field; null when the text is not a backup. */

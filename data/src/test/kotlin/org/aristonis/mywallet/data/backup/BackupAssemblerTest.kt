@@ -176,4 +176,52 @@ class BackupAssemblerTest {
         assertTrue("was: $error", error is WalletException.BackupVersionUnsupported)
         assertEquals(2, (error as WalletException.BackupVersionUnsupported).version)
     }
+
+    // Every row must be one the app can read back. A row it cannot read gets through the JSON decode
+    // (kinds, themes and amounts are plain strings there) and then fails on every launch or every
+    // read of its table. Refused here, the restore stops before anything is replaced.
+
+    private fun withTransaction(id: Long, change: (TransactionDto) -> TransactionDto) =
+        build().let { b -> b.copy(transactions = b.transactions.map { if (it.id == id) change(it) else it }) }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsATransactionOfAKindThisBuildCannotRead() {
+        // What a backup from a newer build that adds a kind looks like to this one.
+        decodeValidated(BackupCodec.encode(withTransaction(1) { it.copy(type = "LOAN") }))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsATransferWithoutItsRate() {
+        decodeValidated(BackupCodec.encode(withTransaction(3) { it.copy(rateUsed = null) }))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsAnAmountThatIsNotANumber() {
+        decodeValidated(BackupCodec.encode(withTransaction(2) { it.copy(primaryAmount = "12,99") }))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsAThemeThisBuildDoesNotKnow() {
+        // The theme is read before any screen draws; an unknown one would stop the app at launch.
+        val backup = build().let { b -> b.copy(settings = b.settings?.copy(theme = "dark")) }
+        decodeValidated(BackupCodec.encode(backup))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsACategoryOfAnUnknownKind() {
+        val backup = build().let { b -> b.copy(categories = b.categories.map { it.copy(kind = "DEBT") }) }
+        decodeValidated(BackupCodec.encode(backup))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsAnOpeningBalanceThatIsNotANumber() {
+        val backup = build().let { b -> b.copy(accounts = b.accounts.map { if (it.id == 1L) it.copy(openingBalanceAmount = "lots") else it }) }
+        decodeValidated(BackupCodec.encode(backup))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsARateThatIsNotANumber() {
+        val backup = build().let { b -> b.copy(rates = b.rates.map { it.copy(rateToBase = "") }) }
+        decodeValidated(BackupCodec.encode(backup))
+    }
 }
