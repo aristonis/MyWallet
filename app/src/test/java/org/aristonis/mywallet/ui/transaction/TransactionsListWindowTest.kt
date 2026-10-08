@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
@@ -53,7 +54,7 @@ class TransactionsListWindowTest {
         expenseOn(3, LocalDate.of(2026, 8, 26)),
     )
 
-    private fun viewModel(
+    private fun TestScope.viewModel(
         transactions: List<Transaction> = history,
         saved: SavedStateHandle = SavedStateHandle(),
         repo: FakeTransactionRepository = FakeTransactionRepository(transactions),
@@ -66,7 +67,8 @@ class TransactionsListWindowTest {
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { now },
             savedStateHandle = saved,
-        )
+            defaultDispatcher = dispatcher,
+        ).also { watch(it) }
 
     @Test
     fun opensOnEverything() = runTest {

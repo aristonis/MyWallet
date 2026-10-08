@@ -1,5 +1,10 @@
 package org.aristonis.mywallet.ui.home
 
+import org.aristonis.mywallet.namedWorkThread
+import org.aristonis.mywallet.ThreadRecordingList
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -56,6 +61,7 @@ class HomeViewModelTest {
         currencies: List<Currency>,
         rates: List<ExchangeRate> = emptyList(),
         base: String = "USD",
+        work: CoroutineDispatcher = dispatcher,
     ): HomeViewModel {
         val accountRepo = FakeAccountRepository(accounts)
         val txRepo = FakeTransactionRepository()
@@ -65,7 +71,7 @@ class HomeViewModelTest {
         val getBalances = GetAccountBalances(accountRepo, txRepo)
         val getBalancesInBase = GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
         val computeNetWorth = ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
-        return HomeViewModel(getBalancesInBase, computeNetWorth, currencyRepo, settingsRepo, moneyFormatter)
+        return HomeViewModel(getBalancesInBase, computeNetWorth, currencyRepo, settingsRepo, moneyFormatter, work)
     }
 
     @Test
@@ -172,6 +178,7 @@ class HomeViewModelTest {
             currencyRepo,
             settingsRepo,
             moneyFormatter,
+            dispatcher,
         )
 
         backgroundScope.launch { vm.state.collect {} }
@@ -183,9 +190,26 @@ class HomeViewModelTest {
 
         assertEquals(NetWorthState.Amount("55.00 USD"), vm.state.value.netWorth)
     }
+
+    @Test
+    fun buildsOnTheWorkDispatcher() = runTest {
+        val work = namedWorkThread(WORK_THREAD)
+        try {
+            // Balances are converted and formatted against the currencies, so whoever walks them built Home.
+            val homeData = ThreadRecordingList(listOf(Currency("USD", "$", 2)))
+            val vm = buildVm(accounts = listOf(account("USD", "100")), currencies = homeData, work = work.asCoroutineDispatcher())
+
+            val built = vm.state.first { it.accounts.isNotEmpty() }
+
+            assertEquals(1, built.accounts.size)
+            assertEquals(setOf(WORK_THREAD), homeData.threads)
+        } finally {
+            work.shutdown()
+        }
+    }
 }
 
-// --- Minimal in-memory ports (domain fakes live in :domain's test source set). ---
+private const val WORK_THREAD = "work-test"
 
 private class FakeAccountRepository(initial: List<Account>) : AccountRepository {
     private val items = MutableStateFlow(initial)

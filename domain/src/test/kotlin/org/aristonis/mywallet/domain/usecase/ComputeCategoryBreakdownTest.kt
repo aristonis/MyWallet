@@ -8,6 +8,7 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.PeriodSummary
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.fake.FakeTransactionRepository
 import org.aristonis.mywallet.domain.usecase.fake.fakeFx
@@ -218,5 +219,44 @@ class ComputeCategoryBreakdownTest {
 
         assertEquals(listOf(july), repo.observedRanges)
         assertEquals(0, repo.observeAllCalls)
+    }
+
+    @Test
+    fun totalsAreTheSumOfTheirCategories() = runTest {
+        // Each total is summed from the converted category totals, so 0.33 EUR twice at 1.1 adds
+        // 0.72 USD to the expenses, exactly what the Food row shows, never 0.73.
+        val txs = listOf(
+            income(1, usd("500"), category = 1),
+            expense(2, eur("0.33"), category = 7, sub = 71),
+            expense(3, eur("0.33"), category = 7, sub = 72),
+            expense(4, usd("10"), category = 9),
+        )
+        val breakdown = usecase(txs, rates = listOf(ExchangeRate("EUR", BigDecimal("1.1"))))
+            .invoke(july).first().breakdown()
+
+        assertEquals(PeriodSummary(income = usd("500"), expense = usd("10.72"), net = usd("489.28")), breakdown.summary)
+    }
+
+    @Test
+    fun anEmptyWindowTotalsZeroInTheBaseCurrency() = runTest {
+        val breakdown = usecase(emptyList()).invoke(july).first().breakdown()
+
+        assertEquals(PeriodSummary(Money.zero("USD"), Money.zero("USD"), Money.zero("USD")), breakdown.summary)
+    }
+
+    @Test
+    fun transfersStayOutOfTheTotals() = runTest {
+        val txs = listOf(
+            expense(1, usd("10"), category = 7),
+            Transaction.Transfer(
+                id = 2, sourceAccountId = 1, destAccountId = 2,
+                sourceAmount = usd("99"), destAmount = usd("99"),
+                rateUsed = BigDecimal.ONE, date = inJuly,
+            ),
+        )
+        val summary = usecase(txs).invoke(july).first().breakdown().summary
+
+        assertEquals(Money.zero("USD"), summary.income)
+        assertEquals(usd("10"), summary.expense)
     }
 }

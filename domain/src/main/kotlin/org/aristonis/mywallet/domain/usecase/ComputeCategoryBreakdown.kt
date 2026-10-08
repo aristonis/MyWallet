@@ -17,7 +17,7 @@ import org.aristonis.mywallet.domain.service.reportEntry
 /**
  * The result of computing a category breakdown: either the income / expense totals, or a signal that
  * a rate is still missing. Sealed (rather than throwing) so the reactive flow stays live and resolves
- * once the user sets the missing rate. Mirrors [NetWorth] / [PeriodSummaryResult].
+ * once the user sets the missing rate. Mirrors [NetWorth].
  */
 sealed interface CategoryBreakdownResult {
     data class Resolved(val breakdown: CategoryBreakdown) : CategoryBreakdownResult
@@ -26,9 +26,10 @@ sealed interface CategoryBreakdownResult {
 
 /**
  * Live income and expense totals per category, and per sub-category within each, over an inclusive
- * [DateRange], in the base currency. Only that range is read from the repository, never the whole
- * history. Transfers are internal movement and are left out. Categories and
- * sub-categories come biggest total first; ties fall back to id ascending (the no-sub-category
+ * [DateRange], in the base currency. The period's income / expense / net come with it as
+ * [CategoryBreakdown.summary], so a report needs this one read per window, not two. Only that range
+ * is read from the repository, never the whole history. Transfers are internal movement and are left
+ * out. Categories and sub-categories come biggest total first; ties fall back to id ascending (the no-sub-category
  * remainder last) so the order is deterministic. If an in-range income or expense is in a currency
  * with no rate yet, emits [CategoryBreakdownResult.MissingRate] for the first such currency instead of
  * a silently wrong total.
@@ -69,6 +70,7 @@ class ComputeCategoryBreakdown(
                     CategoryBreakdown(
                         income = totalsOf(inBase.filter { it.kind == EntryKind.INCOME }, base),
                         expense = totalsOf(inBase.filter { it.kind == EntryKind.EXPENSE }, base),
+                        baseCurrencyCode = base,
                     ),
                 )
             }

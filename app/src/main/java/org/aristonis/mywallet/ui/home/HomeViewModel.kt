@@ -3,11 +3,14 @@ package org.aristonis.mywallet.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.AccountBalanceInBase
 import org.aristonis.mywallet.domain.model.Currency
@@ -57,6 +60,7 @@ class HomeViewModel @Inject constructor(
     currencies: CurrencyRepository,
     settings: SettingsRepository,
     private val moneyFormatter: MoneyFormatter,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     val state: StateFlow<HomeUiState> =
@@ -75,7 +79,11 @@ class HomeViewModel @Inject constructor(
                 accounts = accounts.filterNot { it.account.archived }.map { it.toRow(currencyList) },
                 baseCurrencyCode = currentSettings.baseCurrencyCode,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HomeUiState())
+        }
+            // Balances are summed over the whole history and converted again on every write; that
+            // belongs off the main thread, where the other screens already build theirs.
+            .flowOn(defaultDispatcher)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HomeUiState())
 
     private fun netWorthState(result: NetWorth, currencies: List<Currency>): NetWorthState =
         when (result) {

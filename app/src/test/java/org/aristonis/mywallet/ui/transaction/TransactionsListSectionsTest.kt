@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
@@ -45,7 +46,7 @@ class TransactionsListSectionsTest {
         id = id, accountId = 1, amount = Money.of("$id.00", "USD"), categoryId = 20, date = date,
     )
 
-    private fun viewModelFor(transactions: List<Transaction>) = TransactionsListViewModel(
+    private fun TestScope.viewModelFor(transactions: List<Transaction>) = TransactionsListViewModel(
         transactions = FakeTransactionRepository(transactions),
         accounts = FakeAccountRepository(listOf(cash)),
         categories = FakeCategoryRepository(listOf(food)),
@@ -53,7 +54,8 @@ class TransactionsListSectionsTest {
         moneyFormatter = MoneyFormatter(Locale.US),
         today = { today },
         savedStateHandle = SavedStateHandle(),
-    )
+        defaultDispatcher = dispatcher,
+    ).also { watch(it) }
 
     @Test
     fun `rows from the same day land in one section`() = runTest {

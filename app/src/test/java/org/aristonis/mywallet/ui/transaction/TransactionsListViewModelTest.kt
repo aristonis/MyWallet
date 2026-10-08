@@ -5,10 +5,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.ThreadRecordingList
+import org.aristonis.mywallet.namedWorkThread
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -47,7 +55,7 @@ class TransactionsListViewModelTest {
     // Locale.US + the seeded fraction digits give deterministic strings: USD 2, EUR 2, JPY 0.
     private val currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2), Currency("JPY", "¥", 0))
 
-    private inner class Fixture(
+    private inner class ListFixture(
         transactions: List<Transaction>,
         accounts: List<Account>,
         categories: List<Category>,
@@ -60,8 +68,17 @@ class TransactionsListViewModelTest {
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { LocalDate.of(2026, 8, 26) },
             savedStateHandle = SavedStateHandle(),
+            defaultDispatcher = dispatcher,
         )
     }
+
+    /** Builds the list and keeps a screen watching it, as the real tab does while it is shown. */
+    @Suppress("TestFunctionName")
+    private fun TestScope.Fixture(
+        transactions: List<Transaction>,
+        accounts: List<Account>,
+        categories: List<Category>,
+    ) = ListFixture(transactions, accounts, categories).also { watch(it.viewModel) }
 
     @Test
     fun incomeRow_resolvesAccountAndCategoryNames() = runTest {
@@ -196,5 +213,101 @@ class TransactionsListViewModelTest {
         // The view model reports the gap; what a gap looks like is the screen's decision.
         assertNull(row.accountName)
         assertEquals(CategoryLabel.Unknown, row.categoryLabel)
+    }
+
+    @Test
+    fun stopsReadingWhenNoOneWatches() = runTest {
+        val repo = FakeTransactionRepository(
+            listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
+        )
+        val viewModel = TransactionsListViewModel(
+            transactions = repo,
+            accounts = FakeAccountRepository(listOf(cash)),
+            categories = FakeCategoryRepository(listOf(food)),
+            currencies = FakeCurrencyRepository(currencies),
+            moneyFormatter = MoneyFormatter(Locale.US),
+            today = { LocalDate.of(2026, 8, 26) },
+            savedStateHandle = SavedStateHandle(),
+            defaultDispatcher = dispatcher,
+        )
+        val screen = backgroundScope.launch { viewModel.state.collect {} }
+        advanceUntilIdle()
+        assertEquals(1, repo.activeReads)
+
+        // The tab is hidden: after a short grace (a rotation must not restart the read) it lets go.
+        screen.cancel()
+        advanceTimeBy(STOP_GRACE_MS + 1)
+        runCurrent()
+        assertEquals(0, repo.activeReads)
+
+        // Entries saved meanwhile show up as soon as the tab is back.
+        repo.add(Transaction.Expense(id = 2, accountId = 1, amount = Money.of("7", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 2)))
+        backgroundScope.launch { viewModel.state.collect {} }
+        // Only background work is queued now, which advanceUntilIdle leaves alone; start it first.
+        runCurrent()
+        advanceUntilIdle()
+        assertEquals(listOf(2L, 1L), viewModel.state.value.rows.map { it.id })
+    }
+
+    @Test
+    fun buildsTheListOnTheWorkDispatcher() = runTest {
+        val work = namedWorkThread(WORK_THREAD)
+        try {
+            // Every amount is formatted against this list, so whoever walks it is building the rows.
+            val formattingData = ThreadRecordingList(currencies)
+            val viewModel = TransactionsListViewModel(
+                transactions = FakeTransactionRepository(
+                    listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
+                ),
+                accounts = FakeAccountRepository(listOf(cash)),
+                categories = FakeCategoryRepository(listOf(food)),
+                currencies = FakeCurrencyRepository(formattingData),
+                moneyFormatter = MoneyFormatter(Locale.US),
+                today = { LocalDate.of(2026, 8, 26) },
+                savedStateHandle = SavedStateHandle(),
+                defaultDispatcher = work.asCoroutineDispatcher(),
+            )
+
+            val built = viewModel.state.first { !it.isLoading }
+
+            assertEquals(listOf(1L), built.rows.map { it.id })
+            assertEquals(setOf(WORK_THREAD), formattingData.threads)
+        } finally {
+            work.shutdown()
+        }
+    }
+
+
+    @Test
+    fun aRotationDoesNotRestartTheRead() = runTest {
+        val repo = FakeTransactionRepository(
+            listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
+        )
+        val viewModel = TransactionsListViewModel(
+            transactions = repo,
+            accounts = FakeAccountRepository(listOf(cash)),
+            categories = FakeCategoryRepository(listOf(food)),
+            currencies = FakeCurrencyRepository(currencies),
+            moneyFormatter = MoneyFormatter(Locale.US),
+            today = { LocalDate.of(2026, 8, 26) },
+            savedStateHandle = SavedStateHandle(),
+            defaultDispatcher = dispatcher,
+        )
+        val before = backgroundScope.launch { viewModel.state.collect {} }
+        advanceUntilIdle()
+
+        // A rotation drops the screen's collector for a moment and the new screen picks it up again.
+        before.cancel()
+        advanceTimeBy(STOP_GRACE_MS - 1)
+        backgroundScope.launch { viewModel.state.collect {} }
+        runCurrent()
+        advanceUntilIdle()
+
+        assertEquals(1, repo.readsOpened)
+    }
+
+    private companion object {
+        const val STOP_GRACE_MS = 5_000L
+        const val WORK_THREAD = "work-test"
     }
 }

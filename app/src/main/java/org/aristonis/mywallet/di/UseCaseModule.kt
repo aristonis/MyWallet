@@ -14,7 +14,6 @@ import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
-import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.DeleteTransaction
@@ -126,12 +125,6 @@ object UseCaseModule {
         getAccountBalances: GetAccountBalances,
         fx: FxRepository,
     ): GetAccountBalancesInBase = GetAccountBalancesInBase(getAccountBalances, fx)
-
-    @Provides @Singleton
-    fun provideComputePeriodSummary(
-        transactions: TransactionRepository,
-        fx: FxRepository,
-    ): ComputePeriodSummary = ComputePeriodSummary(transactions, fx)
 
     @Provides @Singleton
     fun provideComputeCategoryBreakdown(

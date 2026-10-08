@@ -1,5 +1,9 @@
 package org.aristonis.mywallet.ui.transaction
 
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
@@ -60,6 +64,17 @@ internal class FakeTransactionRepository(initial: List<Transaction> = emptyList(
     override fun observeAll(): Flow<List<Transaction>> = items
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
         items.map { all -> all.filter { it.date in range } }
+            .onStart { activeReads++; readsOpened++ }
+            .onCompletion { activeReads-- }
+
+    /** Ranged reads someone is still collecting; zero once every screen has stopped watching. */
+    var activeReads = 0
+        private set
+
+    /** Ranged reads ever started; a restarted read counts again. */
+    var readsOpened = 0
+        private set
+
     override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
     override suspend fun add(transaction: Transaction): Long {
         items.value = items.value + transaction
@@ -121,4 +136,9 @@ internal class FakeFxRepository(
 /** Runs the block directly; the app tests check what gets written, not database transactions. */
 internal class DirectTransactionRunner : org.aristonis.mywallet.domain.port.TransactionRunner {
     override suspend fun <T> inTransaction(block: suspend () -> T): T = block()
+}
+
+/** Keeps a collector on the list's state for the rest of the test, as a visible screen would. */
+internal fun TestScope.watch(viewModel: TransactionsListViewModel) {
+    backgroundScope.launch { viewModel.state.collect {} }
 }

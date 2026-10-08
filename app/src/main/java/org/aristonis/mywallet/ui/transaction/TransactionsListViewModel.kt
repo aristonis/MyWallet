@@ -4,17 +4,17 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.stateIn
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
@@ -27,6 +27,7 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.window.DateWindowActions
@@ -109,6 +110,11 @@ private data class WindowedTransactions(val window: TrackingWindow, val transact
  * [TrackingWindowHolder] owns it and saves it, so a recreated screen keeps the dates it was showing.
  * Only the transactions depend on the dates: the lookups sit outside the window switch, so moving
  * through months keeps one subscription to each instead of reopening them on every tap.
+ *
+ * Building the sections (sorting, grouping, resolving names, formatting money) runs on
+ * [defaultDispatcher], off the main thread, because all time can be thousands of rows. The list only
+ * reads while its screen watches it: a few seconds after the tab is hidden the reads stop, and they
+ * pick up the latest data when it is shown again.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -120,6 +126,7 @@ class TransactionsListViewModel @Inject constructor(
     private val moneyFormatter: MoneyFormatter,
     private val today: TodayProvider,
     savedStateHandle: SavedStateHandle,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val holder = TrackingWindowHolder(
@@ -136,16 +143,16 @@ class TransactionsListViewModel @Inject constructor(
      */
     private val currentDay = MutableStateFlow(today.today())
 
-    private val _state = MutableStateFlow(TransactionsUiState(window = holder.window.value))
-    val state: StateFlow<TransactionsUiState> = _state.asStateFlow()
+    private val windowed: Flow<WindowedTransactions> = holder.window.flatMapLatest { window ->
+        transactions.observeBetween(window.range).map { WindowedTransactions(window, it) }
+    }
 
-    /** The date bar's callbacks, already wired to this screen's window. */
-    val windowActions: DateWindowActions get() = holder.actions
-
-    init {
-        val windowed: Flow<WindowedTransactions> = holder.window.flatMapLatest { window ->
-            transactions.observeBetween(window.range).map { WindowedTransactions(window, it) }
-        }
+    /**
+     * The sections are built inside the combine, upstream of [flowOn], so the building happens on
+     * [defaultDispatcher]; only the finished state is handed back. Before the first emission the state
+     * is loading on the saved window, so the date bar shows the right dates from the start.
+     */
+    val state: StateFlow<TransactionsUiState> =
         combine(
             windowed,
             accounts.observeAll(),
@@ -153,13 +160,26 @@ class TransactionsListViewModel @Inject constructor(
             currencies.observeAll(),
             currentDay,
         ) { read, accountList, categoryList, currencyList, day ->
-            read.window to buildSections(read.transactions, Lookups(accountList, categoryList, currencyList), day)
+            val lookups = Lookups(
+                accountsById = accountList.associateBy { it.id },
+                categoriesById = categoryList.associateBy { it.id },
+                currencies = currencyList,
+            )
+            TransactionsUiState(
+                sections = buildSections(read.transactions, lookups, day),
+                isLoading = false,
+                window = read.window,
+            )
         }
-            .onEach { (window, sections) ->
-                _state.update { it.copy(sections = sections, window = window, isLoading = false) }
-            }
-            .launchIn(viewModelScope)
-    }
+            .flowOn(defaultDispatcher)
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+                TransactionsUiState(window = holder.window.value),
+            )
+
+    /** The date bar's callbacks, already wired to this screen's window. */
+    val windowActions: DateWindowActions get() = holder.actions
 
     /**
      * The screen is back in view. A window that was following today moves along with it, and the
@@ -181,7 +201,7 @@ class TransactionsListViewModel @Inject constructor(
     ): List<TransactionSection> =
         transactions
             .sortedWith(compareByDescending<Transaction> { it.date }.thenByDescending { it.id })
-            .map { it.toRow(lookups.accounts, lookups.categories, lookups.currencies) }
+            .map { it.toRow(lookups) }
             .groupBy { it.date }
             .map { (date, rows) -> TransactionSection(date, date.relationTo(day), rows) }
 
@@ -195,12 +215,11 @@ class TransactionsListViewModel @Inject constructor(
         else -> DayRelation.EARLIER
     }
 
-    private fun Transaction.toRow(
-        accounts: List<Account>,
-        categories: List<Category>,
-        currencies: List<Currency>,
-    ): TransactionRow =
-        when (this) { // exhaustive over the sealed Transaction — no `else`
+    private fun Transaction.toRow(lookups: Lookups): TransactionRow {
+        val accounts = lookups.accountsById
+        val categories = lookups.categoriesById
+        val currencies = lookups.currencies
+        return when (this) { // exhaustive over the sealed Transaction — no `else`
             is Transaction.Income -> TransactionRow(
                 id = id, date = date, type = TransactionRowType.INCOME,
                 accountName = accountName(accountId, accounts),
@@ -232,23 +251,28 @@ class TransactionsListViewModel @Inject constructor(
                 note = note,
             )
         }
+    }
 
     // A deleted/unknown id degrades to a gap instead of crashing the whole list (defensive read).
     // Nothing here decides what a gap looks like — that would be copy, and copy lives in the UI.
-    private fun accountName(id: Long, accounts: List<Account>): String? =
-        accounts.firstOrNull { it.id == id }?.name
+    private fun accountName(id: Long, accounts: Map<Long, Account>): String? = accounts[id]?.name
 
-    private fun categoryLabel(id: Long, categories: List<Category>): CategoryLabel =
-        categories.firstOrNull { it.id == id }?.label() ?: CategoryLabel.Unknown
+    private fun categoryLabel(id: Long, categories: Map<Long, Category>): CategoryLabel =
+        categories[id]?.label() ?: CategoryLabel.Unknown
 
-    /** The names and currencies the rows are dressed in; the same for every window. */
+    /**
+     * The names and currencies the rows are dressed in; the same for every window. Accounts and
+     * categories are keyed by id once per emission, so resolving a row is a map lookup rather than a
+     * scan of the whole list for every row.
+     */
     private data class Lookups(
-        val accounts: List<Account>,
-        val categories: List<Category>,
+        val accountsById: Map<Long, Account>,
+        val categoriesById: Map<Long, Category>,
         val currencies: List<Currency>,
     )
 
     private companion object {
+        private const val STOP_TIMEOUT_MS = 5_000L
         private const val WINDOW_KEY = "transactions.window"
     }
 }

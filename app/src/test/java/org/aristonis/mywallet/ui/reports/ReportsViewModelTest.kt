@@ -1,12 +1,16 @@
 package org.aristonis.mywallet.ui.reports
 
 import androidx.lifecycle.SavedStateHandle
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -15,6 +19,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.ThreadRecordingList
+import org.aristonis.mywallet.namedWorkThread
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -31,7 +37,6 @@ import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
-import org.aristonis.mywallet.domain.usecase.ComputePeriodSummary
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -68,19 +73,20 @@ class ReportsViewModelTest {
         rateRepo: RateRepository = FakeRateRepository(emptyList()),
         base: String = "USD",
         savedState: SavedStateHandle = SavedStateHandle(),
+        txRepo: FakeTransactionRepository = FakeTransactionRepository(transactions),
+        work: CoroutineDispatcher = dispatcher,
     ): ReportsViewModel {
-        val txRepo = FakeTransactionRepository(transactions)
         val currencyRepo = FakeCurrencyRepository(currencies)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         val categoryRepo = FakeCategoryRepository(categories)
         return ReportsViewModel(
-            computePeriodSummary = ComputePeriodSummary(txRepo, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             computeCategoryBreakdown = ComputeCategoryBreakdown(txRepo, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             categories = categoryRepo,
             currencies = currencyRepo,
             moneyFormatter = moneyFormatter,
             today = TodayProvider { now },
             savedStateHandle = savedState,
+            defaultDispatcher = work,
         )
     }
 
@@ -382,7 +388,42 @@ class ReportsViewModelTest {
         assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 2)), vm.state.value.window)
         assertEquals("40.00 USD", ready(vm.state.value).incomeDisplay)
     }
+
+    @Test
+    fun oneWindowReadsItsTransactionsOnce() = runTest {
+        val repo = FakeTransactionRepository(listOf(expense(usd("5"), category = 2, date = LocalDate.of(2026, 7, 3))))
+        val vm = buildVm(transactions = emptyList(), txRepo = repo)
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        // Totals and category lists come from the same read, so they can never disagree.
+        assertEquals(1, repo.readsOpened)
+        assertEquals("5.00 USD", ready(vm.state.value).expenseDisplay)
+    }
+
+    @Test
+    fun computesOnTheWorkDispatcher() = runTest {
+        val work = namedWorkThread(WORK_THREAD)
+        try {
+            // Converting and formatting both walk the currencies, so whoever walks them computed the report.
+            val reportData = ThreadRecordingList(usdEur)
+            val vm = buildVm(
+                transactions = listOf(expense(usd("5"), category = 2, date = LocalDate.of(2026, 7, 3))),
+                currencies = reportData,
+                work = work.asCoroutineDispatcher(),
+            )
+
+            val ready = vm.state.first { it.data is ReportsData.Ready }
+
+            assertEquals("5.00 USD", ready(ready).expenseDisplay)
+            assertEquals(setOf(WORK_THREAD), reportData.threads)
+        } finally {
+            work.shutdown()
+        }
+    }
 }
+
+private const val WORK_THREAD = "work-test"
 
 // --- Minimal in-memory ports (domain fakes live in :domain's test source set). ---
 
@@ -390,7 +431,12 @@ private class FakeTransactionRepository(initial: List<Transaction>) : Transactio
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Transaction>> = items
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        items.map { all -> all.filter { it.date in range } }
+        items.map { all -> all.filter { it.date in range } }.onStart { readsOpened++ }
+
+    /** How many ranged reads were ever started; each one re-runs on every write. */
+    var readsOpened = 0
+        private set
+
     override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
     override suspend fun add(transaction: Transaction): Long = 1
     override suspend fun update(transaction: Transaction) { items.value = items.value.map { if (it.id == transaction.id) transaction else it } }

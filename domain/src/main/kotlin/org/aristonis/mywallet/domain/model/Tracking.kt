@@ -49,5 +49,27 @@ data class SubCategoryTotal(val subCategoryId: Long?, val total: Money)
  */
 data class CategoryTotal(val categoryId: Long, val total: Money, val subCategories: List<SubCategoryTotal>)
 
-/** Income and expense category totals within a range, each list biggest total first. */
-data class CategoryBreakdown(val income: List<CategoryTotal>, val expense: List<CategoryTotal>)
+/**
+ * Income and expense category totals within a range, each list biggest total first, all in
+ * [baseCurrencyCode]. The base currency is carried so an empty side still has a currency to be zero in.
+ */
+data class CategoryBreakdown(
+    val income: List<CategoryTotal>,
+    val expense: List<CategoryTotal>,
+    val baseCurrencyCode: String,
+) {
+    /**
+     * The period's income / expense / net. Derived from the category totals, which are already in the
+     * base currency, rather than converted again from the raw entries: the headline numbers then always
+     * equal the sum of the lists under them, with no second rounding to drift apart.
+     */
+    val summary: PeriodSummary
+        get() {
+            val incomeTotal = income.sumIn(baseCurrencyCode)
+            val expenseTotal = expense.sumIn(baseCurrencyCode)
+            return PeriodSummary(income = incomeTotal, expense = expenseTotal, net = incomeTotal - expenseTotal)
+        }
+
+    private fun List<CategoryTotal>.sumIn(currencyCode: String): Money =
+        fold(Money.zero(currencyCode)) { acc, category -> acc + category.total }
+}
