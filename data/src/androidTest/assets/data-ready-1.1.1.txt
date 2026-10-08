@@ -1,0 +1,4 @@
+home 1324
+transactions-all-time 892
+tracking-month 139
+tracking-all-time 1146
