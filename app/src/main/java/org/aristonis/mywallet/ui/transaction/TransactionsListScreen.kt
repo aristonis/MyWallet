@@ -26,6 +26,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.MoneyText
@@ -39,11 +41,21 @@ import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.theme.amountColor
+import org.aristonis.mywallet.ui.window.DateRangeAction
+import org.aristonis.mywallet.ui.window.DateWindowActions
+import org.aristonis.mywallet.ui.window.DateWindowBar
+import org.aristonis.mywallet.ui.window.RefreshOnStart
 import java.time.LocalDate
+
+/** Gap between the date bar and the screen edges, matching the rest of the screen's content. */
+private val SCREEN_PADDING = 16.dp
 
 /**
  * The history, newest first and grouped by day. Tapping a row opens it in the editor. This is a
  * top-level tab, so it has no back arrow — the navigation bar is how you leave it.
+ *
+ * Every return to the screen re-reads the date, so a list left open overnight relabels its days and
+ * a window following today moves along with it.
  */
 @Composable
 fun TransactionsListScreen(
@@ -52,21 +64,33 @@ fun TransactionsListScreen(
     viewModel: TransactionsListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    RefreshOnStart { viewModel.onScreenStart() }
     TransactionsListContent(
         state = state,
+        windowActions = viewModel.windowActions,
         onAddTransaction = onAddTransaction,
         onEditTransaction = onEditTransaction,
     )
 }
 
+/**
+ * The date bar stays fixed under the app bar while the days scroll beneath it, so narrowing or
+ * stepping the dates never means scrolling back to the top first.
+ */
 @Composable
-private fun TransactionsListContent(
+internal fun TransactionsListContent(
     state: TransactionsUiState,
+    windowActions: DateWindowActions,
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit,
 ) {
     Scaffold(
-        topBar = { WalletTopAppBar(title = stringResource(R.string.transactions_title)) },
+        topBar = {
+            WalletTopAppBar(
+                title = stringResource(R.string.transactions_title),
+                actions = { DateRangeAction(window = state.window, onSelectRange = windowActions.onSelectRange) },
+            )
+        },
         floatingActionButton = {
             // The same action as Home's, in the same place: recording a transaction is what the user
             // came here to do, whichever of the two lists they are looking at.
@@ -79,27 +103,34 @@ private fun TransactionsListContent(
             }
         },
     ) { innerPadding ->
-        when {
-            // Inline, under the app bar rather than instead of it, so the screen does not flicker
-            // between two different layouts on every refresh.
-            state.isLoading -> Column(
-                modifier = Modifier.padding(innerPadding).fillMaxSize().padding(16.dp),
-            ) {
-                CircularProgressIndicator()
-            }
-
-            state.sections.isEmpty() -> Column(
-                modifier = Modifier.padding(innerPadding).fillMaxSize().padding(16.dp),
-            ) {
-                EmptyState(message = stringResource(R.string.transactions_empty))
-            }
-
-            else -> TransactionDays(
-                sections = state.sections,
-                onEditTransaction = onEditTransaction,
-                modifier = Modifier.padding(innerPadding),
+        Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            DateWindowBar(
+                window = state.window,
+                actions = windowActions,
+                modifier = Modifier.padding(horizontal = SCREEN_PADDING),
             )
+            TransactionsBody(state = state, onEditTransaction = onEditTransaction)
         }
+    }
+}
+
+@Composable
+private fun TransactionsBody(state: TransactionsUiState, onEditTransaction: (Long) -> Unit) {
+    when {
+        // Inline, under the date bar rather than instead of it, so the screen does not flicker
+        // between two different layouts on every refresh.
+        state.isLoading -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
+            CircularProgressIndicator()
+        }
+
+        // An empty filter is not an empty wallet: inviting a first transaction while the user's
+        // history sits just outside the chosen dates would read as lost data.
+        state.sections.isEmpty() -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
+            val message = if (state.showsEverything) R.string.transactions_empty else R.string.transactions_empty_range
+            EmptyState(message = stringResource(message))
+        }
+
+        else -> TransactionDays(sections = state.sections, onEditTransaction = onEditTransaction)
     }
 }
 
@@ -232,6 +263,7 @@ private fun TransactionsListPreview() {
         TransactionsListContent(
             state = TransactionsUiState(
                 isLoading = false,
+                window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 26)),
                 sections = listOf(
                     TransactionSection(
                         date = LocalDate.of(2026, 8, 26),
@@ -267,6 +299,7 @@ private fun TransactionsListPreview() {
                     ),
                 ),
             ),
+            windowActions = DateWindowActions.None,
             onAddTransaction = {},
             onEditTransaction = {},
         )

@@ -1,13 +1,18 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import org.aristonis.mywallet.data.format.MoneyFormatter
@@ -15,6 +20,8 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.TrackingPeriod
+import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
@@ -22,6 +29,8 @@ import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.ui.format.display
+import org.aristonis.mywallet.ui.window.DateWindowActions
+import org.aristonis.mywallet.ui.window.TrackingWindowHolder
 import java.time.LocalDate
 import javax.inject.Inject
 import org.aristonis.mywallet.ui.CategoryLabel
@@ -63,21 +72,45 @@ data class TransactionSection(
     val rows: List<TransactionRow>,
 )
 
+/**
+ * Everything, before the view-model has said otherwise. All time ignores its anchor, so the day it is
+ * pinned to here never reaches the screen.
+ */
+private val EVERYTHING: TrackingWindow = TrackingWindow.Period(TrackingPeriod.ALL_TIME, LocalDate.MIN)
+
 /** Immutable snapshot the transactions list renders from. */
 data class TransactionsUiState(
     val sections: List<TransactionSection> = emptyList(),
     val isLoading: Boolean = true,
+    /** The dates the list is narrowed to; the [sections] always belong to this window. */
+    val window: TrackingWindow = EVERYTHING,
 ) {
     /** Every row, newest first, ignoring day boundaries. Derived so the two can never disagree. */
     val rows: List<TransactionRow> get() = sections.flatMap { it.rows }
+
+    /**
+     * Whether the list is unfiltered. An empty list means "nothing recorded yet" only then; under a
+     * narrower window it means "nothing in these dates", and the screen must not confuse the two.
+     */
+    val showsEverything: Boolean
+        get() = (window as? TrackingWindow.Period)?.period == TrackingPeriod.ALL_TIME
 }
 
+/** The transactions of one window, kept with the window they were read for. */
+private data class WindowedTransactions(val window: TrackingWindow, val transactions: List<Transaction>)
+
 /**
- * The transactions history. A 3-way `combine` joins the transactions stream with the accounts and
- * categories streams so every id becomes a name; it re-emits whenever any of the three change (record
- * a transaction, rename an account) and the list refreshes itself. Newest-first is enforced here so it
+ * The transactions history. The window's transactions are joined with the accounts, categories and
+ * currencies streams so every id becomes a name; it re-emits whenever any of them change (record a
+ * transaction, rename an account) and the list refreshes itself. Newest-first is enforced here so it
  * holds regardless of what order the repository returns.
+ *
+ * The window opens on all time, so the history reads as it always has until the user narrows it.
+ * [TrackingWindowHolder] owns it and saves it, so a recreated screen keeps the dates it was showing.
+ * Only the transactions depend on the dates: the lookups sit outside the window switch, so moving
+ * through months keeps one subscription to each instead of reopening them on every tap.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class TransactionsListViewModel @Inject constructor(
     transactions: TransactionRepository,
@@ -86,22 +119,55 @@ class TransactionsListViewModel @Inject constructor(
     currencies: CurrencyRepository,
     private val moneyFormatter: MoneyFormatter,
     private val today: TodayProvider,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(TransactionsUiState())
+    private val holder = TrackingWindowHolder(
+        savedState = savedStateHandle,
+        key = WINDOW_KEY,
+        today = today,
+        defaultWindow = { TrackingWindow.Period(TrackingPeriod.ALL_TIME, it) },
+    )
+
+    /**
+     * The day "Today" and "Yesterday" are measured against. It is a stream rather than a read inside
+     * the section building because all time never moves when the day changes: without it, a list
+     * left open overnight would keep calling yesterday "Today".
+     */
+    private val currentDay = MutableStateFlow(today.today())
+
+    private val _state = MutableStateFlow(TransactionsUiState(window = holder.window.value))
     val state: StateFlow<TransactionsUiState> = _state.asStateFlow()
 
+    /** The date bar's callbacks, already wired to this screen's window. */
+    val windowActions: DateWindowActions get() = holder.actions
+
     init {
+        val windowed: Flow<WindowedTransactions> = holder.window.flatMapLatest { window ->
+            transactions.observeBetween(window.range).map { WindowedTransactions(window, it) }
+        }
         combine(
-            transactions.observeAll(),
+            windowed,
             accounts.observeAll(),
             categories.observeAll(),
             currencies.observeAll(),
-        ) { transactionList, accountList, categoryList, currencyList ->
-            buildSections(transactionList, accountList, categoryList, currencyList)
+            currentDay,
+        ) { read, accountList, categoryList, currencyList, day ->
+            read.window to buildSections(read.transactions, Lookups(accountList, categoryList, currencyList), day)
         }
-            .onEach { sections -> _state.update { it.copy(sections = sections, isLoading = false) } }
+            .onEach { (window, sections) ->
+                _state.update { it.copy(sections = sections, window = window, isLoading = false) }
+            }
             .launchIn(viewModelScope)
+    }
+
+    /**
+     * The screen is back in view. A window that was following today moves along with it, and the
+     * day labels are measured against the new date even when the window itself stays put.
+     */
+    fun onScreenStart() {
+        holder.refreshToday()
+        currentDay.value = today.today()
     }
 
     /**
@@ -110,25 +176,22 @@ class TransactionsListViewModel @Inject constructor(
      */
     private fun buildSections(
         transactions: List<Transaction>,
-        accounts: List<Account>,
-        categories: List<Category>,
-        currencies: List<Currency>,
-    ): List<TransactionSection> {
-        val currentDay = today.today()
-        return transactions
+        lookups: Lookups,
+        day: LocalDate,
+    ): List<TransactionSection> =
+        transactions
             .sortedWith(compareByDescending<Transaction> { it.date }.thenByDescending { it.id })
-            .map { it.toRow(accounts, categories, currencies) }
+            .map { it.toRow(lookups.accounts, lookups.categories, lookups.currencies) }
             .groupBy { it.date }
-            .map { (date, rows) -> TransactionSection(date, date.relationTo(currentDay), rows) }
-    }
+            .map { (date, rows) -> TransactionSection(date, date.relationTo(day), rows) }
 
     /**
      * A date after today stays [DayRelation.EARLIER]: a transaction can be recorded ahead of time,
      * and calling a future day "today" would misdate it on screen.
      */
-    private fun LocalDate.relationTo(currentDay: LocalDate): DayRelation = when (this) {
-        currentDay -> DayRelation.TODAY
-        currentDay.minusDays(1) -> DayRelation.YESTERDAY
+    private fun LocalDate.relationTo(day: LocalDate): DayRelation = when (this) {
+        day -> DayRelation.TODAY
+        day.minusDays(1) -> DayRelation.YESTERDAY
         else -> DayRelation.EARLIER
     }
 
@@ -177,4 +240,15 @@ class TransactionsListViewModel @Inject constructor(
 
     private fun categoryLabel(id: Long, categories: List<Category>): CategoryLabel =
         categories.firstOrNull { it.id == id }?.label() ?: CategoryLabel.Unknown
+
+    /** The names and currencies the rows are dressed in; the same for every window. */
+    private data class Lookups(
+        val accounts: List<Account>,
+        val categories: List<Category>,
+        val currencies: List<Currency>,
+    )
+
+    private companion object {
+        private const val WINDOW_KEY = "transactions.window"
+    }
 }

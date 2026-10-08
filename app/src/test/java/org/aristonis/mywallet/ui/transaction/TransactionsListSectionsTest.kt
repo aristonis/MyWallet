@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -51,6 +52,7 @@ class TransactionsListSectionsTest {
         currencies = FakeCurrencyRepository(currencies),
         moneyFormatter = MoneyFormatter(Locale.US),
         today = { today },
+        savedStateHandle = SavedStateHandle(),
     )
 
     @Test

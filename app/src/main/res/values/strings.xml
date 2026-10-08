@@ -88,6 +88,7 @@
     <!-- Transactions list -->
     <string name="transactions_title">Transactions</string>
     <string name="transactions_empty">No transactions yet. Add your first transaction.</string>
+    <string name="transactions_empty_range">Nothing in this range.</string>
     <!-- Day headers. Today keeps its date; yesterday does not need one. -->
     <string name="date_today">Today · %1$s</string>
     <string name="date_yesterday">Yesterday</string>
