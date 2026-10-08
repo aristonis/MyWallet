@@ -11,9 +11,15 @@ android {
     namespace = "org.aristonis.mywallet.data"
 
     // MigrationTestHelper builds the starting database from these exported schemas.
+    // sharedTest holds test data used by both the JVM tests and the on-device tests, so the
+    // database upgrade and the old-backup converter are checked against the same rows.
     sourceSets {
+        getByName("test") {
+            kotlin.srcDir("src/sharedTest/kotlin")
+        }
         getByName("androidTest") {
             assets.srcDir(layout.projectDirectory.dir("schemas"))
+            kotlin.srcDir("src/sharedTest/kotlin")
         }
     }
     compileSdk = 37
