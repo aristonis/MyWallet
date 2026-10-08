@@ -52,7 +52,7 @@ class PeriodSelectorTest {
                 ) {
                     DateWindowBar(
                         window = TrackingWindow.Period(selected, LocalDate.of(2026, 7, 15)),
-                        actions = DateWindowActions(onSelectPeriod = onSelectPeriod),
+                        actions = DateWindowActions.None.copy(onSelectPeriod = onSelectPeriod),
                     )
                 }
             }

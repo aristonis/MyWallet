@@ -40,7 +40,7 @@ class DateWindowBarTest {
 
     private fun show(
         window: TrackingWindow,
-        actions: DateWindowActions = DateWindowActions(),
+        actions: DateWindowActions = DateWindowActions.None,
         direction: LayoutDirection = LayoutDirection.Ltr,
         fontScale: Float = 1f,
     ) {
@@ -69,7 +69,7 @@ class DateWindowBarTest {
     @Test
     fun arrowsStepTheWindow() {
         val steps = mutableListOf<Long>()
-        show(august, DateWindowActions(onStep = { steps += it }))
+        show(august, DateWindowActions.None.copy(onStep = { steps += it }))
 
         compose.onNodeWithContentDescription("Previous period").performClick()
         compose.onNodeWithContentDescription("Next period").performClick()
@@ -89,7 +89,7 @@ class DateWindowBarTest {
     fun aCustomRangeHasNoArrowsAndCanBeCleared() {
         var cleared = false
         val custom = TrackingWindow.Custom(DateRange(LocalDate.of(2026, 8, 3), LocalDate.of(2026, 8, 17)))
-        show(custom, DateWindowActions(onClearRange = { cleared = true }))
+        show(custom, DateWindowActions.None.copy(onClearRange = { cleared = true }))
 
         compose.onNodeWithContentDescription("Previous period").assertDoesNotExist()
         compose.onNodeWithContentDescription("Clear date range").performClick()

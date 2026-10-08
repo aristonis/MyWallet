@@ -6,19 +6,16 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.updateAndGet
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryTotal
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.SubCategoryTotal
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
@@ -31,8 +28,8 @@ import org.aristonis.mywallet.domain.usecase.PeriodSummaryResult
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.label
-import org.aristonis.mywallet.ui.window.readWindow
-import org.aristonis.mywallet.ui.window.writeWindow
+import org.aristonis.mywallet.ui.window.DateWindowActions
+import org.aristonis.mywallet.ui.window.TrackingWindowHolder
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -83,9 +80,9 @@ data class ReportsUiState(
 /**
  * Tracking: income / expense / net and both by-category breakdowns over a [TrackingWindow].
  *
- * The window is the single input. Every action produces a new one, it is written to the saved state
- * so a recreated screen shows the same dates, and its range re-drives both use cases through
- * [flatMapLatest]. Categories and currencies are joined in so a rename or a new rate refreshes the
+ * The window is the single input. [TrackingWindowHolder] owns it, saves it so a recreated screen
+ * shows the same dates, and keeps a current month current across midnight; its range re-drives both
+ * use cases through [flatMapLatest]. Categories and currencies are joined in so a rename or a new rate refreshes the
  * report without the user touching anything. They do not depend on the dates, so they are joined
  * outside the window switch: stepping through months keeps one subscription to each instead of
  * reopening both on every tap.
@@ -98,15 +95,21 @@ class ReportsViewModel @Inject constructor(
     categories: CategoryRepository,
     currencies: CurrencyRepository,
     private val moneyFormatter: MoneyFormatter,
-    private val today: TodayProvider,
-    private val savedStateHandle: SavedStateHandle,
+    today: TodayProvider,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val window = MutableStateFlow(
-        savedStateHandle.readWindow(WINDOW_KEY) ?: TrackingWindow.Period(TrackingPeriod.MONTH, today.today()),
+    private val holder = TrackingWindowHolder(
+        savedState = savedStateHandle,
+        key = WINDOW_KEY,
+        today = today,
+        defaultWindow = { TrackingWindow.Period(TrackingPeriod.MONTH, it) },
     )
 
-    private val windowResults: Flow<WindowResults> = window.flatMapLatest { current ->
+    /** The date bar's callbacks, already wired to this screen's window. */
+    val windowActions: DateWindowActions get() = holder.actions
+
+    private val windowResults: Flow<WindowResults> = holder.window.flatMapLatest { current ->
         combine(computePeriodSummary(current.range), computeCategoryBreakdown(current.range)) { summary, breakdown ->
             WindowResults(current, summary, breakdown)
         }
@@ -120,35 +123,29 @@ class ReportsViewModel @Inject constructor(
         }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-            ReportsUiState(window = window.value),
+            ReportsUiState(window = holder.window.value),
         )
 
     /** Switches period, keeping today in view when the current window holds it. */
-    fun selectPeriod(newPeriod: TrackingPeriod) = update { it.withPeriod(newPeriod, today.today()) }
+    fun selectPeriod(newPeriod: TrackingPeriod) = holder.selectPeriod(newPeriod)
 
     /** Moves to a neighbouring period; a custom range has none, so this leaves it alone. */
-    fun step(steps: Long) = update { it.stepped(steps) }
+    fun step(steps: Long) = holder.step(steps)
 
     /** Shows the period that holds [anchor]. Leaving a custom range lands on its month. */
-    fun jumpTo(anchor: LocalDate) = update { current ->
-        val period = (current as? TrackingWindow.Period)?.period ?: TrackingPeriod.MONTH
-        TrackingWindow.Period(period, anchor)
-    }
+    fun jumpTo(anchor: LocalDate) = holder.jumpTo(anchor)
 
-    /**
-     * Covers exactly the days between [first] and [second]. A range picker reports them in the order
-     * they were tapped, and a range must not start after it ends, so they are ordered here.
-     */
-    fun selectRange(first: LocalDate, second: LocalDate) = update {
-        TrackingWindow.Custom(DateRange(minOf(first, second), maxOf(first, second)))
-    }
+    /** Covers exactly the days between [first] and [second], in whichever order they were tapped. */
+    fun selectRange(first: LocalDate, second: LocalDate) = holder.selectRange(first, second)
 
     /** Leaves a custom range for the month the user is living in, the screen's starting point. */
-    fun clearRange() = update { TrackingWindow.Period(TrackingPeriod.MONTH, today.today()) }
+    fun clearRange() = holder.clearRange()
 
-    private fun update(transform: (TrackingWindow) -> TrackingWindow) {
-        savedStateHandle.writeWindow(WINDOW_KEY, window.updateAndGet(transform))
-    }
+    /**
+     * The screen is back in view. If it was showing the current month and the day has since moved
+     * into the next one, it moves along; a month the user picked stays put.
+     */
+    fun onScreenStart() = holder.refreshToday()
 
     private fun toData(results: WindowResults, lookup: Lookups): ReportsData {
         val summary = results.summary

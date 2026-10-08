@@ -45,16 +45,28 @@ private val BAR_SPACING = 8.dp
 private val MIN_TOUCH_TARGET = 48.dp
 
 /**
- * Everything the date bar can ask of its screen. Defaults do nothing so a test or a preview can
- * supply only the callbacks it cares about.
+ * Everything the date bar can ask of its screen. Every callback is required, so a screen that forgets
+ * one fails to compile instead of shipping a button that silently does nothing. Tests and previews
+ * start from [None] and `copy` in only the callbacks they care about.
  */
 data class DateWindowActions(
-    val onSelectPeriod: (TrackingPeriod) -> Unit = {},
-    val onStep: (Long) -> Unit = {},
-    val onJumpTo: (LocalDate) -> Unit = {},
-    val onSelectRange: (LocalDate, LocalDate) -> Unit = { _, _ -> },
-    val onClearRange: () -> Unit = {},
-)
+    val onSelectPeriod: (TrackingPeriod) -> Unit,
+    val onStep: (Long) -> Unit,
+    val onJumpTo: (LocalDate) -> Unit,
+    val onSelectRange: (LocalDate, LocalDate) -> Unit,
+    val onClearRange: () -> Unit,
+) {
+    companion object {
+        /** Ignores every request; for previews and tests, never for a real screen. */
+        val None = DateWindowActions(
+            onSelectPeriod = {},
+            onStep = {},
+            onJumpTo = {},
+            onSelectRange = { _, _ -> },
+            onClearRange = {},
+        )
+    }
+}
 
 /**
  * Which dates a screen covers, and the ways to change them: the period kind, then the period itself

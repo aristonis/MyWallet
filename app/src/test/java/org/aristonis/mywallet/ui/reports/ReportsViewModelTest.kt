@@ -59,6 +59,8 @@ class ReportsViewModelTest {
 
     private val usdEur = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2))
 
+    private var now = julRef
+
     private fun buildVm(
         transactions: List<Transaction>,
         categories: List<Category> = emptyList(),
@@ -77,7 +79,7 @@ class ReportsViewModelTest {
             categories = categoryRepo,
             currencies = currencyRepo,
             moneyFormatter = moneyFormatter,
-            today = TodayProvider { julRef },
+            today = TodayProvider { now },
             savedStateHandle = savedState,
         )
     }
@@ -365,6 +367,20 @@ class ReportsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 5, 20)), vm.state.value.window)
+    }
+
+    @Test
+    fun theCurrentMonthFollowsTodayWhenTheScreenComesBack() = runTest {
+        val vm = buildVm(transactions = listOf(income(usd("40"), category = 1, date = LocalDate.of(2026, 8, 3))))
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        now = LocalDate.of(2026, 8, 2)
+        vm.onScreenStart()
+        advanceUntilIdle()
+
+        assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 2)), vm.state.value.window)
+        assertEquals("40.00 USD", ready(vm.state.value).incomeDisplay)
     }
 }
 

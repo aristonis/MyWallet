@@ -77,7 +77,7 @@ class ReportsCategoriesTest {
                             expenseCategories = listOf(food, transport),
                         ),
                     ),
-                    windowActions = DateWindowActions(),
+                    windowActions = DateWindowActions.None,
                 )
             }
         }

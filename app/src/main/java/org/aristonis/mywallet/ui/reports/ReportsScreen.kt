@@ -29,6 +29,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.TrackingPeriod
@@ -50,20 +52,17 @@ private val SCREEN_PADDING = 16.dp
 private val REGION_SPACING = 16.dp
 private val LINE_SPACING = 8.dp
 
-/** Tracking: income / expense / net and both by-category breakdowns over a chosen span. Read-only. */
+/**
+ * Tracking: income / expense / net and both by-category breakdowns over a chosen span. Read-only.
+ *
+ * Every return to the screen, from another tab or from the background, gives the view-model a
+ * chance to notice that midnight has passed, so "this month" never quietly turns into last month.
+ */
 @Composable
 fun ReportsScreen(viewModel: ReportsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    ReportsContent(
-        state = state,
-        windowActions = DateWindowActions(
-            onSelectPeriod = viewModel::selectPeriod,
-            onStep = viewModel::step,
-            onJumpTo = viewModel::jumpTo,
-            onSelectRange = viewModel::selectRange,
-            onClearRange = viewModel::clearRange,
-        ),
-    )
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onScreenStart() }
+    ReportsContent(state = state, windowActions = viewModel.windowActions)
 }
 
 /**
@@ -213,7 +212,7 @@ private fun ReportsPreview() {
                     ),
                 ),
             ),
-            windowActions = DateWindowActions(),
+            windowActions = DateWindowActions.None,
         )
     }
 }

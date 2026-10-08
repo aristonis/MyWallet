@@ -219,7 +219,7 @@ class BoundedListLayoutTest {
                         expenseCategories = categories,
                     ),
                 ),
-                windowActions = DateWindowActions(),
+                windowActions = DateWindowActions.None,
             )
         }
 
