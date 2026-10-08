@@ -87,6 +87,7 @@ class BoundedListLayoutTest {
         show {
             HomeContent(
                 state = HomeUiState(
+                    isLoading = false,
                     netWorth = NetWorthState.Amount("465.00 USD"),
                     accounts = accounts,
                     baseCurrencyCode = "USD",
@@ -110,6 +111,7 @@ class BoundedListLayoutTest {
         show {
             HomeContent(
                 state = HomeUiState(
+                    isLoading = false,
                     netWorth = NetWorthState.Amount("465.00 USD"),
                     accounts = (1..rowCount).map { index ->
                         AccountRow(

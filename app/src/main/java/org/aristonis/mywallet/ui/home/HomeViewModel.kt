@@ -48,6 +48,11 @@ data class HomeUiState(
     val netWorth: NetWorthState = NetWorthState.Loading,
     val accounts: List<AccountRow> = emptyList(),
     val baseCurrencyCode: String? = null,
+    /**
+     * True until the first read arrives. Without it, the empty initial list is indistinguishable
+     * from a wallet with no accounts, and a slow start flashes the "needs an account" prompt.
+     */
+    val isLoading: Boolean = true,
 )
 
 /**
@@ -78,6 +83,7 @@ class HomeViewModel @Inject constructor(
                 // they stay reachable + unarchivable on the Manage Accounts screen.
                 accounts = accounts.filterNot { it.account.archived }.map { it.toRow(currencyList) },
                 baseCurrencyCode = currentSettings.baseCurrencyCode,
+                isLoading = false,
             )
         }
             // Balances are summed over the whole history and converted again on every write; that

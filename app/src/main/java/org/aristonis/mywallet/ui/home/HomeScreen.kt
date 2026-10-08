@@ -110,7 +110,9 @@ internal fun HomeContent(
                     }
                 }
             }
-            if (state.accounts.isEmpty()) {
+            // Before the first read an empty list means "unknown", not "no accounts", so no prompt yet.
+            // The net-worth figure above already shows the screen is loading; one spinner is enough.
+            if (!state.isLoading && state.accounts.isEmpty()) {
                 item(key = "accounts-empty") {
                     EmptyState(
                         message = stringResource(R.string.home_no_accounts),

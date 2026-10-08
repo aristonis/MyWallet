@@ -35,6 +35,8 @@ import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
@@ -189,6 +191,29 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(NetWorthState.Amount("55.00 USD"), vm.state.value.netWorth)
+    }
+
+    @Test
+    fun startsLoadingNotEmpty() = runTest {
+        val vm = buildVm(accounts = listOf(account("USD", "100")), currencies = listOf(Currency("USD", "$", 2)))
+
+        // Nothing has been read yet: Home must not claim the wallet has no accounts.
+        assertTrue(vm.state.value.isLoading)
+
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertFalse(vm.state.value.isLoading)
+        assertEquals(1, vm.state.value.accounts.size)
+    }
+
+    @Test
+    fun aWalletWithNoAccountsStopsLoadingAndIsEmpty() = runTest {
+        val vm = buildVm(accounts = emptyList(), currencies = listOf(Currency("USD", "$", 2)))
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.isLoading)
+        assertTrue(vm.state.value.accounts.isEmpty())
     }
 
     @Test
