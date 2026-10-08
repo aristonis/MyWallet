@@ -3,7 +3,6 @@ package org.aristonis.mywallet.ui.home
 import org.aristonis.mywallet.namedWorkThread
 import org.aristonis.mywallet.ThreadRecordingList
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -224,18 +223,14 @@ class HomeViewModelTest {
     @Test
     fun buildsOnTheWorkDispatcher() = runTest {
         val work = namedWorkThread(WORK_THREAD)
-        try {
-            // Balances are converted and formatted against the currencies, so whoever walks them built Home.
-            val homeData = ThreadRecordingList(listOf(Currency("USD", "$", 2)))
-            val vm = buildVm(accounts = listOf(account("USD", "100")), currencies = homeData, work = work.asCoroutineDispatcher())
+        // Balances are converted and formatted against the currencies, so whoever walks them built Home.
+        val homeData = ThreadRecordingList(listOf(Currency("USD", "$", 2)))
+        val vm = buildVm(accounts = listOf(account("USD", "100")), currencies = homeData, work = work)
 
-            val built = vm.state.first { it.accounts.isNotEmpty() }
+        val built = vm.state.first { it.accounts.isNotEmpty() }
 
-            assertEquals(1, built.accounts.size)
-            assertEquals(setOf(WORK_THREAD), homeData.threads)
-        } finally {
-            work.shutdown()
-        }
+        assertEquals(1, built.accounts.size)
+        assertEquals(setOf(WORK_THREAD), homeData.threads)
     }
 
     @Test

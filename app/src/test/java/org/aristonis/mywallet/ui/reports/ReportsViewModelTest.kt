@@ -5,7 +5,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
@@ -404,22 +403,18 @@ class ReportsViewModelTest {
     @Test
     fun computesOnTheWorkDispatcher() = runTest {
         val work = namedWorkThread(WORK_THREAD)
-        try {
-            // Converting and formatting both walk the currencies, so whoever walks them computed the report.
-            val reportData = ThreadRecordingList(usdEur)
-            val vm = buildVm(
-                transactions = listOf(expense(usd("5"), category = 2, date = LocalDate.of(2026, 7, 3))),
-                currencies = reportData,
-                work = work.asCoroutineDispatcher(),
-            )
+        // Converting and formatting both walk the currencies, so whoever walks them computed the report.
+        val reportData = ThreadRecordingList(usdEur)
+        val vm = buildVm(
+            transactions = listOf(expense(usd("5"), category = 2, date = LocalDate.of(2026, 7, 3))),
+            currencies = reportData,
+            work = work,
+        )
 
-            val ready = vm.state.first { it.data is ReportsData.Ready }
+        val ready = vm.state.first { it.data is ReportsData.Ready }
 
-            assertEquals("5.00 USD", ready(ready).expenseDisplay)
-            assertEquals(setOf(WORK_THREAD), reportData.threads)
-        } finally {
-            work.shutdown()
-        }
+        assertEquals("5.00 USD", ready(ready).expenseDisplay)
+        assertEquals(setOf(WORK_THREAD), reportData.threads)
     }
 }
 

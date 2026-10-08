@@ -9,7 +9,6 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.TestScope
@@ -260,30 +259,26 @@ class TransactionsListViewModelTest {
     @Test
     fun buildsTheListOnTheWorkDispatcher() = runTest {
         val work = namedWorkThread(WORK_THREAD)
-        try {
-            // Every amount is formatted against this list, so whoever walks it is building the rows.
-            val formattingData = ThreadRecordingList(currencies)
-            val viewModel = TransactionsListViewModel(
-                transactions = FakeTransactionRepository(
-                    listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
-                ),
-                accounts = FakeAccountRepository(listOf(cash)),
-                categories = FakeCategoryRepository(listOf(food)),
-                currencies = FakeCurrencyRepository(formattingData),
-                moneyFormatter = MoneyFormatter(Locale.US),
-                today = { LocalDate.of(2026, 8, 26) },
-                savedStateHandle = SavedStateHandle(),
-                defaultDispatcher = work.asCoroutineDispatcher(),
-                errors = RecordingErrorReporter(),
-            )
+        // Every amount is formatted against this list, so whoever walks it is building the rows.
+        val formattingData = ThreadRecordingList(currencies)
+        val viewModel = TransactionsListViewModel(
+            transactions = FakeTransactionRepository(
+                listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
+            ),
+            accounts = FakeAccountRepository(listOf(cash)),
+            categories = FakeCategoryRepository(listOf(food)),
+            currencies = FakeCurrencyRepository(formattingData),
+            moneyFormatter = MoneyFormatter(Locale.US),
+            today = { LocalDate.of(2026, 8, 26) },
+            savedStateHandle = SavedStateHandle(),
+            defaultDispatcher = work,
+            errors = RecordingErrorReporter(),
+        )
 
-            val built = viewModel.state.first { !it.isLoading }
+        val built = viewModel.state.first { !it.isLoading }
 
-            assertEquals(listOf(1L), built.rows.map { it.id })
-            assertEquals(setOf(WORK_THREAD), formattingData.threads)
-        } finally {
-            work.shutdown()
-        }
+        assertEquals(listOf(1L), built.rows.map { it.id })
+        assertEquals(setOf(WORK_THREAD), formattingData.threads)
     }
 
 

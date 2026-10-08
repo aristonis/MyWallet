@@ -1,7 +1,8 @@
 package org.aristonis.mywallet
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
@@ -22,6 +23,11 @@ class ThreadRecordingList<T>(private val inner: List<T>) : List<T> by inner {
     }
 }
 
-/** One named background thread standing in for the default dispatcher; shut it down after use. */
-fun namedWorkThread(name: String): ExecutorService =
-    Executors.newSingleThreadExecutor { runnable -> Thread(runnable, name).apply { isDaemon = true } }
+/**
+ * One named background thread standing in for the default dispatcher. Leave it running: a view model's
+ * sharing coroutine can still post its last clean-up to it after the test reads the state, and a
+ * shut-down executor rejects that task, failing whichever test runs next. It is a daemon thread, so it
+ * ends with the test run.
+ */
+fun namedWorkThread(name: String): CoroutineDispatcher =
+    Executors.newSingleThreadExecutor { runnable -> Thread(runnable, name).apply { isDaemon = true } }.asCoroutineDispatcher()
