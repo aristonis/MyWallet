@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.currency
 
+import org.aristonis.mywallet.ui.transaction.DirectTransactionRunner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -14,10 +15,12 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
+import org.aristonis.mywallet.domain.port.LegRateChange
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ChangeBaseCurrency
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -75,7 +78,11 @@ class ChangeBaseCurrencyViewModelTest {
         var applied: Pair<String, List<ExchangeRate>>? = null
             private set
 
-        override suspend fun rebase(newBaseCurrencyCode: String, rates: List<ExchangeRate>) {
+        override suspend fun rebase(
+            newBaseCurrencyCode: String,
+            rates: List<ExchangeRate>,
+            legRates: List<LegRateChange>,
+        ) {
             applied = newBaseCurrencyCode to rates
         }
     }
@@ -89,7 +96,8 @@ class ChangeBaseCurrencyViewModelTest {
             currencies = f.currencyRepo,
             rates = f.rateRepo,
             settings = f.settingsRepo,
-            changeBaseCurrency = ChangeBaseCurrency(f.currencyRepo, f.rateRepo, f.settingsRepo, f.baseRepo),
+            // No legs are stored here; how leg rates move is the use case's own test.
+            changeBaseCurrency = ChangeBaseCurrency(f.currencyRepo, f.rateRepo, f.settingsRepo, f.baseRepo, HealthLedger(), DirectTransactionRunner()),
             moneyParser = MoneyParser(Locale.US),
         )
         return vm to f

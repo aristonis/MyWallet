@@ -1,12 +1,10 @@
 package org.aristonis.mywallet.domain.usecase
 
-import kotlinx.coroutines.flow.first
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Money
-import org.aristonis.mywallet.domain.model.involvesAccount
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
 
 /**
  * Edits an existing account's name / type / currency in place (its id is preserved). The currency may
@@ -16,11 +14,14 @@ import org.aristonis.mywallet.domain.port.TransactionRepository
  * currency list. Because [Account.copy][org.aristonis.mywallet.domain.model.Account] carries the
  * untouched fields forward, `archived` and `sortOrder` survive the edit; name/type non-blank and the
  * opening-balance-currency match are enforced by the Account model's invariants.
+ *
+ * Whether the account has transactions is asked of the ledger (does any leg sit on it), and only
+ * when the currency actually changes: a rename never pays for it.
  */
 class UpdateAccount(
     private val currencies: CurrencyRepository,
     private val accounts: AccountRepository,
-    private val transactions: TransactionRepository,
+    private val ledger: LedgerQueries,
 ) {
     suspend operator fun invoke(
         id: Long,
@@ -31,8 +32,7 @@ class UpdateAccount(
     ) {
         val existing = accounts.findById(id) ?: throw WalletException.AccountNotFound(id)
         if (currencyCode != existing.currencyCode) {
-            val hasTransactions = transactions.observeAll().first().any { it.involvesAccount(id) }
-            if (hasTransactions) throw WalletException.AccountCurrencyLocked(id)
+            if (ledger.isAccountInUse(id)) throw WalletException.AccountCurrencyLocked(id)
             currencies.findByCode(currencyCode) ?: throw WalletException.CurrencyNotFound(currencyCode)
         }
         accounts.upsert(

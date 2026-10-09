@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.rates
 
+import org.aristonis.mywallet.ui.transaction.DirectTransactionRunner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -21,6 +22,7 @@ import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -63,7 +65,8 @@ class ManageRatesViewModelTest {
             currencies = currencyRepo,
             rates = rateRepo,
             settings = settingsRepo,
-            setExchangeRate = SetExchangeRate(currencyRepo, rateRepo),
+            // The ledger holds no legs here; filling legs that wait for a rate is the use case's own test.
+            setExchangeRate = SetExchangeRate(currencyRepo, rateRepo, HealthLedger(), DirectTransactionRunner(), settingsRepo),
             moneyParser = MoneyParser(Locale.US),
         )
     }

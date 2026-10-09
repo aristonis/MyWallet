@@ -8,7 +8,6 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
-import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
@@ -32,11 +31,10 @@ object LedgerUseCaseModule {
         accounts: AccountRepository,
         categories: CategoryRepository,
         entries: EntryRepository,
-        ledger: LedgerQueries,
         fx: FxRepository,
         settings: SettingsRepository,
         setExchangeRate: SetExchangeRate,
-    ): SaveEntry = SaveEntry(runner, accounts, categories, entries, ledger, fx, settings, setExchangeRate)
+    ): SaveEntry = SaveEntry(runner, accounts, categories, entries, fx, settings, setExchangeRate)
 
     @Provides @Singleton
     fun provideDeleteEntry(

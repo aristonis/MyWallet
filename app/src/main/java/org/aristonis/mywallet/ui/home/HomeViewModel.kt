@@ -22,6 +22,7 @@ import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.NetWorth
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.load.ReadAttempts
 import javax.inject.Inject
@@ -67,6 +68,10 @@ data class HomeUiState(
 /**
  * Home: total net worth (base currency, warns on a missing rate) + per-account native balances.
  *
+ * Balances are summed from leg projections, which never open a whole entry, so an entry of a kind
+ * the app cannot read would simply be left out of them. Home therefore also reads the ledger's
+ * health, and a failure there shows the cannot-be-read state instead of totals that miss a row.
+ *
  * A read that throws (a stored row that cannot be decoded) becomes a failed state instead of
  * crashing the app. The catch ends that attempt's reads; [retry] starts a fresh attempt, and so does
  * the next start of the screen (once the reads have stopped while it was hidden).
@@ -75,6 +80,7 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     getAccountBalancesInBase: GetAccountBalancesInBase,
     computeNetWorth: ComputeNetWorth,
+    observeLedgerHealth: ObserveLedgerHealth,
     currencies: CurrencyRepository,
     settings: SettingsRepository,
     private val moneyFormatter: MoneyFormatter,
@@ -93,7 +99,9 @@ class HomeViewModel @Inject constructor(
             computeNetWorth(),
             currencies.observeAll(),
             settings.observe(),
-        ) { accounts, netWorthResult, currencyList, currentSettings ->
+            // Emits while every entry can be read and fails the attempt the moment one cannot.
+            observeLedgerHealth(),
+        ) { accounts, netWorthResult, currencyList, currentSettings, _ ->
             HomeUiState(
                 netWorth = netWorthState(netWorthResult, currencyList),
                 // Archived accounts drop out of the active list (they're already out of net worth);

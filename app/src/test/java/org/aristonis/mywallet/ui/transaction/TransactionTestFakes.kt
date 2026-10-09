@@ -24,7 +24,6 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import kotlinx.coroutines.flow.combine
@@ -32,6 +31,7 @@ import kotlinx.coroutines.flow.flowOf
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.EntryKey
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.LegRate
@@ -73,60 +73,6 @@ internal class FakeCategoryRepository(initial: List<Category> = emptyList()) : C
 
     override suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int =
         error("the transaction screens do not delete categories")
-}
-
-internal class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : TransactionRepository {
-    private val items = MutableStateFlow(initial)
-    private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1
-
-    /** Everything currently persisted, for assertions. */
-    val added: List<Transaction> get() = items.value
-
-    override fun observeAll(): Flow<List<Transaction>> = items
-    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        flow<List<Transaction>> {
-            if (range == unreadableRange) throw IllegalStateException("a stored row could not be read")
-            if (failedReadsLeft > 0) {
-                failedReadsLeft--
-                throw IllegalStateException("a stored row could not be read")
-            }
-            if (hangsAfterFailures) awaitCancellation()
-            emitAll(items)
-        }
-            .map { all -> all.filter { it.date in range } }
-            .onStart { activeReads++; readsOpened++ }
-            .onCompletion { activeReads-- }
-
-    /** A read over exactly this range fails, as one over a row the app cannot decode would. */
-    var unreadableRange: DateRange? = null
-
-    /** The next this-many ranged reads fail, then reads serve again (a read that fails once). */
-    var failedReadsLeft = 0
-
-    /** Once the failing reads are used up, reads never answer: the state a retry is in while it reads. */
-    var hangsAfterFailures = false
-
-    /** Ranged reads someone is still collecting; zero once every screen has stopped watching. */
-    var activeReads = 0
-        private set
-
-    /** Ranged reads ever started; a restarted read counts again. */
-    var readsOpened = 0
-        private set
-
-    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
-    override suspend fun add(transaction: Transaction): Long {
-        items.value = items.value + transaction
-        return nextId++
-    }
-
-    override suspend fun update(transaction: Transaction) {
-        items.value = items.value.map { if (it.id == transaction.id) transaction else it }
-    }
-
-    override suspend fun delete(id: Long) {
-        items.value = items.value.filterNot { it.id == id }
-    }
 }
 
 internal class FakeCurrencyRepository(initial: List<Currency> = emptyList()) : CurrencyRepository {
@@ -209,9 +155,56 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
     var replaces = 0
         private set
 
-    override fun observeAll(): Flow<List<Transaction>> = items
+    /** One paged read as the screen asked for it. */
+    data class PageRead(val range: DateRange, val after: EntryKey?, val limit: Int)
+
+    /** Paged reads that were started, in order; a read counts when someone begins collecting it. */
+    val pageReads = mutableListOf<PageRead>()
+
+    /** Reads of the whole range at once (observeAll, or observeBetween over all time) that were started. */
+    var wholeHistoryReads = 0
+        private set
+
+    override fun observeAll(): Flow<List<Transaction>> = items.onStart { wholeHistoryReads++ }
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
         items.map { all -> all.filter { it.date in range } }
+            .onStart { if (range == DateRange.ALL_TIME) wholeHistoryReads++ }
+
+    /** A paged read over exactly this range fails, as one over a row the app cannot decode would. */
+    var unreadableRange: DateRange? = null
+
+    /** The next this-many paged reads fail, then reads serve again (a read that fails once). */
+    var failedReadsLeft = 0
+
+    /** Once the failing reads are used up, paged reads never answer: the state a retry is in while it reads. */
+    var hangsAfterFailures = false
+
+    /** Paged reads someone is still collecting; zero once every screen has stopped watching. */
+    var activeReads = 0
+        private set
+
+    /** Paged reads ever started; a restarted read counts again. */
+    var readsOpened = 0
+        private set
+
+    /** Newest first, strictly after [after], like the real keyset read; re-emits on every write. */
+    override fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>> =
+        flow<List<Transaction>> {
+            if (range == unreadableRange) throw IllegalStateException("a stored row could not be read")
+            if (failedReadsLeft > 0) {
+                failedReadsLeft--
+                throw IllegalStateException("a stored row could not be read")
+            }
+            if (hangsAfterFailures) awaitCancellation()
+            emitAll(items)
+        }.map { all ->
+            all.filter { it.date in range }
+                .sortedWith(compareByDescending<Transaction> { it.date }.thenByDescending { it.id })
+                .filter { after == null || it.date < after.date || (it.date == after.date && it.id < after.id) }
+                .take(limit)
+        }
+            .onStart { pageReads += PageRead(range, after, limit); activeReads++; readsOpened++ }
+            .onCompletion { activeReads-- }
 
     override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
 
@@ -247,7 +240,10 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
     }
 }
 
-/** Ledger projections the form tests never read; only the rate fill is recorded. */
+/**
+ * Ledger projections the form tests never read; only the rate fill is recorded. The save keeps typed
+ * rates through SetExchangeRate, which is wired to this same ledger, so its fills land here.
+ */
 internal class FakeLedgerQueries : LedgerQueries {
     /** Every (currency, rate) the save asked to fill into legs that had none. */
     val filledRates = mutableListOf<Pair<String, BigDecimal>>()
@@ -279,8 +275,8 @@ internal class EntryUseCases(
     private val runner = DirectTransactionRunner()
     val ledger = FakeLedgerQueries()
     val saveEntry = SaveEntry(
-        runner, accounts, categories, entries, ledger,
-        FakeFxRepository(currencies, rates, settings), settings, SetExchangeRate(currencies, rates),
+        runner, accounts, categories, entries,
+        FakeFxRepository(currencies, rates, settings), settings, SetExchangeRate(currencies, rates, ledger, runner, settings),
     )
     val deleteEntry = DeleteEntry(runner, entries)
     val restoreEntries = RestoreEntries(runner, entries, categories, accounts)

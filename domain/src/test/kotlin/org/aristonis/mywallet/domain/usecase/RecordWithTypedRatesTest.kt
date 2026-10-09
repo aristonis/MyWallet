@@ -3,9 +3,13 @@ package org.aristonis.mywallet.domain.usecase
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.Settings
+import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.usecase.fake.DirectTransactionRunner
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
 import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -26,7 +30,7 @@ class RecordWithTypedRatesTest {
         val rates = FakeRateRepository(listOf(ExchangeRate("USD", BigDecimal("4"))))
         val runner = DirectTransactionRunner()
 
-        val id = RecordWithTypedRates(runner, SetExchangeRate(currencies, rates))(mapOf("USD" to BigDecimal("5"))) { 42L }
+        val id = RecordWithTypedRates(runner, SetExchangeRate(currencies, rates, FakeLedgerQueries(FakeEntryRepository()), DirectTransactionRunner(), FakeSettingsRepository(Settings(baseCurrencyCode = "EUR"))))(mapOf("USD" to BigDecimal("5"))) { 42L }
 
         assertEquals(42L, id)
         assertEquals(0, BigDecimal("5").compareTo(rates.findByCode("USD")!!.rateToBase))
@@ -39,7 +43,7 @@ class RecordWithTypedRatesTest {
 
         assertThrows(WalletException.AmountRoundsToZero::class.java) {
             kotlinx.coroutines.runBlocking {
-                RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(currencies, rates))(
+                RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(currencies, rates, FakeLedgerQueries(FakeEntryRepository()), DirectTransactionRunner(), FakeSettingsRepository(Settings(baseCurrencyCode = "EUR"))))(
                     mapOf("USD" to BigDecimal("0.0000769")),
                 ) { throw WalletException.AmountRoundsToZero("SYP") }
             }

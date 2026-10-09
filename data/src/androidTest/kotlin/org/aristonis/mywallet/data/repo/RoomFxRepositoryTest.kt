@@ -114,10 +114,11 @@ class RoomFxRepositoryTest {
 /**
  * The base currency and every rate move together or not at all. A half-applied change would leave
  * the rates re-expressed against a base that never changed — every converted figure wrong, and
- * nothing anywhere saying so.
+ * nothing anywhere saying so. These cases hand over no leg changes; the legs moving with the rates
+ * are covered in [RoomBaseCurrencyRepositoryTest].
  */
 @RunWith(AndroidJUnit4::class)
-class RoomBaseCurrencyRepositoryTest {
+class RoomBaseCurrencyRatesTest {
 
     private lateinit var db: WalletDatabase
     private lateinit var repository: RoomBaseCurrencyRepository
@@ -154,6 +155,7 @@ class RoomBaseCurrencyRepositoryTest {
         repository.rebase(
             "EUR",
             listOf(org.aristonis.mywallet.domain.model.ExchangeRate("USD", BigDecimal("0.909090909091"))),
+            emptyList(),
         )
 
         assertEquals("EUR", db.settingsDao().get()!!.baseCurrencyCode)
@@ -168,7 +170,7 @@ class RoomBaseCurrencyRepositoryTest {
         // theme chosen a moment earlier is not carried away with a stale snapshot.
         seed()
 
-        repository.rebase("EUR", emptyList())
+        repository.rebase("EUR", emptyList(), emptyList())
 
         val settings = db.settingsDao().get()!!
         assertEquals("DARK", settings.theme)
@@ -186,6 +188,7 @@ class RoomBaseCurrencyRepositoryTest {
             repository.rebase(
                 "EUR",
                 listOf(org.aristonis.mywallet.domain.model.ExchangeRate("USD", BigDecimal("0.9"))),
+                emptyList(),
             )
             throw AssertionError("expected the insert to be refused")
         } catch (expected: Exception) {

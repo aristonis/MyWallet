@@ -14,7 +14,9 @@ import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.CreateCategory
 import org.aristonis.mywallet.domain.usecase.DeleteCategory
+import org.aristonis.mywallet.domain.usecase.ObserveCategoryUsage
 import org.aristonis.mywallet.domain.usecase.RenameCategory
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -54,18 +56,38 @@ class ManageCategoriesViewModelTest {
         date = LocalDate.of(2026, 2, 1),
     )
 
+    /**
+     * A ledger whose usage read counts [transactions] the way the real one counts legs: each entry
+     * once under every category id it names, main and sub. A transfer names none.
+     */
+    private fun ledgerOver(transactions: List<Transaction>) = HealthLedger().apply {
+        usage.value = transactions
+            .flatMap { tx ->
+                when (tx) {
+                    is Transaction.Income -> setOfNotNull(tx.categoryId, tx.subCategoryId)
+                    is Transaction.Expense -> setOfNotNull(tx.categoryId, tx.subCategoryId)
+                    is Transaction.Transfer -> emptySet()
+                }
+            }
+            .groupingBy { it }
+            .eachCount()
+    }
+
     private fun viewModel(
         categories: FakeManageCategoryRepository,
-        transactions: FakeCategoryTransactionRepository = FakeCategoryTransactionRepository(),
+        transactions: List<Transaction> = emptyList(),
         errors: RecordingErrorReporter = RecordingErrorReporter(),
-    ) = ManageCategoriesViewModel(
-        categories = categories,
-        transactions = transactions,
-        createCategory = CreateCategory(categories),
-        renameCategory = RenameCategory(categories),
-        deleteCategory = DeleteCategory(categories),
-        errors = errors,
-    )
+    ) = ledgerOver(transactions).let { ledger ->
+        ManageCategoriesViewModel(
+            categories = categories,
+            observeCategoryUsage = ObserveCategoryUsage(ledger),
+            observeLedgerHealth = ledger.health(),
+            createCategory = CreateCategory(categories),
+            renameCategory = RenameCategory(categories),
+            deleteCategory = DeleteCategory(categories),
+            errors = errors,
+        )
+    }
 
     @Test
     fun groupsByKindAndNestsChildrenUnderTheirParent() = runTest(dispatcher) {
@@ -93,12 +115,10 @@ class ManageCategoriesViewModelTest {
         // The confirmation quotes this number, so it has to cover the children too — a user who sees
         // "1 transaction" and loses three has been misled at the one moment they were asked to decide.
         val repo = FakeManageCategoryRepository(listOf(food, groceries, restaurants))
-        val txs = FakeCategoryTransactionRepository(
-            listOf(
-                expense(id = 1, categoryId = 10),
-                expense(id = 2, categoryId = 10, subCategoryId = 11),
-                expense(id = 3, categoryId = 10, subCategoryId = 12),
-            ),
+        val txs = listOf(
+            expense(id = 1, categoryId = 10),
+            expense(id = 2, categoryId = 10, subCategoryId = 11),
+            expense(id = 3, categoryId = 10, subCategoryId = 12),
         )
         val vm = viewModel(repo, txs)
         dispatcher.scheduler.advanceUntilIdle()
@@ -109,9 +129,7 @@ class ManageCategoriesViewModelTest {
     @Test
     fun aSubCategoryRowCountsOnlyItsOwnTransactions() = runTest(dispatcher) {
         val repo = FakeManageCategoryRepository(listOf(food, groceries, restaurants))
-        val txs = FakeCategoryTransactionRepository(
-            listOf(expense(id = 1, categoryId = 10), expense(id = 2, categoryId = 10, subCategoryId = 11)),
-        )
+        val txs = listOf(expense(id = 1, categoryId = 10), expense(id = 2, categoryId = 10, subCategoryId = 11))
         val vm = viewModel(repo, txs)
         dispatcher.scheduler.advanceUntilIdle()
 

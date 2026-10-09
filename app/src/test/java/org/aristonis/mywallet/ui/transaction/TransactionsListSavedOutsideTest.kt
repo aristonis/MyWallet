@@ -18,6 +18,7 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -46,10 +47,11 @@ class TransactionsListSavedOutsideTest {
     private val food = Category(id = 20, name = "Food", kind = CategoryKind.EXPENSE)
 
     private fun TestScope.viewModel() = TransactionsListViewModel(
-        transactions = FakeTransactionRepository(),
+        entries = FakeEntryRepository(),
         accounts = FakeAccountRepository(listOf(cash)),
         categories = FakeCategoryRepository(listOf(food)),
         currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2))),
+        observeLedgerHealth = HealthLedger().health(),
         moneyFormatter = MoneyFormatter(Locale.US),
         today = { today },
         savedStateHandle = SavedStateHandle(),

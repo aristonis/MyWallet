@@ -19,6 +19,7 @@ import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,13 +59,14 @@ class TransactionsListWindowTest {
     private fun TestScope.viewModel(
         transactions: List<Transaction> = history,
         saved: SavedStateHandle = SavedStateHandle(),
-        repo: FakeTransactionRepository = FakeTransactionRepository(transactions),
+        repo: FakeEntryRepository = FakeEntryRepository(transactions),
     ) =
         TransactionsListViewModel(
-            transactions = repo,
+            entries = repo,
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),
             currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2))),
+            observeLedgerHealth = HealthLedger().health(),
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { now },
             savedStateHandle = saved,
@@ -173,12 +175,12 @@ class TransactionsListWindowTest {
 
     @Test
     fun anEntryAddedInsideANarrowedWindowAppears() = runTest {
-        val repo = FakeTransactionRepository(history)
+        val repo = FakeEntryRepository(history)
         val vm = viewModel(repo = repo)
         vm.windowActions.onSelectPeriod(TrackingPeriod.MONTH)
         advanceUntilIdle()
 
-        repo.add(expenseOn(4, LocalDate.of(2026, 8, 20)))
+        repo.insert(expenseOn(4, LocalDate.of(2026, 8, 20)))
         advanceUntilIdle()
 
         assertEquals(listOf(3L, 4L, 2L), vm.state.value.rows.map { it.id })
@@ -186,12 +188,12 @@ class TransactionsListWindowTest {
 
     @Test
     fun anEntryEditedOutOfANarrowedWindowLeavesTheList() = runTest {
-        val repo = FakeTransactionRepository(history)
+        val repo = FakeEntryRepository(history)
         val vm = viewModel(repo = repo)
         vm.windowActions.onSelectPeriod(TrackingPeriod.MONTH)
         advanceUntilIdle()
 
-        repo.update(expenseOn(2, LocalDate.of(2026, 7, 2)))
+        repo.replace(expenseOn(2, LocalDate.of(2026, 7, 2)))
         advanceUntilIdle()
 
         assertEquals(listOf(3L), vm.state.value.rows.map { it.id })

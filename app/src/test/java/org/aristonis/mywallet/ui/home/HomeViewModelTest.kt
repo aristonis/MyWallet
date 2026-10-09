@@ -34,6 +34,7 @@ import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.CategoryLeg
 import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.port.LegRate
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
@@ -80,7 +81,9 @@ class HomeViewModelTest {
         val getBalances = GetAccountBalances(accountRepo, ledger)
         val getBalancesInBase = GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
         val computeNetWorth = ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
-        return HomeViewModel(getBalancesInBase, computeNetWorth, currencyRepo, settingsRepo, moneyFormatter, work, errors)
+        return HomeViewModel(
+            getBalancesInBase, computeNetWorth, ObserveLedgerHealth(ledger), currencyRepo, settingsRepo, moneyFormatter, work, errors,
+        )
     }
 
     @Test
@@ -180,10 +183,12 @@ class HomeViewModelTest {
         val currencyRepo = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)))
         val rateRepo = FakeRateRepository(emptyList())
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
-        val getBalances = GetAccountBalances(accountRepo, AccountLegsLedger())
+        val ledger = AccountLegsLedger()
+        val getBalances = GetAccountBalances(accountRepo, ledger)
         val vm = HomeViewModel(
             GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
+            ObserveLedgerHealth(ledger),
             currencyRepo,
             settingsRepo,
             moneyFormatter,
@@ -333,11 +338,15 @@ private class FakeAccountRepository(initial: List<Account>) : AccountRepository 
     override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
 }
 
-/** A ledger with no entries. Home reads only account legs; every other read fails so a drifting test does not pass quietly. */
+/**
+ * A ledger with no entries. Home reads account legs and the ledger's health, which is always good
+ * here (the unreadable cases are in HomeLedgerHealthTest); every other read fails so a drifting test
+ * does not pass quietly.
+ */
 private open class AccountLegsLedger : LedgerQueries {
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = flowOf(emptyList())
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = error("Home does not read Tracking")
-    override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = error("not read by these tests")
+    override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = flowOf(null)
     override suspend fun isAccountInUse(accountId: Long): Boolean = error("Home does not check account use")
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = error("Home does not read category usage")
     override suspend fun fillMissingRate(code: String, rate: BigDecimal): Int = error("Home does not write rates")

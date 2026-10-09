@@ -12,7 +12,7 @@ import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.CreateAccount
@@ -57,7 +57,9 @@ object UseCaseModule {
         rates: RateRepository,
         settings: SettingsRepository,
         baseCurrency: BaseCurrencyRepository,
-    ): ChangeBaseCurrency = ChangeBaseCurrency(currencies, rates, settings, baseCurrency)
+        ledger: LedgerQueries,
+        runner: TransactionRunner,
+    ): ChangeBaseCurrency = ChangeBaseCurrency(currencies, rates, settings, baseCurrency, ledger, runner)
 
     @Provides @Singleton
     fun provideSetTheme(settings: SettingsRepository): SetTheme = SetTheme(settings)
@@ -87,21 +89,24 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideDeleteAccount(
         accounts: AccountRepository,
-        transactions: TransactionRepository,
-    ): DeleteAccount = DeleteAccount(accounts, transactions)
+        ledger: LedgerQueries,
+    ): DeleteAccount = DeleteAccount(accounts, ledger)
 
     @Provides @Singleton
     fun provideUpdateAccount(
         currencies: CurrencyRepository,
         accounts: AccountRepository,
-        transactions: TransactionRepository,
-    ): UpdateAccount = UpdateAccount(currencies, accounts, transactions)
+        ledger: LedgerQueries,
+    ): UpdateAccount = UpdateAccount(currencies, accounts, ledger)
 
     @Provides @Singleton
     fun provideSetExchangeRate(
         currencies: CurrencyRepository,
         rates: RateRepository,
-    ): SetExchangeRate = SetExchangeRate(currencies, rates)
+        ledger: LedgerQueries,
+        runner: TransactionRunner,
+        settings: SettingsRepository,
+    ): SetExchangeRate = SetExchangeRate(currencies, rates, ledger, runner, settings)
 
     @Provides @Singleton
     fun provideGetAccountBalances(

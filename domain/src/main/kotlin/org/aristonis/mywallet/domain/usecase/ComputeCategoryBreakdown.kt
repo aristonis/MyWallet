@@ -15,6 +15,7 @@ import org.aristonis.mywallet.domain.port.CategoryLeg
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.service.CurrencyConverter
+import java.math.RoundingMode
 
 /**
  * The result of computing a category breakdown: either the income / expense totals, or a signal that
@@ -42,7 +43,11 @@ sealed interface CategoryBreakdownResult {
  * Each leg is converted at the rate stored on it, the rate it was recorded with, so a later change
  * of today's rate never moves a past month. A leg already in the base currency is kept as written;
  * any other leg is multiplied by its stored rate and rounded HALF_UP to the base's decimals, once,
- * and every total above it is an exact sum of those legs.
+ * and every total above it is an exact sum of those legs. Before that rounding the product is cut to
+ * [PRODUCT_SCALE] decimals, HALF_EVEN: a base change divides stored rates, and switching away and
+ * back leaves a residue far past that point (1.4999...97 instead of 1.5). Cut first, the residue
+ * goes and a half-way leg rounds as it did before the round trip; any product that does not reach
+ * that many decimals is unchanged.
  *
  * Fails with [WalletException.UnreadableRow] when a leg's entry kind has no recipe, or its role
  * has no rule there that counts. Emits
@@ -99,7 +104,11 @@ class ComputeCategoryBreakdown(
     private fun CategoryLeg.inBase(base: String, decimals: Int): Money {
         if (amount.currencyCode == base) return amount
         val rate = checkNotNull(rateToBase) { "leg of entry $entryId reached conversion with no rate" }
-        return Money.of(amount.amount.multiply(rate).setScale(decimals, CurrencyConverter.ROUNDING), base)
+        val exact = amount.amount.multiply(rate)
+        // Padding a short product out to the guard scale changes nothing but turns it into a big
+        // integer, which is slow; only a product longer than the guard needs trimming.
+        val product = if (exact.scale() > PRODUCT_SCALE) exact.setScale(PRODUCT_SCALE, RoundingMode.HALF_EVEN) else exact
+        return Money.of(product.setScale(decimals, CurrencyConverter.ROUNDING), base)
     }
 
     /**
@@ -135,8 +144,16 @@ class ComputeCategoryBreakdown(
 
     private companion object {
         /**
-         * Orders legs so the newest entry is the greatest. `maxWithOrNull` keeps the first of equal
-         * legs, so within one entry the leg the ledger lists first wins.
+         * Decimals a leg's amount times its rate keeps before it is rounded to the base's decimals.
+         * Far past any currency's decimals and any rate a user types, and far short of the 34
+         * significant digits a base change divides with.
+         */
+        const val PRODUCT_SCALE = 20
+
+        /**
+         * Orders legs so the newest entry is the greatest, whatever order the ledger lists them in.
+         * Legs of one entry tie; every category leg of an entry is in that entry's currency in every
+         * kind today, so whichever of them wins names the same currency.
          */
         val BY_RECENCY: Comparator<CategoryLeg> =
             compareBy<CategoryLeg> { it.date }.thenBy { it.entryId }

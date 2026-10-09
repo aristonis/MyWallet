@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.EntryRecipes
 import org.aristonis.mywallet.domain.ledger.Leg
@@ -16,6 +17,7 @@ import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.EntryKey
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.LegRate
@@ -52,6 +54,15 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
         rows.filter { it.header.date in range }.sortedWith(NEWEST_FIRST).map(::read)
     }
 
+    override fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>> =
+        store.map { rows ->
+            rows.filter { it.header.date in range }
+                .sortedWith(NEWEST_FIRST)
+                .filter { after == null || it.header.isBefore(after) }
+                .take(limit)
+                .map(::read)
+        }
+
     override suspend fun findById(id: Long): Transaction? =
         store.value.firstOrNull { it.header.id == id }?.let(::read)
 
@@ -80,6 +91,10 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
         return recipe.fromLegs(parts)
     }
 
+    /** Strictly after [key] in the list's order: an older date, or the same date with a lower id. */
+    private fun EntryHeader.isBefore(key: EntryKey): Boolean =
+        date < key.date || (date == key.date && id < key.id)
+
     private companion object {
         val NEWEST_FIRST: Comparator<EntryParts> =
             compareByDescending<EntryParts> { it.header.date }.thenByDescending { it.header.id }
@@ -90,12 +105,13 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
  * In-memory [LedgerQueries] projecting the legs held by [entries], so balances, Tracking and guards
  * in use-case tests read the same legs the recipes wrote.
  *
- * @param categoryKinds The kind of each category id, standing in for the category table; a category
- *   leg whose id is absent reads as on a category that is gone.
+ * @param categoryKinds The kind of each category id, as the tests describe their categories. The
+ *   projection no longer carries a category kind (Tracking places a leg by its entry's kind), so it
+ *   is accepted and not read.
  */
 class FakeLedgerQueries(
     private val entries: FakeEntryRepository,
-    private val categoryKinds: Map<Long, CategoryKind> = emptyMap(),
+    @Suppress("UNUSED_PARAMETER") categoryKinds: Map<Long, CategoryKind> = emptyMap(),
 ) : LedgerQueries {
 
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = entries.rows.map { rows ->
@@ -116,7 +132,6 @@ class FakeLedgerQueries(
                     categoryId = target.id,
                     subCategoryId = target.subId,
                     entryKind = row.header.kind,
-                    categoryKind = categoryKinds[target.id],
                     role = leg.role,
                     amount = leg.amount,
                     rateToBase = leg.rateToBase,

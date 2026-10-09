@@ -7,7 +7,6 @@ import org.aristonis.mywallet.data.db.CategoryLegRow
 import org.aristonis.mywallet.data.db.LedgerQueryDao
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.LegRole
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountLeg
@@ -45,8 +44,15 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
         return WalletException.UnreadableRow(owner.id, owner.kind, cause)
     }
 
-    override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> =
-        dao.observeCategoryLegs(range.start, range.endInclusive).map { rows -> rows.map { it.toCategoryLeg() } }
+    /** All time takes the legs-led read; any narrower range starts from the date index. */
+    override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> {
+        val rows = if (range == DateRange.ALL_TIME) {
+            dao.observeAllCategoryLegs()
+        } else {
+            dao.observeCategoryLegs(range.start, range.endInclusive)
+        }
+        return rows.map { list -> list.map { it.toCategoryLeg() } }
+    }
 
     override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> =
         dao.observeFirstUnknownKind(known.toList()).map { row -> row?.let { UnreadableRowRef(it.id, it.kind) } }
@@ -63,11 +69,12 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
         dao.distinctLegRates().map { LegRate(it.currencyCode, it.rateToBase?.let(::BigDecimal)) }
 }
 
+private val LEG_ROLE_BY_NAME: Map<String, LegRole> = LegRole.entries.associateBy { it.name }
+
 /**
  * A stored leg as Tracking sees it. A leg on no target, a role this build does not know or a value
- * that does not parse is bad stored data, reported as the entry it belongs to. A category row that is
- * gone, or of a kind this build does not know, is passed on as a null kind; Tracking still counts the
- * leg, by its entry's kind.
+ * that does not parse is bad stored data, reported as the entry it belongs to. The category row is
+ * not read: a leg on a category that is gone still counts, by its entry's kind, under its id.
  */
 private fun CategoryLegRow.toCategoryLeg(): CategoryLeg = try {
     CategoryLeg(
@@ -76,8 +83,7 @@ private fun CategoryLegRow.toCategoryLeg(): CategoryLeg = try {
         categoryId = requireNotNull(categoryId) { "leg of entry $entryId is on no target" },
         subCategoryId = subCategoryId,
         entryKind = entryKind,
-        categoryKind = CategoryKind.entries.firstOrNull { it.name == categoryKind },
-        role = requireNotNull(LegRole.entries.firstOrNull { it.name == role }) { "unknown leg role $role" },
+        role = requireNotNull(LEG_ROLE_BY_NAME[role]) { "unknown leg role $role" },
         amount = Money.of(BigDecimal(amount), currencyCode),
         rateToBase = rateToBase?.let(::BigDecimal),
     )

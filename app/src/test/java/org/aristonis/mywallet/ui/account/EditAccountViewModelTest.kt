@@ -13,7 +13,9 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.model.involvesAccount
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,12 +61,16 @@ class EditAccountViewModelTest {
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val currencyRepo = FakeCurrencyRepository(currencies)
-        val txRepo = FakeTransactionRepository(transactions)
+        // An account is in use once any of the given transactions moves money on it.
+        val ledger = HealthLedger().apply {
+            accountsInUse = accounts.map { it.id }.filter { id -> transactions.any { it.involvesAccount(id) } }.toSet()
+        }
         val viewModel = EditAccountViewModel(
             accounts = accountRepo,
             currencies = currencyRepo,
-            transactions = txRepo,
-            updateAccount = UpdateAccount(currencyRepo, accountRepo, txRepo),
+            ledger = ledger,
+            observeLedgerHealth = ledger.health(),
+            updateAccount = UpdateAccount(currencyRepo, accountRepo, ledger),
             moneyParser = MoneyParser(Locale.US),
             errors = errors,
         )

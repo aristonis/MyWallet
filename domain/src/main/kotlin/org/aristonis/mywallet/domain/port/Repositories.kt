@@ -11,6 +11,7 @@ import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import java.math.BigDecimal
 
 /**
  * Ports = the interfaces the domain core depends on. `:data` (Room) implements them; the domain
@@ -105,8 +106,24 @@ interface RateRepository {
  * base, until the next rebase read it as real data and inflated every figure in that currency.
  */
 interface BaseCurrencyRepository {
-    suspend fun rebase(newBaseCurrencyCode: String, rates: List<ExchangeRate>)
+
+    /**
+     * Switches the base to [newBaseCurrencyCode], replaces the stored rates with [rates] and rewrites
+     * the rates stored on category legs as [legRates] say, all in one transaction.
+     *
+     * Each leg is rewritten at most once, by the change whose `from` matches the rate it had before
+     * the call. Changes are never applied one after another: when one change's `to` equals another's
+     * `from`, a leg moved by the first is not moved again by the second.
+     */
+    suspend fun rebase(newBaseCurrencyCode: String, rates: List<ExchangeRate>, legRates: List<LegRateChange>)
 }
+
+/**
+ * Every category leg in [currencyCode] whose stored rate equals [from] gets [to]. Rates are compared
+ * by value, so `1.10` matches `1.1`; a null [from] matches the legs that have no rate yet. Account
+ * and debt legs carry no rate and are never touched.
+ */
+data class LegRateChange(val currencyCode: String, val from: BigDecimal?, val to: BigDecimal)
 
 interface FxRepository {
     fun observeFx(): Flow<FxSnapshot>

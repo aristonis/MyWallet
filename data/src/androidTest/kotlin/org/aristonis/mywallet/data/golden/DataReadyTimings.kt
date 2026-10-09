@@ -23,6 +23,9 @@ import java.time.YearMonth
  * read on a copy of the seed: Home (balances in base plus net worth), the all-time transactions
  * list, and Tracking for the latest month and for all time.
  *
+ * The transactions list opens on one page of the newest entries, so its timing is that first page
+ * read, the same read the screen waits for, not the whole history.
+ *
  * The seed asset is a schema-2 database, so opening it runs the upgrade first; the timings start
  * after that, on the entries and legs it produced.
  */
@@ -47,9 +50,12 @@ internal suspend fun captureDataReadyTimings(context: Context, asset: String, ru
         val lastMonth = YearMonth.from(dates.max())
         val reads: Map<String, suspend () -> Unit> = linkedMapOf(
             "home" to { combine(inBase(), netWorth()) { a, b -> a to b }.first() },
-            "transactions-all-time" to { transactions.observeAll().first() },
+            "transactions-all-time" to {
+                transactions.observePage(DateRange.ALL_TIME, after = null, limit = LIST_FIRST_READ).first()
+            },
             "tracking-month" to { breakdown(DateRange(lastMonth.atDay(1), lastMonth.atEndOfMonth())).first() },
-            "tracking-all-time" to { breakdown(DateRange(dates.min(), dates.max())).first() },
+            // The screen asks for all time as DateRange.ALL_TIME, which takes the legs-led read.
+            "tracking-all-time" to { breakdown(DateRange.ALL_TIME).first() },
         )
         return reads.mapValues { (_, read) ->
             read()
@@ -66,3 +72,6 @@ internal suspend fun captureDataReadyTimings(context: Context, asset: String, ru
 }
 
 private const val NANOS_PER_MILLI = 1_000_000L
+
+/** What the transactions list asks for when it opens: one page of 100 plus one to tell if more exist. */
+private const val LIST_FIRST_READ = 101

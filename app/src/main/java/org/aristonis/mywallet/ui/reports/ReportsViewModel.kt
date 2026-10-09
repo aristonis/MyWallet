@@ -29,10 +29,13 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CategoryBreakdownResult
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.label
 import org.aristonis.mywallet.ui.load.ReadAttempts
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.load.loadFailure
 import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.window.TrackingWindowHolder
 import java.time.LocalDate
@@ -109,11 +112,17 @@ data class ReportsUiState(
  * complete the whole chain and the date bar would stop working; caught there, other dates and
  * [retry] still read. The categories and currencies are caught the same way, inside the attempt, so
  * [retry] reads them again too.
+ *
+ * The breakdown sums category legs, which never open a whole entry, so an entry of a kind the app
+ * cannot read would be left out of every total. The ledger's health is read beside it, outside the
+ * window switch: while an entry cannot be read the screen shows the cannot-be-read state for every
+ * window, so choosing other dates cannot hide it, and [retry] reads the health again.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ReportsViewModel @Inject constructor(
     private val computeCategoryBreakdown: ComputeCategoryBreakdown,
+    observeLedgerHealth: ObserveLedgerHealth,
     categories: CategoryRepository,
     currencies: CurrencyRepository,
     private val moneyFormatter: MoneyFormatter,
@@ -162,9 +171,17 @@ class ReportsViewModel @Inject constructor(
                 emit(null)
             }
 
+    /**
+     * Null while every entry can be read; the failure once one cannot, or once the health read itself
+     * fails. Reported once, read again on [retry].
+     */
+    private val healthFailure: Flow<UiMessage?> = observeLedgerHealth.loadFailure(errors, screen = "Tracking")
+
     val state: StateFlow<ReportsUiState> =
         attempts.reading(loading = { ReportsUiState(window = holder.window.value) }) {
-            combine(windowResults, lookups) { results, lookup -> stateFor(results, lookup) }
+            combine(windowResults, lookups, healthFailure) { results, lookup, failure ->
+                if (failure == null) stateFor(results, lookup) else ReportsUiState(window = results.window, loadFailed = true)
+            }
         }
             // Everything above, the breakdown's conversion and the formatting in toData, runs off main.
             .flowOn(defaultDispatcher)

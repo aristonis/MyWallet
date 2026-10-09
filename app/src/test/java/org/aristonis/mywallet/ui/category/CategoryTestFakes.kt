@@ -3,16 +3,12 @@ package org.aristonis.mywallet.ui.category
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.aristonis.mywallet.domain.model.DateRange
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.emitAll
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.CategoryRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 
 /**
  * A writable category store for the manage screen. The reassignment itself belongs to Room, so the
@@ -59,15 +55,4 @@ internal class FakeManageCategoryRepository(initial: List<Category> = emptyList(
         items.value = items.value.filterNot { it.id in doomed }
         return affectedRows
     }
-}
-
-internal class FakeCategoryTransactionRepository(initial: List<Transaction> = emptyList()) : TransactionRepository {
-    private val items = MutableStateFlow(initial)
-    override fun observeAll(): Flow<List<Transaction>> = items
-    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        items.map { all -> all.filter { it.date in range } }
-    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
-    override suspend fun add(transaction: Transaction): Long = error("the manage screen does not add transactions")
-    override suspend fun update(transaction: Transaction) = error("the manage screen does not edit transactions")
-    override suspend fun delete(id: Long) = error("the manage screen does not delete transactions")
 }

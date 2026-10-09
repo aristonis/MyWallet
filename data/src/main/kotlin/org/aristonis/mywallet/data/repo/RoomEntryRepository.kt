@@ -14,6 +14,7 @@ import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.port.EntryKey
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 
@@ -43,6 +44,21 @@ class RoomEntryRepository(
         database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {
             dao.readBetween(range.start, range.endInclusive).toTransactions()
         }
+
+    /**
+     * One keyset page, re-read on the same tables as [observeBetween]. The key becomes an upper date
+     * bound plus an id: a key dated after the range starts at the range's end with nothing excluded,
+     * and a key inside it starts at its own date, past the ids already shown.
+     */
+    override fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>> {
+        require(limit > 0) { "a page holds at least one entry, but the limit was $limit" }
+        val inside = after?.takeIf { it.date <= range.endInclusive }
+        val upper = inside?.date ?: range.endInclusive
+        val beforeId = inside?.id ?: Long.MAX_VALUE
+        return database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {
+            dao.readPage(range.start, upper, beforeId, limit).toTransactions()
+        }
+    }
 
     override suspend fun findById(id: Long): Transaction? = dao.findById(id).toTransactions().singleOrNull()
 

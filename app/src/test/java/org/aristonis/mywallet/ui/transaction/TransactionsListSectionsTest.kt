@@ -17,6 +17,7 @@ import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -48,10 +49,11 @@ class TransactionsListSectionsTest {
     )
 
     private fun TestScope.viewModelFor(transactions: List<Transaction>) = TransactionsListViewModel(
-        transactions = FakeTransactionRepository(transactions),
+        entries = FakeEntryRepository(transactions),
         accounts = FakeAccountRepository(listOf(cash)),
         categories = FakeCategoryRepository(listOf(food)),
         currencies = FakeCurrencyRepository(currencies),
+        observeLedgerHealth = HealthLedger().health(),
         moneyFormatter = MoneyFormatter(Locale.US),
         today = { today },
         savedStateHandle = SavedStateHandle(),

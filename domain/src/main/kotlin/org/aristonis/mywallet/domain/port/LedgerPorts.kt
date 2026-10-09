@@ -2,7 +2,6 @@ package org.aristonis.mywallet.domain.port
 
 import kotlinx.coroutines.flow.Flow
 import org.aristonis.mywallet.domain.ledger.LegRole
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
@@ -21,6 +20,17 @@ interface EntryRepository {
 
     /** Entries dated inside the inclusive [range], in the same order as [observeAll]. */
     fun observeBetween(range: DateRange): Flow<List<Transaction>>
+
+    /**
+     * At most [limit] entries dated inside the inclusive [range], in the order of [observeAll],
+     * starting strictly after the entry [after] names (null starts at the newest). The key marks a
+     * place in the order, so it still works after its own entry is deleted.
+     *
+     * Re-emits whenever an entry changes, so a page is always the rows as they are now. A row no
+     * recipe can read fails the flow with
+     * [org.aristonis.mywallet.domain.error.WalletException.UnreadableRow].
+     */
+    fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>>
 
     /** The entry with [id], or null when there is none. */
     suspend fun findById(id: Long): Transaction?
@@ -52,8 +62,9 @@ interface LedgerQueries {
     fun observeAccountLegs(): Flow<List<AccountLeg>>
 
     /**
-     * Every category leg of entries dated inside the inclusive [range], for Tracking: newest entry
-     * first (date desc, then id desc), and each entry's legs in position order.
+     * Every category leg of entries dated inside the inclusive [range], for Tracking, in no
+     * particular order: Tracking sums them and finds the newest leg it needs from each leg's date
+     * and entry id, so the read never pays for a sort.
      */
     fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>>
 
@@ -91,10 +102,10 @@ data class AccountLeg(val accountId: Long, val amount: Money)
  * One category leg with what Tracking needs to place and convert it. Tracking places a leg by the
  * rule its entry kind gives for its role, not by its category's kind: an old income may sit on an
  * expense category, and one entry can hold legs on both sides (an income with deduction expenses).
+ * So the leg carries no category kind, and a leg on a category deleted long ago is still counted,
+ * under that category id.
  *
  * @property entryKind The entry's stored kind; with [role], it decides the leg's side.
- * @property categoryKind The kind of the category the leg is on; null when the category row is gone.
- *   Tracking does not use it.
  * @property rateToBase The rate the leg was recorded with; null means none is stored yet.
  */
 data class CategoryLeg(
@@ -103,11 +114,16 @@ data class CategoryLeg(
     val categoryId: Long,
     val subCategoryId: Long?,
     val entryKind: String,
-    val categoryKind: CategoryKind?,
     val role: LegRole,
     val amount: Money,
     val rateToBase: BigDecimal?,
 )
+
+/**
+ * The place of one entry in the entry list, whose order is date descending, then id descending. A
+ * page read continues strictly after it.
+ */
+data class EntryKey(val date: LocalDate, val id: Long)
 
 /** Names a stored entry no recipe can read, so a screen can point at it. */
 data class UnreadableRowRef(val id: Long, val kind: String)

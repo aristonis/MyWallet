@@ -88,15 +88,15 @@ class SaveEntryOnRoomTest {
         entries = RoomEntryRepository(db, db.entryDao())
         rates = RoomRateRepository(db.rateDao())
 
+        val ledger = RoomLedgerQueries(db.ledgerQueryDao())
         saveEntry = SaveEntry(
             runner = runner,
             accounts = accounts,
             categories = categories,
             entries = entries,
-            ledger = RoomLedgerQueries(db.ledgerQueryDao()),
             fx = RoomFxRepository(db),
             settings = RoomSettingsRepository(db.settingsDao()),
-            setExchangeRate = SetExchangeRate(RoomCurrencyRepository(db.currencyDao()), rates),
+            setExchangeRate = SetExchangeRate(RoomCurrencyRepository(db.currencyDao()), rates, ledger, runner, RoomSettingsRepository(db.settingsDao())),
         )
         deleteEntry = DeleteEntry(runner = runner, entries = entries)
         restoreEntries = RestoreEntries(runner = runner, entries = entries, categories = categories, accounts = accounts)

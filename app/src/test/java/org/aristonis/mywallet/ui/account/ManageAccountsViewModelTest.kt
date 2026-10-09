@@ -13,10 +13,12 @@ import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.model.involvesAccount
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -47,7 +49,11 @@ class ManageAccountsViewModelTest {
     private fun buildVm(accounts: List<Account>, transactions: List<Transaction> = emptyList()): ManageAccountsViewModel {
         val accountRepo = FakeAccountRepository(accounts)
         val txRepo = FakeTransactionRepository(transactions)
-        return ManageAccountsViewModel(accountRepo, txRepo, SetAccountArchived(accountRepo), DeleteAccount(accountRepo, txRepo))
+        // The delete guard asks the ledger; it answers from the same transactions the list shows.
+        val ledger = HealthLedger().apply {
+            accountsInUse = accounts.map { it.id }.filter { id -> transactions.any { it.involvesAccount(id) } }.toSet()
+        }
+        return ManageAccountsViewModel(accountRepo, txRepo, SetAccountArchived(accountRepo), DeleteAccount(accountRepo, ledger))
     }
 
     private fun ManageAccountsViewModel.rowsById() = state.value.rows.associateBy { it.account.id }

@@ -190,19 +190,22 @@ class SaveEntryRig(
     private val entryPort: EntryRepository = FaultyEntryRepository(entries, faultAfterWrite)
     private val accountRepository = FakeAccountRepository(accounts)
     private val currencyRepository = FakeCurrencyRepository(EntryWorld.currencies)
+    private val settingsRepository = FakeSettingsRepository(Settings(baseCurrencyCode = base, saveTransactionRates = saveRates))
+
+    /** The one ledger the save and the rate use case both write through, so a fault reaches both. */
+    val ledger: LedgerQueries = FaultyLedgerQueries(
+        FakeLedgerQueries(entries, categories.associate { it.id to it.kind }),
+        faultAfterFill,
+    )
 
     val saveEntry = SaveEntry(
         runner = runner,
         accounts = accountRepository,
         categories = categoryRepository,
         entries = entryPort,
-        ledger = FaultyLedgerQueries(
-            FakeLedgerQueries(entries, categories.associate { it.id to it.kind }),
-            faultAfterFill,
-        ),
         fx = fakeFx(EntryWorld.currencies, initialRates, base),
-        settings = FakeSettingsRepository(Settings(baseCurrencyCode = base, saveTransactionRates = saveRates)),
-        setExchangeRate = SetExchangeRate(currencyRepository, rates),
+        settings = settingsRepository,
+        setExchangeRate = SetExchangeRate(currencyRepository, rates, ledger, runner, settingsRepository),
     )
 
     val deleteEntry = DeleteEntry(runner = runner, entries = entryPort)

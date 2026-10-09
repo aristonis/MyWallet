@@ -108,6 +108,35 @@ class RecipeContractTest {
         assertTrue(violations(positiveRefund).any { "REDUCES_EXPENSE leg that is not negative" in it })
     }
 
+    /**
+     * Tracking breaks a tie between the category legs of one entry without comparing currencies, so
+     * every example must keep all its category legs in a single currency.
+     */
+    @Test
+    fun everyExamplesCategoryLegsShareOneCurrency() {
+        EntryRecipes.all.forEach { recipe ->
+            recipe.asAny().examples().forEach { example ->
+                val currencies = recipe.asAny().toLegs(example).legs
+                    .filter { it.target is LegTarget.Category }
+                    .map { it.amount.currencyCode }
+                    .toSet()
+                assertTrue("${recipe.kind}: category legs in $currencies", currencies.size <= 1)
+            }
+        }
+    }
+
+    @Test
+    fun aRecipeWhoseCategoryLegsSpanTwoCurrenciesFailsTheContract() {
+        val mixed = object : EntryRecipe<Transaction.Expense> by expenseRecipe() {
+            override fun toLegs(entry: Transaction.Expense): EntryParts = expenseRecipe().toLegs(entry).let { parts ->
+                val main = parts.legs.single { it.role == LegRole.MAIN }
+                val other = Money.of(main.amount.amount, if (main.amount.currencyCode == "XTS") "XAU" else "XTS")
+                parts.copy(legs = parts.legs + main.copy(position = 1, amount = other))
+            }
+        }
+        assertTrue(violations(mixed).any { "category legs in more than one currency" in it })
+    }
+
     @Test
     fun aDebtLegOnTheWrongSideBreaksTheBalanceCheck() {
         val owedToMe = object : EntryRecipe<Transaction.Expense> by expenseRecipe() {
@@ -194,6 +223,9 @@ class RecipeContractTest {
                     .forEach { out += "$label: two legs share $it" }
                 parts.legs.filter { it.rateToBase != null && it.target !is LegTarget.Category }
                     .forEach { out += "$label: rate on a ${it.role} leg" }
+                val categoryCurrencies = parts.legs.filter { it.target is LegTarget.Category }
+                    .map { it.amount.currencyCode }.toSet()
+                if (categoryCurrencies.size > 1) out += "$label: category legs in more than one currency $categoryCurrencies"
                 val rules = recipe.asAny().trackingRules(example)
                 parts.legs.filter { it.target is LegTarget.Category && it.role !in rules }
                     .forEach { out += "$label: no tracking rule for ${it.role}" }

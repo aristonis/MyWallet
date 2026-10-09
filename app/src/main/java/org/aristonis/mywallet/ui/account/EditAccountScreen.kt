@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
@@ -99,7 +100,7 @@ private fun EditAccountContent(
                 // A missing row is a fail-loud dead end, not a blank editor — show why and offer Back.
                 // A failed read is not a missing account: the row may still be there, so offer to read it again.
                 state.loaded == null && state.loadFailed -> LoadFailedState(
-                    message = stringResource(R.string.msg_data_unreadable),
+                    message = (state.loadFailure ?: UiMessage.DataUnreadable).text(),
                     onRetry = onRetry,
                     modifier = Modifier.padding(16.dp),
                 )

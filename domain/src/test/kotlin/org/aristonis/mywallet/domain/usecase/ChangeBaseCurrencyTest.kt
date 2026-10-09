@@ -7,11 +7,21 @@ import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.domain.service.CurrencyConverter
+import org.aristonis.mywallet.domain.model.DateRange
+import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
+import org.aristonis.mywallet.domain.usecase.fake.DirectTransactionRunner
+import org.aristonis.mywallet.domain.usecase.fake.EntryWorld
 import org.aristonis.mywallet.domain.usecase.fake.FakeBaseCurrencyRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
+import org.aristonis.mywallet.domain.usecase.fake.LegApplyingBaseCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -24,6 +34,11 @@ import java.math.BigDecimal
  *
  * The arithmetic is `newRate(Y) = oldRate(Y) / oldRate(X)`, which is also where the old base gets
  * its first explicit rate: it had none, because the base is implicitly 1.
+ *
+ * Assumed signature: `ChangeBaseCurrency(currencies, rates, settings, baseCurrency, ledger: LedgerQueries, runner: TransactionRunner)`.
+ * The leg rates are read from `ledger.distinctLegRates()` and handed to
+ * `BaseCurrencyRepository.rebase(newBase, rates, legRates: List<LegRateChange>)` in the same call as
+ * the rates, with `LegRateChange(currencyCode, from: BigDecimal?, to: BigDecimal)`.
  */
 class ChangeBaseCurrencyTest {
 
@@ -40,19 +55,23 @@ class ChangeBaseCurrencyTest {
             ExchangeRate("JPY", BigDecimal("0.0067")),
         ),
         base: String = "USD",
+        entries: FakeEntryRepository = FakeEntryRepository(),
+        baseRepo: BaseCurrencyRepository? = null,
     ): Triple<ChangeBaseCurrency, FakeBaseCurrencyRepository, FakeSettingsRepository> {
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(
             Settings(baseCurrencyCode = base, theme = ThemePreference.DARK, schemaVersion = 4),
         )
-        val baseRepo = FakeBaseCurrencyRepository()
+        val recording = FakeBaseCurrencyRepository()
         val useCase = ChangeBaseCurrency(
             currencies = FakeCurrencyRepository(currencies),
             rates = rateRepo,
             settings = settingsRepo,
-            baseCurrency = baseRepo,
+            baseCurrency = baseRepo ?: recording,
+            ledger = FakeLedgerQueries(entries),
+            runner = DirectTransactionRunner(),
         )
-        return Triple(useCase, baseRepo, settingsRepo)
+        return Triple(useCase, recording, settingsRepo)
     }
 
     private fun rateFor(repo: FakeBaseCurrencyRepository, code: String): BigDecimal? =
@@ -258,5 +277,120 @@ class ChangeBaseCurrencyTest {
 
         assertTrue("the port must take a code, never a settings snapshot", baseRepo.lastRebase != null)
         assertEquals("EUR", baseRepo.lastRebase?.newBaseCurrencyCode)
+    }
+
+    // --- leg rates move with the rates ---
+
+    private fun expense(id: Long, currency: String, amount: String, rate: String?) =
+        EntryWorld.expense(id = id, accountId = 1, amount = amount, currency = currency, rate = rate)
+
+    private suspend fun legRate(entries: FakeEntryRepository, id: Long): BigDecimal? =
+        (entries.findById(id) as Transaction.Expense).rateToBase
+
+    private fun assertRate(expected: String, actual: BigDecimal?) {
+        assertNotNull("a rate was expected but none is stored", actual)
+        assertEquals("expected $expected but was $actual", 0, BigDecimal(expected).compareTo(actual))
+    }
+
+    private val euroAt125 = listOf(ExchangeRate("EUR", BigDecimal("1.25")), ExchangeRate("JPY", BigDecimal("0.0025")))
+
+    @Test
+    fun legsInTheNewBaseGetRateOneAndLegsWithNoRateInItToo() = runTest {
+        val entries = FakeEntryRepository(
+            listOf(expense(1, "EUR", "100", "1.25"), expense(2, "EUR", "40", "1.10"), expense(3, "EUR", "7", null)),
+        )
+        val (useCase, _, _) = fixture(rates = euroAt125, entries = entries, baseRepo = LegApplyingBaseCurrencyRepository(entries))
+
+        useCase("EUR")
+
+        assertRate("1", legRate(entries, 1))
+        assertRate("1", legRate(entries, 2))
+        assertRate("1", legRate(entries, 3))
+    }
+
+    @Test
+    fun legsInOtherCurrenciesAreDividedByTheNewBasesOldRate() = runTest {
+        val entries = FakeEntryRepository(
+            listOf(
+                expense(1, "USD", "200", "1"),
+                expense(2, "JPY", "4000", "0.0025"),
+                expense(3, "JPY", "1000", "0.0020"),
+            ),
+        )
+        val (useCase, _, _) = fixture(rates = euroAt125, entries = entries, baseRepo = LegApplyingBaseCurrencyRepository(entries))
+
+        useCase("EUR")
+
+        assertRate("0.8", legRate(entries, 1))
+        assertRate("0.002", legRate(entries, 2))
+        assertRate("0.0016", legRate(entries, 3))
+    }
+
+    @Test
+    fun aLegWithNoRateInAnotherCurrencyStillHasNone() = runTest {
+        val entries = FakeEntryRepository(listOf(expense(1, "JPY", "500", null), expense(2, "USD", "5", null)))
+        val (useCase, _, _) = fixture(rates = euroAt125, entries = entries, baseRepo = LegApplyingBaseCurrencyRepository(entries))
+
+        useCase("EUR")
+
+        assertNull(legRate(entries, 1))
+        assertNull(legRate(entries, 2))
+    }
+
+    @Test
+    fun legRatesAreDividedAtTheSamePrecisionAsTheStoredRates() = runTest {
+        // 0.0067 / 1.10 does not terminate: the leg must come out as the rate row does, not differently.
+        val entries = FakeEntryRepository(listOf(expense(1, "JPY", "1000", "0.0067")))
+        val (useCase, _, _) = fixture(entries = entries, baseRepo = LegApplyingBaseCurrencyRepository(entries))
+
+        useCase("EUR")
+
+        assertEquals(BigDecimal("0.006090909090909090909090909091"), legRate(entries, 1))
+    }
+
+    @Test
+    fun ratesAndLegRatesAreHandedOverTogetherInOneCall() = runTest {
+        val entries = FakeEntryRepository(listOf(expense(1, "JPY", "4000", "0.0025")))
+        val (useCase, recording, _) = fixture(rates = euroAt125, entries = entries)
+
+        useCase("EUR")
+
+        assertEquals(1, recording.rebaseCount)
+        val change = recording.lastRebase!!.legRates.single { it.currencyCode == "JPY" }
+        assertEquals(0, BigDecimal("0.0025").compareTo(change.from))
+        assertEquals(0, BigDecimal("0.002").compareTo(change.to))
+        assertTrue(recording.lastRebase!!.rates.isNotEmpty())
+    }
+
+    @Test
+    fun aRefusedBaseChangeHandsOverNoLegChanges() = runTest {
+        val entries = FakeEntryRepository(listOf(expense(1, "JPY", "4000", "0.0025")))
+        val (useCase, recording, _) = fixture(entries = entries)
+
+        runCatching { useCase("GBP") } // no stored rate for GBP
+
+        assertEquals(0, recording.rebaseCount)
+        assertRate("0.0025", legRate(entries, 1))
+    }
+
+    @Test
+    fun trackingTotalsStayEqualWhenConvertedAcrossABaseChange() = runTest {
+        // Base USD, 1 EUR = 1.25 USD. Expenses: 100 EUR, 200 USD, 4000 JPY at 0.0025 each.
+        // Before, in USD: 125 + 200 + 10 = 335. After, in EUR: 100 + 160 + 8 = 268, and 268 x 1.25 = 335.
+        val entries = FakeEntryRepository(
+            listOf(expense(1, "EUR", "100", "1.25"), expense(2, "USD", "200", "1"), expense(3, "JPY", "4000", "0.0025")),
+        )
+        val queries = FakeLedgerQueries(entries)
+        suspend fun total(): BigDecimal = queries.observeCategoryLegs(DateRange.ALL_TIME).first()
+            .fold(BigDecimal.ZERO) { sum, leg -> sum + leg.amount.amount * leg.rateToBase!! }
+        val before = total()
+        val (useCase, _, _) = fixture(rates = euroAt125, entries = entries, baseRepo = LegApplyingBaseCurrencyRepository(entries))
+
+        useCase("EUR")
+
+        val after = total()
+        assertEquals(0, BigDecimal("335").compareTo(before))
+        assertEquals(0, BigDecimal("268").compareTo(after))
+        assertEquals(0, before.compareTo(after * BigDecimal("1.25")))
     }
 }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.filterNotNull
@@ -47,6 +48,7 @@ import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.LegRate
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -94,6 +96,7 @@ class ReportsViewModelTest {
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         return ReportsViewModel(
             computeCategoryBreakdown = ComputeCategoryBreakdown(ledger, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
+            observeLedgerHealth = ObserveLedgerHealth(ledger),
             categories = categoryRepo,
             currencies = currencyRepo,
             moneyFormatter = moneyFormatter,
@@ -569,25 +572,23 @@ private class FakeLedger(initial: List<Transaction>) : LedgerQueries {
         return changed
     }
 
-    // Reports read Tracking only; failing here keeps a drifting test from passing quietly.
+    // Every stored entry is readable here; the unreadable cases are in ReportsLedgerHealthTest.
+    override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = flowOf(null)
+
+    // Reports read Tracking and the ledger's health only; failing here keeps a drifting test from passing quietly.
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = error("reports do not read balances")
-    override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = error("not read by these tests")
     override suspend fun isAccountInUse(accountId: Long): Boolean = error("reports do not check account use")
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = error("reports do not read category usage")
     override suspend fun distinctLegRates(): List<LegRate> = error("reports do not read leg rates")
 
     private fun categoryLegsOf(tx: Transaction): List<CategoryLeg> {
-        val kind = when (tx) {
-            is Transaction.Income -> CategoryKind.INCOME
-            is Transaction.Expense -> CategoryKind.EXPENSE
-            is Transaction.Transfer -> return emptyList()
-        }
+        if (tx is Transaction.Transfer) return emptyList()
         val parts = tx.toParts()
         return parts.legs.mapNotNull { leg ->
             val target = leg.target as? LegTarget.Category ?: return@mapNotNull null
             CategoryLeg(
                 entryId = tx.id, date = tx.date, categoryId = target.id, subCategoryId = target.subId,
-                entryKind = parts.header.kind, categoryKind = kind, role = leg.role,
+                entryKind = parts.header.kind, role = leg.role,
                 amount = leg.amount, rateToBase = leg.rateToBase,
             )
         }

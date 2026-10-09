@@ -19,11 +19,11 @@ import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.CategoryRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.CreateCategory
 import org.aristonis.mywallet.domain.usecase.DeleteCategory
+import org.aristonis.mywallet.domain.usecase.ObserveCategoryUsage
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.usecase.RenameCategory
 import org.aristonis.mywallet.ui.load.ReadAttempts
 import javax.inject.Inject
@@ -69,14 +69,6 @@ data class ManageCategoriesUiState(
  */
 data class DeleteOutcome(val affected: Int, val wasSubCategory: Boolean)
 
-/** The categories a transaction points at. A transfer is never categorized, so it names none. */
-private val Transaction.referencedCategoryIds: List<Long>
-    get() = when (this) {
-        is Transaction.Income -> listOfNotNull(categoryId, subCategoryId)
-        is Transaction.Expense -> listOfNotNull(categoryId, subCategoryId)
-        is Transaction.Transfer -> emptyList()
-    }
-
 /** Where one attempt to read the categories and the entries behind their counts stands. */
 private sealed interface CategoriesRead {
     /** A retry is reading again and nothing has answered yet. */
@@ -84,7 +76,8 @@ private sealed interface CategoriesRead {
 
     data object Failed : CategoriesRead
 
-    data class Read(val categories: List<Category>, val transactions: List<Transaction>) : CategoriesRead
+    /** [usage] is the number of entries per category id; a category no entry uses is absent. */
+    data class Read(val categories: List<Category>, val usage: Map<Long, Int>) : CategoriesRead
 }
 
 /**
@@ -94,13 +87,23 @@ private sealed interface CategoriesRead {
  * touch before the user agrees, and what became of them afterwards. Those are two different answers
  * depending on whether a parent or a sub-category went.
  *
+ * The counts come from the ledger's usage read, which counts an entry once under its category and
+ * once under its sub-category. A leg on a sub-category also names its parent, so a parent's own
+ * count already covers every entry under its children: it is the number a delete of the parent
+ * re-files, with no adding up of children (which would count those entries twice).
+ *
+ * The ledger's health is read with them. An entry the app cannot read is not in the usage counts, so
+ * while one is stored the screen shows the cannot-be-read state rather than quote a number a delete
+ * would then exceed.
+ *
  * A read that throws (a stored row that cannot be decoded) becomes a failed state, reported to
  * [ErrorReporter], instead of crashing the app; [retry] reads again.
  */
 @HiltViewModel
 class ManageCategoriesViewModel @Inject constructor(
     categories: CategoryRepository,
-    transactions: TransactionRepository,
+    observeCategoryUsage: ObserveCategoryUsage,
+    observeLedgerHealth: ObserveLedgerHealth,
     private val createCategory: CreateCategory,
     private val renameCategory: RenameCategory,
     private val deleteCategory: DeleteCategory,
@@ -110,9 +113,9 @@ class ManageCategoriesViewModel @Inject constructor(
     private val _state = MutableStateFlow(ManageCategoriesUiState())
     val state: StateFlow<ManageCategoriesUiState> = _state.asStateFlow()
 
-    /** The latest categories and transactions, kept for the per-row counts the screen asks for. */
+    /** The latest categories and usage counts, kept for the per-row counts the screen asks for. */
     private var latestCategories: List<Category> = emptyList()
-    private var latestTransactions: List<Transaction> = emptyList()
+    private var latestUsage: Map<Long, Int> = emptyMap()
 
     /** Starts the reads over on [retry]. */
     private val attempts = ReadAttempts()
@@ -121,9 +124,12 @@ class ManageCategoriesViewModel @Inject constructor(
         // The catch sits inside the attempt, so it ends only the attempt that failed and a later
         // [retry] can still read.
         attempts.reading(loading = { CategoriesRead.Reading }) {
-            combine(categories.observeAll(), transactions.observeAll()) { categoryList, transactionList ->
-                CategoriesRead.Read(categoryList, transactionList)
-            }
+            combine(
+                categories.observeAll(),
+                observeCategoryUsage(),
+                // Emits while every entry can be read and fails the attempt the moment one cannot.
+                observeLedgerHealth(),
+            ) { categoryList, usage, _ -> CategoriesRead.Read(categoryList, usage) }
                 .catch<CategoriesRead> { error ->
                     if (error is CancellationException) throw error
                     errors.report("Manage categories could not read the categories", error)
@@ -137,11 +143,11 @@ class ManageCategoriesViewModel @Inject constructor(
     /** Reads the categories again after a failed read, showing them as loading until it answers. */
     fun retry() = attempts.retry()
 
-    /** How many transactions deleting [categoryId] would re-file, including any under its children. */
-    fun affectedBy(categoryId: Long): Int {
-        val doomed = setOf(categoryId) + latestCategories.filter { it.parentId == categoryId }.map { it.id }
-        return latestTransactions.count { tx -> tx.referencedCategoryIds.any { it in doomed } }
-    }
+    /**
+     * How many entries deleting [categoryId] would re-file. For a parent this includes those under
+     * its children, as their legs name the parent too.
+     */
+    fun affectedBy(categoryId: Long): Int = latestUsage[categoryId] ?: 0
 
     fun create(name: String, kind: CategoryKind, parentId: Long?) = perform {
         createCategory(name, kind, parentId)
@@ -165,23 +171,23 @@ class ManageCategoriesViewModel @Inject constructor(
     private fun show(read: CategoriesRead) = when (read) {
         CategoriesRead.Reading -> showReading()
         CategoriesRead.Failed -> showLoadFailed()
-        is CategoriesRead.Read -> showCategories(read.categories, read.transactions)
+        is CategoriesRead.Read -> showCategories(read.categories, read.usage)
     }
 
     /** A retry is reading: forget the old rows so a delete preview never counts against them. */
     private fun showReading() {
         latestCategories = emptyList()
-        latestTransactions = emptyList()
+        latestUsage = emptyMap()
         _state.update { it.copy(isLoading = true, loadFailed = false) }
     }
 
-    private fun showCategories(categoryList: List<Category>, transactionList: List<Transaction>) {
+    private fun showCategories(categoryList: List<Category>, usage: Map<Long, Int>) {
         latestCategories = categoryList
-        latestTransactions = transactionList
+        latestUsage = usage
         _state.update {
             it.copy(
-                income = rowsOf(CategoryKind.INCOME, categoryList, transactionList),
-                expense = rowsOf(CategoryKind.EXPENSE, categoryList, transactionList),
+                income = rowsOf(CategoryKind.INCOME, categoryList, usage),
+                expense = rowsOf(CategoryKind.EXPENSE, categoryList, usage),
                 isLoading = false,
                 loadFailed = false,
             )
@@ -194,7 +200,7 @@ class ManageCategoriesViewModel @Inject constructor(
      */
     private fun showLoadFailed() {
         latestCategories = emptyList()
-        latestTransactions = emptyList()
+        latestUsage = emptyMap()
         _state.update {
             it.copy(income = emptyList(), expense = emptyList(), isLoading = false, loadFailed = true)
         }
@@ -203,19 +209,15 @@ class ManageCategoriesViewModel @Inject constructor(
     private fun rowsOf(
         kind: CategoryKind,
         all: List<Category>,
-        transactions: List<Transaction>,
+        usage: Map<Long, Int>,
     ): List<ManageCategoryRow> =
         all.filter { it.kind == kind && !it.isSubCategory }
             .sortedBy { it.name }
             .map { parent ->
-                val children = all.filter { it.parentId == parent.id }.sortedBy { it.name }
-                val doomed = setOf(parent.id) + children.map { it.id }
                 ManageCategoryRow(
                     category = parent,
-                    children = children,
-                    affectedTransactions = transactions.count { tx ->
-                        tx.referencedCategoryIds.any { it in doomed }
-                    },
+                    children = all.filter { it.parentId == parent.id }.sortedBy { it.name },
+                    affectedTransactions = usage[parent.id] ?: 0,
                 )
             }
 

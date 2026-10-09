@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.transaction
 // Amounts arrive pre-formatted from the view-model (per currency + locale); this screen only adds
 // the sign each kind carries.
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -47,6 +49,8 @@ import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.rememberDayFormatter
 import org.aristonis.mywallet.ui.format.signedAmount
 import org.aristonis.mywallet.ui.icons.WalletIcons
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.theme.amountColor
@@ -61,7 +65,8 @@ private val SCREEN_PADDING = 16.dp
 
 /**
  * The history, newest first and grouped by day. Tapping a row opens it in the editor. This is a
- * top-level tab, so it has no back arrow — the navigation bar is how you leave it.
+ * top-level tab, so it has no back arrow — the navigation bar is how you leave it. The history loads
+ * a page at a time; reaching the end of the rows asks for the next page.
  *
  * Every return to the screen re-reads the date, so a list left open overnight relabels its days and
  * a window following today moves along with it.
@@ -82,6 +87,7 @@ fun TransactionsListScreen(
         onShowSavedEntry = viewModel::showSavedEntry,
         onSavedEntryMessageDone = viewModel::dismissSavedEntryMessage,
         onRetry = viewModel::retry,
+        onLoadMore = viewModel::loadMore,
     )
 }
 
@@ -91,7 +97,8 @@ fun TransactionsListScreen(
  *
  * An entry just saved outside the dates gets a snackbar naming its day, with an action that moves the
  * dates onto it. [onShowSavedEntry] and [onSavedEntryMessageDone] report how the snackbar ended.
- * [onRetry] reads the dates in force again after a failed read.
+ * [onRetry] reads the dates in force again after a failed read. [onLoadMore] asks for the next page
+ * once the end of the rows comes into view.
  */
 @Composable
 internal fun TransactionsListContent(
@@ -102,6 +109,7 @@ internal fun TransactionsListContent(
     onShowSavedEntry: () -> Unit,
     onSavedEntryMessageDone: () -> Unit,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     SavedOutsideSnackbar(
@@ -136,7 +144,12 @@ internal fun TransactionsListContent(
                 actions = windowActions,
                 modifier = Modifier.padding(horizontal = SCREEN_PADDING),
             )
-            TransactionsBody(state = state, onEditTransaction = onEditTransaction, onRetry = onRetry)
+            TransactionsBody(
+                state = state,
+                onEditTransaction = onEditTransaction,
+                onRetry = onRetry,
+                onLoadMore = onLoadMore,
+            )
         }
     }
 }
@@ -177,6 +190,7 @@ private fun TransactionsBody(
     state: TransactionsUiState,
     onEditTransaction: (Long) -> Unit,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
 ) {
     when {
         // Inline, under the date bar rather than instead of it, so the screen does not flicker
@@ -188,7 +202,13 @@ private fun TransactionsBody(
         // Said in place of the list, under the date bar, so other dates can still be chosen; an empty
         // message here would claim there is nothing to show, which is not known.
         state.loadFailed -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
-            LoadFailedState(message = stringResource(R.string.transactions_data_unreadable), onRetry = onRetry)
+            // A row the app cannot read gets its own wording (the data is safe, other dates may show);
+            // any other failure is the generic one.
+            val message = when (val failure = state.loadFailure) {
+                null, UiMessage.DataUnreadable -> stringResource(R.string.transactions_data_unreadable)
+                else -> failure.text()
+            }
+            LoadFailedState(message = message, onRetry = onRetry)
         }
 
         // An empty filter is not an empty wallet: inviting a first transaction while the user's
@@ -198,14 +218,31 @@ private fun TransactionsBody(
             EmptyState(message = stringResource(message))
         }
 
-        else -> TransactionDays(sections = state.sections, onEditTransaction = onEditTransaction)
+        else -> TransactionDays(
+            sections = state.sections,
+            hasMore = state.hasMore,
+            isLoadingMore = state.isLoadingMore,
+            rowCount = state.rowCount,
+            onEditTransaction = onEditTransaction,
+            onLoadMore = onLoadMore,
+        )
     }
 }
 
+/**
+ * The rows, keyed by entry id so the list keeps its place while pages arrive and entries change.
+ * While [hasMore], a last item stands for the rows not loaded yet: it only composes when the end of
+ * the list comes into view, and asks for the next page then. It asks again whenever a page has
+ * finished loading and it is still in view, including after a request that was turned away.
+ */
 @Composable
 private fun TransactionDays(
     sections: List<TransactionSection>,
+    hasMore: Boolean,
+    isLoadingMore: Boolean,
+    rowCount: Int,
     onEditTransaction: (Long) -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Every header in the list shares one formatter, and "is this the current year" is decided once
@@ -221,8 +258,22 @@ private fun TransactionDays(
                 TransactionRowItem(row = row, onClick = { onEditTransaction(row.id) })
             }
         }
+        if (hasMore) {
+            item(key = NEXT_PAGE_KEY) {
+                val currentOnLoadMore by rememberUpdatedState(onLoadMore)
+                LaunchedEffect(rowCount, isLoadingMore) {
+                    if (!isLoadingMore) currentOnLoadMore()
+                }
+                Box(modifier = Modifier.fillMaxWidth().padding(SCREEN_PADDING), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+        }
     }
 }
+
+/** Key of the item that stands for the rows not loaded yet; no entry id can take it. */
+private const val NEXT_PAGE_KEY = "next-page"
 
 @Composable
 private fun dayHeaderText(section: TransactionSection, formatDay: (LocalDate) -> String): String =

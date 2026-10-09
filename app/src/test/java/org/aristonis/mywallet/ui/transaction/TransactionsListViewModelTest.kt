@@ -27,6 +27,7 @@ import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -67,10 +68,11 @@ class TransactionsListViewModelTest {
         categories: List<Category>,
     ) {
         val viewModel = TransactionsListViewModel(
-            transactions = FakeTransactionRepository(transactions),
+            entries = FakeEntryRepository(transactions),
             accounts = FakeAccountRepository(accounts),
             categories = FakeCategoryRepository(categories),
             currencies = FakeCurrencyRepository(currencies),
+            observeLedgerHealth = HealthLedger().health(),
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { LocalDate.of(2026, 8, 26) },
             savedStateHandle = SavedStateHandle(),
@@ -224,14 +226,15 @@ class TransactionsListViewModelTest {
 
     @Test
     fun stopsReadingWhenNoOneWatches() = runTest {
-        val repo = FakeTransactionRepository(
+        val repo = FakeEntryRepository(
             listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
         )
         val viewModel = TransactionsListViewModel(
-            transactions = repo,
+            entries = repo,
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),
             currencies = FakeCurrencyRepository(currencies),
+            observeLedgerHealth = HealthLedger().health(),
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { LocalDate.of(2026, 8, 26) },
             savedStateHandle = SavedStateHandle(),
@@ -249,7 +252,7 @@ class TransactionsListViewModelTest {
         assertEquals(0, repo.activeReads)
 
         // Entries saved meanwhile show up as soon as the tab is back.
-        repo.add(Transaction.Expense(id = 2, accountId = 1, amount = Money.of("7", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 2)))
+        repo.insert(Transaction.Expense(id = 2, accountId = 1, amount = Money.of("7", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 2)))
         backgroundScope.launch { viewModel.state.collect {} }
         // Only background work is queued now, which advanceUntilIdle leaves alone; start it first.
         runCurrent()
@@ -263,12 +266,13 @@ class TransactionsListViewModelTest {
         // Every amount is formatted against this list, so whoever walks it is building the rows.
         val formattingData = ThreadRecordingList(currencies)
         val viewModel = TransactionsListViewModel(
-            transactions = FakeTransactionRepository(
+            entries = FakeEntryRepository(
                 listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
             ),
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),
             currencies = FakeCurrencyRepository(formattingData),
+            observeLedgerHealth = HealthLedger().health(),
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { LocalDate.of(2026, 8, 26) },
             savedStateHandle = SavedStateHandle(),
@@ -289,14 +293,15 @@ class TransactionsListViewModelTest {
 
     @Test
     fun aRotationDoesNotRestartTheRead() = runTest {
-        val repo = FakeTransactionRepository(
+        val repo = FakeEntryRepository(
             listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
         )
         val viewModel = TransactionsListViewModel(
-            transactions = repo,
+            entries = repo,
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),
             currencies = FakeCurrencyRepository(currencies),
+            observeLedgerHealth = HealthLedger().health(),
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { LocalDate.of(2026, 8, 26) },
             savedStateHandle = SavedStateHandle(),
@@ -318,14 +323,15 @@ class TransactionsListViewModelTest {
 
 
     private fun listOver(
-        repo: FakeTransactionRepository,
+        repo: FakeEntryRepository,
         errors: RecordingErrorReporter = RecordingErrorReporter(),
         categories: FakeCategoryRepository = FakeCategoryRepository(listOf(food)),
     ) = TransactionsListViewModel(
-        transactions = repo,
+        entries = repo,
         accounts = FakeAccountRepository(listOf(cash)),
         categories = categories,
         currencies = FakeCurrencyRepository(currencies),
+        observeLedgerHealth = HealthLedger().health(),
         moneyFormatter = MoneyFormatter(Locale.US),
         today = { LocalDate.of(2026, 8, 26) },
         savedStateHandle = SavedStateHandle(),
@@ -335,7 +341,7 @@ class TransactionsListViewModelTest {
 
     @Test
     fun aFailedReadShowsAnError() = runTest {
-        val repo = FakeTransactionRepository(
+        val repo = FakeEntryRepository(
             listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
         ).apply { unreadableRange = DateRange.ALL_TIME }
         val errors = RecordingErrorReporter()
@@ -354,7 +360,7 @@ class TransactionsListViewModelTest {
     @Test
     fun aFailedReadRecoversWhenTheDatesChange() = runTest {
         // The failure belongs to the dates it was read for; picking other dates reads again.
-        val repo = FakeTransactionRepository(
+        val repo = FakeEntryRepository(
             listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
         ).apply { unreadableRange = DateRange.ALL_TIME }
         val viewModel = listOver(repo)
@@ -374,7 +380,7 @@ class TransactionsListViewModelTest {
     fun aFailedCategoryReadShowsTheErrorInsteadOfClosingTheApp() = runTest {
         val errors = RecordingErrorReporter()
         val viewModel = listOver(
-            FakeTransactionRepository(emptyList()),
+            FakeEntryRepository(emptyList()),
             errors,
             categories = FakeCategoryRepository(listOf(food)).apply { failing = true },
         )
@@ -387,7 +393,7 @@ class TransactionsListViewModelTest {
 
     @Test
     fun retryShowsTheListLoadingAgainWhileItReads() = runTest {
-        val repo = FakeTransactionRepository(emptyList()).apply { failedReadsLeft = 1; hangsAfterFailures = true }
+        val repo = FakeEntryRepository(emptyList()).apply { failedReadsLeft = 1; hangsAfterFailures = true }
         val viewModel = listOver(repo, RecordingErrorReporter())
         watch(viewModel)
         advanceUntilIdle()
@@ -402,7 +408,7 @@ class TransactionsListViewModelTest {
 
     @Test
     fun retryAfterAFailedReadReadsAgainAndShowsTheData() = runTest {
-        val repo = FakeTransactionRepository(
+        val repo = FakeEntryRepository(
             listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
         ).apply { failedReadsLeft = 1 }
         val errors = RecordingErrorReporter()
@@ -424,7 +430,7 @@ class TransactionsListViewModelTest {
 
     @Test
     fun retryWhileNothingHasFailedDoesNotBreakTheList() = runTest {
-        val repo = FakeTransactionRepository(
+        val repo = FakeEntryRepository(
             listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
         )
         val viewModel = listOver(repo)

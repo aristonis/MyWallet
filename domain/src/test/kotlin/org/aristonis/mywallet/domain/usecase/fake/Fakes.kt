@@ -19,6 +19,7 @@ import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.FxRepository
+import org.aristonis.mywallet.domain.port.LegRateChange
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
@@ -152,15 +153,23 @@ class FakeFxRepository(initial: FxSnapshot) : FxRepository {
 
 /** Records the one atomic hand-over, so a test can assert what the adapter was actually given. */
 class FakeBaseCurrencyRepository : BaseCurrencyRepository {
-    data class Rebase(val newBaseCurrencyCode: String, val rates: List<ExchangeRate>)
+    data class Rebase(
+        val newBaseCurrencyCode: String,
+        val rates: List<ExchangeRate>,
+        val legRates: List<LegRateChange> = emptyList(),
+    )
 
     var lastRebase: Rebase? = null
         private set
     var rebaseCount: Int = 0
         private set
 
-    override suspend fun rebase(newBaseCurrencyCode: String, rates: List<ExchangeRate>) {
-        lastRebase = Rebase(newBaseCurrencyCode, rates)
+    override suspend fun rebase(
+        newBaseCurrencyCode: String,
+        rates: List<ExchangeRate>,
+        legRates: List<LegRateChange>,
+    ) {
+        lastRebase = Rebase(newBaseCurrencyCode, rates, legRates)
         rebaseCount++
     }
 }

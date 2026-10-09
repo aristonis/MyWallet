@@ -22,27 +22,47 @@ const val DEBT_LEGS_SQL =
     "SELECT l.debtId AS debtId, l.amount AS amount, d.currencyCode AS currencyCode, d.side AS side " +
         "FROM entry_legs AS l JOIN debts AS d ON d.id = l.debtId"
 
+/** The columns both category-leg reads return, by the names [CategoryLegRow] expects. */
+private const val CATEGORY_LEG_COLUMNS =
+    "SELECT e.id AS entryId, e.date AS date, e.kind AS entryKind, l.role AS role, l.categoryId AS categoryId, " +
+        "l.subCategoryId AS subCategoryId, l.amount AS amount, " +
+        "l.currencyCode AS currencyCode, l.rateToBase AS rateToBase "
+
 /**
- * Every category leg of entries dated in `:start`..`:end`, newest entry first (date, then id, both
- * descending) and each entry's legs by position. Tracking names the currency of the newest leg with
- * no rate, so this order is part of what it shows.
+ * Every category leg of entries dated in `:start`..`:end`, in no particular order. Tracking sums
+ * them and picks the newest leg with no rate itself, from each leg's date and entry id, so the read
+ * does not sort. Tracking places a leg by its entry's kind, so the category row is not joined.
  *
- * The unary `+` on the two `IS NULL` terms keeps SQLite from using a leg index for them. With no
- * table statistics it would otherwise start from the `debtId` index, where almost every leg is
- * NULL, and walk the whole history before sorting it. Without that index the date index leads, so a
- * month costs its own legs, found through `(entryId, position)` already in the order asked for.
+ * `CROSS JOIN` keeps `entries` as the outer loop, so the date index leads and a month costs its own
+ * legs, each entry's found through the `(entryId, ...)` index. The unary `+` on the two `IS NULL`
+ * terms keeps SQLite from using a leg index for them: with no table statistics it would otherwise
+ * consider the `debtId` index, where almost every leg is NULL, and walk the whole history.
  */
 internal const val CATEGORY_LEGS_SQL =
-    "SELECT e.id AS entryId, e.date AS date, e.kind AS entryKind, l.role AS role, l.categoryId AS categoryId, " +
-        "l.subCategoryId AS subCategoryId, c.kind AS categoryKind, l.amount AS amount, " +
-        "l.currencyCode AS currencyCode, l.rateToBase AS rateToBase " +
-        "FROM entries AS e JOIN entry_legs AS l ON l.entryId = e.id " +
-        "LEFT JOIN categories AS c ON c.id = l.categoryId " +
-        "WHERE e.date BETWEEN :start AND :end AND +l.accountId IS NULL AND +l.debtId IS NULL " +
-        "ORDER BY e.date DESC, e.id DESC, l.position, l.id"
+    CATEGORY_LEG_COLUMNS +
+        "FROM entries AS e CROSS JOIN entry_legs AS l ON l.entryId = e.id " +
+        "WHERE e.date BETWEEN :start AND :end AND +l.accountId IS NULL AND +l.debtId IS NULL"
 
-/** Whether any leg is on an account. An EXISTS stops at the first index entry instead of counting them all. */
-const val ACCOUNT_IN_USE_SQL = "SELECT EXISTS (SELECT 1 FROM entry_legs WHERE accountId = :accountId)"
+/**
+ * Every category leg of every entry, the same rows [CATEGORY_LEGS_SQL] returns month by month. When
+ * every entry is wanted the date index buys nothing: walking it and seeking each entry's legs costs
+ * far more than one pass over the legs, each finding its entry by primary key. `CROSS JOIN` keeps
+ * the legs as the outer loop.
+ */
+internal const val CATEGORY_LEGS_ALL_TIME_SQL =
+    CATEGORY_LEG_COLUMNS +
+        "FROM entry_legs AS l CROSS JOIN entries AS e ON e.id = l.entryId " +
+        "WHERE +l.accountId IS NULL AND +l.debtId IS NULL"
+
+/**
+ * Whether anything points at an account: a leg, or the raw copy of an old row the upgrade could not
+ * read, which still names the accounts it was on. Deleting the account, or changing its currency,
+ * would break that copy. Each EXISTS stops at the first match; the leg branch uses the account index.
+ */
+const val ACCOUNT_IN_USE_SQL =
+    "SELECT EXISTS (SELECT 1 FROM entry_legs WHERE accountId = :accountId) " +
+        "OR EXISTS (SELECT 1 FROM legacy_unreadable_rows " +
+        "WHERE primaryAccountId = :accountId OR secondaryAccountId = :accountId)"
 
 /** One account leg: its signed amount and the account's currency. */
 data class AccountLegRow(val accountId: Long, val amount: String, val currencyCode: String)
@@ -52,8 +72,7 @@ data class DebtLegRow(val debtId: Long, val amount: String, val currencyCode: St
 
 /**
  * One leg that is on neither an account nor a debt, which is what a category leg is. [categoryId]
- * is null only on a leg that is on nothing at all; [categoryKind] is null when the category row is
- * gone.
+ * is null only on a leg that is on nothing at all.
  */
 data class CategoryLegRow(
     val entryId: Long,
@@ -62,7 +81,6 @@ data class CategoryLegRow(
     val role: String,
     val categoryId: Long?,
     val subCategoryId: Long?,
-    val categoryKind: String?,
     val amount: String,
     val currencyCode: String,
     val rateToBase: String?,
@@ -80,6 +98,9 @@ data class CategoryUsageRow(val categoryId: Long, val entryCount: Int)
 /** A currency and one rate stored on its category legs. */
 data class LegRateRow(val currencyCode: String, val rateToBase: String?)
 
+/** One category leg's id with its currency and the exact text of its stored rate, if any. */
+data class CategoryLegRateRow(val id: Long, val currencyCode: String, val rateToBase: String?)
+
 /**
  * Read-only projections over legs. SQL only filters and projects here: no SUM, because SQLite sums
  * TEXT through floating point and the amounts are exact decimals. The callers sum with BigDecimal.
@@ -95,6 +116,9 @@ interface LedgerQueryDao {
 
     @Query(CATEGORY_LEGS_SQL)
     fun observeCategoryLegs(start: LocalDate, end: LocalDate): Flow<List<CategoryLegRow>>
+
+    @Query(CATEGORY_LEGS_ALL_TIME_SQL)
+    fun observeAllCategoryLegs(): Flow<List<CategoryLegRow>>
 
     /**
      * The entry holding a leg on [accountId] whose stored text is exactly [amount], lowest id first.
@@ -135,4 +159,15 @@ interface LedgerQueryDao {
 
     @Query("SELECT DISTINCT currencyCode, rateToBase FROM entry_legs WHERE categoryId IS NOT NULL")
     suspend fun distinctLegRates(): List<LegRateRow>
+
+    /** Every category leg with its stored rate, for rewriting rates on a base change. */
+    @Query("SELECT id, currencyCode, rateToBase FROM entry_legs WHERE categoryId IS NOT NULL")
+    suspend fun categoryLegRates(): List<CategoryLegRateRow>
+
+    /**
+     * Stores [rate] on the legs with [ids], returning how many changed. Callers keep [ids] under
+     * SQLite's bound-variable limit.
+     */
+    @Query("UPDATE entry_legs SET rateToBase = :rate WHERE id IN (:ids)")
+    suspend fun setLegRate(ids: List<Long>, rate: String): Int
 }

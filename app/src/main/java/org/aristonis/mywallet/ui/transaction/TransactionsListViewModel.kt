@@ -12,27 +12,32 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.port.EntryRepository
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.load.ReadAttempts
+import org.aristonis.mywallet.ui.load.loadFailure
+import org.aristonis.mywallet.ui.load.toLoadFailure
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.window.TrackingWindowHolder
 import java.time.LocalDate
@@ -41,76 +46,6 @@ import kotlin.coroutines.cancellation.CancellationException
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.label
 
-/** Which kind a display row is — lets the screen pick the sign/icon without re-deriving it. */
-enum class TransactionRowType { INCOME, EXPENSE, TRANSFER }
-
-/**
- * A display-ready transaction row: ids already resolved to names, amounts pre-formatted per currency
- * + locale in [amountDisplay]/[destAmountDisplay]. The raw [Money] stays too so tests assert on exact
- * values and the screen keeps applying its own +/−/→ sign prefixes. Transfer rows carry BOTH legs.
- */
-data class TransactionRow(
-    val id: Long,
-    val date: LocalDate,
-    val type: TransactionRowType,
-    /** Null when the id resolved to nothing — the screen decides how to show a gap. */
-    val accountName: String?,
-    val destAccountName: String?,
-    val categoryLabel: CategoryLabel?,
-    val amount: Money,
-    val destAmount: Money?,
-    val amountDisplay: String,
-    val destAmountDisplay: String?,
-    val note: String?,
-)
-
-/** How a day reads against the device's current date. */
-enum class DayRelation { TODAY, YESTERDAY, EARLIER }
-
-/**
- * One day of history. The list is read a day at a time — "what did I spend today" — so the day is
- * part of the structure rather than a field repeated on every row.
- */
-data class TransactionSection(
-    val date: LocalDate,
-    val relation: DayRelation,
-    val rows: List<TransactionRow>,
-)
-
-/**
- * Everything, before the view-model has said otherwise. All time ignores its anchor, so the day it is
- * pinned to here never reaches the screen.
- */
-private val EVERYTHING: TrackingWindow = TrackingWindow.Period(TrackingPeriod.ALL_TIME, LocalDate.MIN)
-
-/** Immutable snapshot the transactions list renders from. */
-data class TransactionsUiState(
-    val sections: List<TransactionSection> = emptyList(),
-    val isLoading: Boolean = true,
-    /** The dates the list is narrowed to; the [sections] always belong to this window. */
-    val window: TrackingWindow = EVERYTHING,
-    /**
-     * The date of an entry just saved outside the dates in force, or null. Without a word the entry
-     * would simply be missing from the list the user returns to, so the screen offers to show it.
-     */
-    val savedOutsideWindow: LocalDate? = null,
-    /**
-     * The window's transactions could not be read. The screen says so instead of listing nothing:
-     * an empty list would read as "nothing in these dates", which is a different, wrong statement.
-     */
-    val loadFailed: Boolean = false,
-) {
-    /** Every row, newest first, ignoring day boundaries. Derived so the two can never disagree. */
-    val rows: List<TransactionRow> get() = sections.flatMap { it.rows }
-
-    /**
-     * Whether the list is unfiltered. An empty list means "nothing recorded yet" only then; under a
-     * narrower window it means "nothing in these dates", and the screen must not confuse the two.
-     */
-    val showsEverything: Boolean
-        get() = (window as? TrackingWindow.Period)?.period == TrackingPeriod.ALL_TIME
-}
-
 /**
  * Where the read of one window stands, kept with the window it is for. A failure is a value here so
  * it belongs to that window alone.
@@ -118,12 +53,23 @@ data class TransactionsUiState(
 private sealed interface WindowedTransactions {
     val window: TrackingWindow
 
-    data class Failed(override val window: TrackingWindow) : WindowedTransactions
+    /** [failure] is what the user is told: an unreadable row, or the generic failure. */
+    data class Failed(override val window: TrackingWindow, val failure: UiMessage) : WindowedTransactions
 
-    data class Read(
-        override val window: TrackingWindow,
-        val transactions: List<Transaction>,
-    ) : WindowedTransactions
+    /** The window's pages loaded so far. */
+    data class Read(override val window: TrackingWindow, val pages: LoadedPages) : WindowedTransactions
+}
+
+/**
+ * How many pages the user has scrolled into, and in which window. Any other window opens on one
+ * page; a null [window] is the state after the dates were changed.
+ */
+private data class PagesWanted(val window: TrackingWindow?, val pages: Int) {
+    fun pagesFor(current: TrackingWindow): Int = if (current == window) pages else 1
+
+    companion object {
+        val FIRST = PagesWanted(window = null, pages = 1)
+    }
 }
 
 /**
@@ -137,18 +83,29 @@ private sealed interface WindowedTransactions {
  * Only the transactions depend on the dates: the lookups sit outside the window switch, so moving
  * through months keeps one subscription to each instead of reopening them on every tap.
  *
+ * The list loads in pages: a window opens on its newest [PAGE_SIZE] entries, and [loadMore] appends
+ * the next page when the user scrolls to the end. [TransactionPages] does the reading: a next page
+ * is one read after the last row shown, and a save, edit or delete re-reads the loaded pages
+ * together, so the rows stay an unbroken run from the newest entry.
+ *
+ * The rows come from whole entries, but an entry of a kind the app cannot read is in no page, so
+ * the ledger's health is read beside them. While it reports such an entry the list shows the
+ * cannot-be-read state for every window; [retry] reads the health again. A health read that fails
+ * for another reason shows the generic failure instead.
+ *
  * Building the sections (sorting, grouping, resolving names, formatting money) runs on
- * [defaultDispatcher], off the main thread, because all time can be thousands of rows. The list only
- * reads while its screen watches it: a few seconds after the tab is hidden the reads stop, and they
- * pick up the latest data when it is shown again.
+ * [defaultDispatcher], off the main thread. The list only reads while its screen watches it: a few
+ * seconds after the tab is hidden the reads stop, and they pick up the latest data when it is shown
+ * again.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class TransactionsListViewModel @Inject constructor(
-    transactions: TransactionRepository,
+    entries: EntryRepository,
     accounts: AccountRepository,
     categories: CategoryRepository,
     currencies: CurrencyRepository,
+    observeLedgerHealth: ObserveLedgerHealth,
     private val moneyFormatter: MoneyFormatter,
     private val today: TodayProvider,
     savedStateHandle: SavedStateHandle,
@@ -174,6 +131,17 @@ class TransactionsListViewModel @Inject constructor(
     private val attempts = ReadAttempts()
 
     /**
+     * The pages asked for. Kept here rather than inside the reads, so a screen that comes back after
+     * its reads stopped finds the same pages loaded, at the place it was scrolled to.
+     */
+    private val pagesWanted = MutableStateFlow(PagesWanted.FIRST)
+
+    private val pages = TransactionPages(entries, PAGE_SIZE)
+
+    /**
+     * The window's pages. Only the page count for this window is followed, so a page asked for
+     * elsewhere never touches this read.
+     *
      * A read that throws (a stored row that cannot be decoded) is caught here, on the window's own
      * read, and becomes a failed value for that window. Caught any further down, the whole chain
      * would complete and the date bar would stop doing anything until the screen was rebuilt; caught
@@ -182,14 +150,21 @@ class TransactionsListViewModel @Inject constructor(
      */
     private val windowed: Flow<WindowedTransactions> =
         holder.window.flatMapLatest { window ->
-            transactions.observeBetween(window.range)
-                .map<List<Transaction>, WindowedTransactions> { WindowedTransactions.Read(window, it) }
+            val wanted = pagesWanted.map { it.pagesFor(window) }.distinctUntilChanged()
+            pages.observe(window.range, wanted)
+                .map<LoadedPages, WindowedTransactions> { loaded -> WindowedTransactions.Read(window, loaded) }
                 .catch { error ->
                     if (error is CancellationException) throw error
                     errors.report("Transactions for ${window.range} could not be read", error)
-                    emit(WindowedTransactions.Failed(window))
+                    emit(WindowedTransactions.Failed(window, error.toLoadFailure()))
                 }
         }
+
+    /**
+     * Null while every entry can be read; the failure once one cannot, or once the health read itself
+     * fails. Reported once, read again on [retry].
+     */
+    private val healthFailure: Flow<UiMessage?> = observeLedgerHealth.loadFailure(errors, screen = "Transactions")
 
     /**
      * Null when the accounts, categories or currencies could not be read. The catch ends only this
@@ -222,19 +197,26 @@ class TransactionsListViewModel @Inject constructor(
      * [defaultDispatcher]; only the finished state is handed back. Before the first emission the state
      * is loading on the saved window, so the date bar shows the right dates from the start.
      *
-     * The saved-entry message joins the finished state downstream of the building, so showing or
-     * clearing it copies one value instead of sorting and grouping the whole window again.
+     * The saved-entry message and the next page being read join the finished state downstream of the
+     * building, so showing or clearing either copies one value instead of sorting and grouping the
+     * whole window again.
      *
      * There is deliberately no catch at the end of this chain: a catch completes the flow it guards,
      * and the list would freeze on the failure. Failures are turned into state where they happen, in
-     * [windowed], in [lookups] and in [stateFor].
+     * [windowed], in [lookups], in [healthFailure] and in [stateFor].
      */
     val state: StateFlow<TransactionsUiState> =
         attempts.reading(loading = { TransactionsUiState(window = holder.window.value) }) {
-            combine(windowed, lookups, currentDay) { read, lookup, day -> stateFor(read, lookup, day) }
+            combine(windowed, lookups, healthFailure, currentDay) { read, lookup, failure, day ->
+                if (failure == null) stateFor(read, lookup, day) else failedState(read.window, failure)
+            }
         }
             .flowOn(defaultDispatcher)
             .combine(savedOutside) { built, saved -> built.copy(savedOutsideWindow = saved) }
+            .combine(pagesWanted) { built, wanted ->
+                // Rows short of the pages asked for, while more exist, are the next page on its way.
+                built.copy(isLoadingMore = built.hasMore && built.rowCount < wanted.pagesFor(built.window) * PAGE_SIZE)
+            }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -243,14 +225,49 @@ class TransactionsListViewModel @Inject constructor(
 
     /** The date bar's callbacks, already wired to this screen's window. */
     val windowActions: DateWindowActions = holder.actions.let { moves ->
-        // Once other dates are on screen, "outside these dates" describes something else.
         DateWindowActions(
-            onSelectPeriod = { savedOutside.value = null; moves.onSelectPeriod(it) },
-            onStep = { savedOutside.value = null; moves.onStep(it) },
-            onJumpTo = { savedOutside.value = null; moves.onJumpTo(it) },
-            onSelectRange = { first, second -> savedOutside.value = null; moves.onSelectRange(first, second) },
-            onClearRange = { savedOutside.value = null; moves.onClearRange() },
+            onSelectPeriod = { movingDates { moves.onSelectPeriod(it) } },
+            onStep = { movingDates { moves.onStep(it) } },
+            onJumpTo = { movingDates { moves.onJumpTo(it) } },
+            onSelectRange = { first, second -> movingDates { moves.onSelectRange(first, second) } },
+            onClearRange = { movingDates { moves.onClearRange() } },
         )
+    }
+
+    /**
+     * Runs a date change the user asked for. "Outside these dates" would then describe something
+     * else, so the message goes. When the dates really change they open on one page, even when they
+     * equal dates the user had scrolled deep into earlier; a tap that leaves them as they are keeps
+     * the pages loaded.
+     */
+    private inline fun movingDates(move: () -> Unit) {
+        val before = holder.window.value
+        savedOutside.value = null
+        move()
+        if (holder.window.value != before) pagesWanted.value = PagesWanted.FIRST
+    }
+
+    /**
+     * Asks for the next page; the screen calls this when its last row comes into view. Does nothing
+     * while the list is loading or failed, when nothing is left, or while a page is already on its
+     * way: the target is the page after the rows shown, so repeated calls before it arrives ask for
+     * the same page once.
+     *
+     * While the dates are changing, the rows on screen still belong to the old dates and say nothing
+     * about the new ones. The request is then kept for the new dates as their second page, loaded
+     * once their first page is in and only if they hold more, so a scroll made in that moment is not
+     * lost.
+     */
+    fun loadMore() {
+        val shown = state.value
+        val window = holder.window.value
+        if (shown.window != window) {
+            pagesWanted.update { wanted -> PagesWanted(window, maxOf(wanted.pagesFor(window), 2)) }
+            return
+        }
+        if (!shown.hasMore || shown.isLoading || shown.loadFailed) return
+        val next = shown.rowCount / PAGE_SIZE + 1
+        pagesWanted.update { wanted -> PagesWanted(window, maxOf(wanted.pagesFor(window), next)) }
     }
 
     /**
@@ -278,8 +295,7 @@ class TransactionsListViewModel @Inject constructor(
      */
     fun showSavedEntry() {
         val date = savedOutside.value ?: return
-        holder.jumpTo(date)
-        savedOutside.value = null
+        movingDates { holder.jumpTo(date) }
     }
 
     /**
@@ -301,25 +317,28 @@ class TransactionsListViewModel @Inject constructor(
      * without names or currencies would misstate what was recorded.
      */
     private fun stateFor(read: WindowedTransactions, lookups: Lookups?, day: LocalDate): TransactionsUiState {
-        val failed = TransactionsUiState(isLoading = false, window = read.window, loadFailed = true)
         val served = when (read) {
-            is WindowedTransactions.Failed -> return failed
-            is WindowedTransactions.Read -> read
+            is WindowedTransactions.Failed -> return failedState(read.window, read.failure)
+            is WindowedTransactions.Read -> read.pages
         }
-        if (lookups == null) return failed
+        if (lookups == null) return failedState(read.window, UiMessage.Unexpected)
         return try {
             TransactionsUiState(
                 sections = buildSections(served.transactions, lookups, day),
                 isLoading = false,
                 window = read.window,
+                hasMore = served.hasMore,
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             errors.report("Transactions for ${read.window.range} could not be listed", e)
-            failed
+            failedState(read.window, UiMessage.Unexpected)
         }
     }
+
+    private fun failedState(window: TrackingWindow, failure: UiMessage) =
+        TransactionsUiState(isLoading = false, window = window, loadFailed = true, loadFailure = failure)
 
     /**
      * Newest first, then grouped by day. The sort happens before the grouping so a section's rows
@@ -405,5 +424,8 @@ class TransactionsListViewModel @Inject constructor(
     private companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val WINDOW_KEY = "transactions.window"
+
+        /** Entries per page: about two screens of history, small enough to read quickly. */
+        private const val PAGE_SIZE = 100
     }
 }

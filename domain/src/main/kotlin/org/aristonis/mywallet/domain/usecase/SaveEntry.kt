@@ -14,7 +14,6 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
-import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.service.RateBook
@@ -42,14 +41,15 @@ data class SavedEntry(val id: Long, val date: LocalDate)
  * edited transfer keeps its currency pair and is re-derived at its stored rate.
  *
  * With "Save rates I enter" on, the typed rates become the saved rates after the entry is written,
- * and fill every category leg in that currency that still has no rate.
+ * through [SetExchangeRate], which also fills every category leg in that currency that still has no
+ * rate. The fill lives there alone, so a rate saved here and one saved on the rates screen behave
+ * the same way.
  */
 class SaveEntry(
     private val runner: TransactionRunner,
     private val accounts: AccountRepository,
     private val categories: CategoryRepository,
     private val entries: EntryRepository,
-    private val ledger: LedgerQueries,
     private val fx: FxRepository,
     private val settings: SettingsRepository,
     private val setExchangeRate: SetExchangeRate,
@@ -133,13 +133,11 @@ class SaveEntry(
     }
 
     /**
-     * Saves each typed rate and gives it to the legs still waiting for one. The base is skipped: it
-     * is always 1, and a stored row for it would be read as a real rate after the next base change.
+     * Saves each typed rate, which also gives it to the legs still waiting for one. The base is
+     * skipped: it is always 1, and a stored row for it would be read as a real rate after the next
+     * base change.
      */
     private suspend fun keepTypedRates(typedRates: Map<String, BigDecimal>, baseCurrencyCode: String) {
-        typedRates.filterKeys { it != baseCurrencyCode }.forEach { (code, rate) ->
-            setExchangeRate(code, rate)
-            ledger.fillMissingRate(code, rate)
-        }
+        typedRates.filterKeys { it != baseCurrencyCode }.forEach { (code, rate) -> setExchangeRate(code, rate) }
     }
 }

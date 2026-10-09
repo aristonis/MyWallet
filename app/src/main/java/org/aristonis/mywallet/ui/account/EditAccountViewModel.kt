@@ -20,13 +20,14 @@ import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
+import org.aristonis.mywallet.ui.load.toLoadFailure
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.involvesAccount
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
 import javax.inject.Inject
 
@@ -50,6 +51,11 @@ data class EditAccountUiState(
      * there, so the screen offers to read it again rather than only to go back.
      */
     val loadFailed: Boolean = false,
+    /**
+     * What to tell the user while [loadFailed]: [UiMessage.DataUnreadable] for a stored row the app
+     * cannot read, [UiMessage.Unexpected] for any other failure. Null while nothing failed.
+     */
+    val loadFailure: UiMessage? = null,
 ) {
     val canSubmit: Boolean
         get() = loaded != null && selectedCurrencyCode != null && name.isNotBlank() && !isSubmitting
@@ -62,14 +68,21 @@ data class EditAccountUiState(
  * (no nav back-stack), [load] cancels any prior fetch and resets identity + one-shot state before the
  * async read, so a re-pointed view model never shows — or lets a Save hit — the previously loaded account.
  *
+ * "Has transactions" is asked of the ledger (does any leg sit on this account). An entry the app
+ * cannot read could hide such a leg, so the ledger's health is read first: while it reports an
+ * unreadable entry the form stays empty and the screen shows the cannot-be-read state, rather than
+ * an editor that could unlock the currency of an account in use.
+ *
  * A read that throws (a stored row that cannot be decoded) becomes [EditAccountUiState.loadFailed],
- * reported to [ErrorReporter], instead of crashing the app; [retry] loads the same account again.
+ * reported to [ErrorReporter], instead of crashing the app; [retry] reads the health and the same
+ * account again.
  */
 @HiltViewModel
 class EditAccountViewModel @Inject constructor(
     private val accounts: AccountRepository,
     private val currencies: CurrencyRepository,
-    private val transactions: TransactionRepository,
+    private val ledger: LedgerQueries,
+    private val observeLedgerHealth: ObserveLedgerHealth,
     private val updateAccount: UpdateAccount,
     private val moneyParser: MoneyParser,
     private val errors: ErrorReporter,
@@ -106,6 +119,7 @@ class EditAccountViewModel @Inject constructor(
                 error = null,
                 saved = false,
                 loadFailed = false,
+                loadFailure = null,
             )
         }
         loadJob = viewModelScope.launch {
@@ -115,7 +129,7 @@ class EditAccountViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 errors.report("Edit account could not read account $id", e)
-                _state.update { it.copy(loadFailed = true) }
+                _state.update { it.copy(loadFailed = true, loadFailure = e.toLoadFailure()) }
             }
         }
     }
@@ -126,6 +140,8 @@ class EditAccountViewModel @Inject constructor(
     }
 
     private suspend fun readInto(id: Long) {
+        // Fails with UnreadableRow while an entry the app cannot read is stored.
+        observeLedgerHealth().first()
         val existing = accounts.findById(id)
         // A newer load() cancelled this one; stop here rather than overwrite the fresh state.
         currentCoroutineContext().ensureActive()
@@ -133,7 +149,7 @@ class EditAccountViewModel @Inject constructor(
             _state.update { it.copy(error = UiMessage.AccountNotFound) }
             return
         }
-        val locked = transactions.observeAll().first().any { it.involvesAccount(id) }
+        val locked = ledger.isAccountInUse(id)
         currentCoroutineContext().ensureActive()
         _state.update { it.populatedFrom(existing, locked) }
     }

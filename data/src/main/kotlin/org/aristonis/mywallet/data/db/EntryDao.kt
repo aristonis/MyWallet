@@ -131,6 +131,58 @@ interface EntryDao {
     suspend fun readBetween(start: LocalDate, end: LocalDate): EntryRangeRows =
         EntryRangeRows(headers = headersBetween(start, end), legs = legsBetween(start, end))
 
+    /**
+     * At most [limit] headers dated [start]..[upper], newest first, that come strictly after the key
+     * ([upper], [beforeId]) in that order. The first page passes the range's end as [upper] and
+     * [Long.MAX_VALUE] as [beforeId], so the key excludes nothing.
+     *
+     * Since every row is dated at most [upper], "after the key" is `date < upper OR id < beforeId`.
+     * Both terms carry a unary `+` so SQLite cannot answer the OR from two indexes and sort the union:
+     * the date index walks backwards from [upper], which is already the order asked for, and the id
+     * rides in that index, so a page costs its own rows however deep it starts. No OFFSET, which
+     * would walk every row it skips.
+     */
+    @Query(
+        "SELECT id, kind, date, note, pairRate FROM entries " +
+            "WHERE date BETWEEN :start AND :upper AND (+date < :upper OR +id < :beforeId) " +
+            "ORDER BY date DESC, id DESC LIMIT :limit",
+    )
+    suspend fun headersPage(start: LocalDate, upper: LocalDate, beforeId: Long, limit: Int): List<EntryEntity>
+
+    /**
+     * The legs of the entries from the key ([upper], [beforeId]), exclusive, down to the entry
+     * ([lowest], [lowestId]), inclusive: the entries one [headersPage] returned, when read in the
+     * same transaction. Same order and same plan as [legsBetween].
+     */
+    @Query(
+        "SELECT l.entryId AS entryId, l.id AS legId, l.role AS role, l.position AS position, " +
+            "l.accountId AS accountId, l.debtId AS debtId, l.categoryId AS categoryId, " +
+            "l.subCategoryId AS subCategoryId, l.amount AS amount, l.currencyCode AS currencyCode, " +
+            "l.rateToBase AS rateToBase, d.side AS debtSide " +
+            "FROM entries AS e CROSS JOIN entry_legs AS l ON l.entryId = e.id " +
+            "LEFT JOIN debts AS d ON d.id = l.debtId " +
+            "WHERE e.date BETWEEN :lowest AND :upper AND (+e.date < :upper OR +e.id < :beforeId) " +
+            "AND (+e.date > :lowest OR +e.id >= :lowestId) " +
+            "ORDER BY e.date DESC, e.id DESC, l.position, l.id",
+    )
+    suspend fun legsOfPage(
+        upper: LocalDate,
+        beforeId: Long,
+        lowest: LocalDate,
+        lowestId: Long,
+    ): List<LegRow>
+
+    /**
+     * [headersPage] and the legs of exactly those entries as one snapshot, so a write between the two
+     * statements cannot hand a header someone else's legs.
+     */
+    @Transaction
+    suspend fun readPage(start: LocalDate, upper: LocalDate, beforeId: Long, limit: Int): EntryRangeRows {
+        val headers = headersPage(start, upper, beforeId, limit)
+        val last = headers.lastOrNull() ?: return EntryRangeRows(headers = emptyList(), legs = emptyList())
+        return EntryRangeRows(headers = headers, legs = legsOfPage(upper, beforeId, last.date, last.id))
+    }
+
     /** The rows of the entry with [id], its legs by position then id; empty when there is none. */
     @Query("$ENTRY_ROWS_SQL WHERE e.id = :id ORDER BY l.position, l.id")
     suspend fun findById(id: Long): List<EntryLegRow>
