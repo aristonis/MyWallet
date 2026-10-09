@@ -2,8 +2,6 @@ package org.aristonis.mywallet.ui.account
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -12,10 +10,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Money
-import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.model.involvesAccount
-import org.aristonis.mywallet.domain.port.AccountRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import org.aristonis.mywallet.ui.HealthLedger
@@ -27,7 +21,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ManageAccountsViewModelTest {
@@ -42,25 +35,21 @@ class ManageAccountsViewModelTest {
         openingBalance = Money.of("100", "USD"), archived = archived,
     )
 
-    private fun expense(id: Long, accountId: Long) = Transaction.Expense(
-        id = id, accountId = accountId, amount = Money.of("10", "USD"), categoryId = 1, date = LocalDate.of(2026, 7, 1),
-    )
-
-    private fun buildVm(accounts: List<Account>, transactions: List<Transaction> = emptyList()): ManageAccountsViewModel {
+    /** The list's flag and the delete guard both ask this one ledger, as they do in the app. */
+    private fun buildVm(
+        accounts: List<Account>,
+        accountsInUse: Set<Long> = emptySet(),
+        ledger: HealthLedger = HealthLedger().apply { this.accountsInUse = accountsInUse },
+    ): ManageAccountsViewModel {
         val accountRepo = FakeAccountRepository(accounts)
-        val txRepo = FakeTransactionRepository(transactions)
-        // The delete guard asks the ledger; it answers from the same transactions the list shows.
-        val ledger = HealthLedger().apply {
-            accountsInUse = accounts.map { it.id }.filter { id -> transactions.any { it.involvesAccount(id) } }.toSet()
-        }
-        return ManageAccountsViewModel(accountRepo, txRepo, SetAccountArchived(accountRepo), DeleteAccount(accountRepo, ledger))
+        return ManageAccountsViewModel(accountRepo, ledger, SetAccountArchived(accountRepo), DeleteAccount(accountRepo, ledger))
     }
 
     private fun ManageAccountsViewModel.rowsById() = state.value.rows.associateBy { it.account.id }
 
     @Test
     fun listsAllAccounts_withHasTransactionsFlag() = runTest {
-        val vm = buildVm(accounts = listOf(account(1), account(2, archived = true)), transactions = listOf(expense(1, accountId = 1)))
+        val vm = buildVm(accounts = listOf(account(1), account(2, archived = true)), accountsInUse = setOf(1))
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
@@ -68,6 +57,20 @@ class ManageAccountsViewModelTest {
         assertEquals(2, rows.size) // archived accounts ARE listed here (unlike Home)
         assertTrue(rows.getValue(1).hasTransactions)
         assertFalse(rows.getValue(2).hasTransactions)
+    }
+
+    @Test
+    fun theFlagFollowsTheLedgerAsAnAccountGetsItsFirstEntry() = runTest {
+        val ledger = HealthLedger()
+        val vm = buildVm(accounts = listOf(account(1)), ledger = ledger)
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertFalse(vm.rowsById().getValue(1).hasTransactions)
+
+        ledger.accountsInUse = setOf(1)
+        advanceUntilIdle()
+
+        assertTrue(vm.rowsById().getValue(1).hasTransactions)
     }
 
     @Test
@@ -96,7 +99,7 @@ class ManageAccountsViewModelTest {
 
     @Test
     fun delete_blockedForAccountWithTransactions_setsError_andKeepsAccount() = runTest {
-        val vm = buildVm(accounts = listOf(account(1)), transactions = listOf(expense(1, accountId = 1)))
+        val vm = buildVm(accounts = listOf(account(1)), accountsInUse = setOf(1))
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 

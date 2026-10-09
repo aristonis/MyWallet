@@ -9,7 +9,6 @@ import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
@@ -44,7 +43,6 @@ class TrackingFromLegsTest {
     private val july = DateRange(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31))
     private val day = LocalDate.of(2026, 7, 10)
     private val currencies = listOf(Currency("SAR", "SAR", 2), Currency("USD", "$", 2))
-    private val categoryKinds = mapOf(1L to CategoryKind.INCOME, 7L to CategoryKind.EXPENSE)
 
     private fun sar(a: String) = Money.of(a, "SAR")
     private fun usd(a: String) = Money.of(a, "USD")
@@ -52,8 +50,8 @@ class TrackingFromLegsTest {
 
     private fun snapshot(rate: String) = FxSnapshot("SAR", mapOf("USD" to BigDecimal(rate)), currencies)
 
-    private fun breakdown(entries: FakeEntryRepository, kinds: Map<Long, CategoryKind> = categoryKinds, rate: String = "3.75") =
-        ComputeCategoryBreakdown(FakeLedgerQueries(entries, kinds), fakeFx(currencies, listOf(rateOf("USD", rate)), "SAR"))
+    private fun breakdown(entries: FakeEntryRepository, rate: String = "3.75") =
+        ComputeCategoryBreakdown(FakeLedgerQueries(entries), fakeFx(currencies, listOf(rateOf("USD", rate)), "SAR"))
 
     private fun expense(amount: Money, rate: String?) = Transaction.Expense(
         id = 1, accountId = 1, amount = amount, categoryId = 7, date = day, rateToBase = rate?.let(::BigDecimal),
@@ -71,7 +69,7 @@ class TrackingFromLegsTest {
     fun trackingUsesTheStoredRateUsd100At375Stays375AfterTheSavedRateBecomes380() = runTest {
         val entries = FakeEntryRepository(listOf(expense(usd("100"), rate = "3.75")))
         val fx = fakeFx(currencies, listOf(rateOf("USD", "3.75")), "SAR")
-        val tracking = ComputeCategoryBreakdown(FakeLedgerQueries(entries, categoryKinds), fx)
+        val tracking = ComputeCategoryBreakdown(FakeLedgerQueries(entries), fx)
         assertEquals(sar("375"), tracking(july).first().resolved().summary.expense)
 
         fx.emit(snapshot("3.80"))

@@ -28,7 +28,6 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
-import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
@@ -132,9 +131,6 @@ class EditTransactionViewModel @Inject constructor(
     private val moneyParser: MoneyParser,
     moneyFormatter: MoneyFormatter,
     fx: FxRepository,
-    // The save reads "Save rates I enter" itself; the form no longer needs it, since every rate field
-    // takes typing either way. Kept so the injected shape stays the one callers build.
-    @Suppress("UNUSED_PARAMETER") settings: SettingsRepository,
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)

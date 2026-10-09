@@ -10,7 +10,6 @@ import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.PeriodSummary
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
@@ -36,13 +35,10 @@ class ComputeCategoryBreakdownTest {
 
     private val currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2))
 
-    private val categoryKinds: Map<Long, CategoryKind> =
-        mapOf(1L to CategoryKind.INCOME) + listOf(7L, 9L, 12L).associateWith { CategoryKind.EXPENSE }
-
     /** Base USD. A foreign entry is stamped with the rate in [rates] (as when it was saved); none means no stored rate. */
     private fun usecase(transactions: List<Transaction>, rates: List<ExchangeRate> = emptyList()) =
         ComputeCategoryBreakdown(
-            ledger = FakeLedgerQueries(FakeEntryRepository(transactions.map { stamped(it, rates) }), categoryKinds),
+            ledger = FakeLedgerQueries(FakeEntryRepository(transactions.map { stamped(it, rates) })),
             fx = fakeFx(currencies = currencies, rates = rates, base = "USD"),
         )
 
@@ -233,7 +229,7 @@ class ComputeCategoryBreakdownTest {
     @Test
     fun readsOnlyTheRequestedRangeFromTheLedger() = runTest {
         val seen = mutableListOf<DateRange>()
-        val inner = FakeLedgerQueries(FakeEntryRepository(listOf(expense(1, usd("3"), category = 7))), categoryKinds)
+        val inner = FakeLedgerQueries(FakeEntryRepository(listOf(expense(1, usd("3"), category = 7))))
         val recording = object : LedgerQueries by inner {
             override fun observeCategoryLegs(range: DateRange) = inner.observeCategoryLegs(range).also { seen += range }
         }

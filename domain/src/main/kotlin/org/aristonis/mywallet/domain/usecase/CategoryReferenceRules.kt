@@ -4,9 +4,8 @@ import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.port.CategoryRepository
 
 /**
- * The category rule shared by [RecordIncome], [RecordExpense] and [UpdateTransaction]: a
- * transaction's main category is a top-level one, and its optional sub-category is a child of that
- * exact category, of the same kind.
+ * The category rule shared by [SaveEntry] and [RestoreEntries]: a transaction's main category is a
+ * top-level one, and its optional sub-category is a child of that exact category, of the same kind.
  *
  * The top-level half is the one that keeps data intact. Deleting a sub-category clears only the
  * finer `subCategoryId` column — the spend is meant to stay in its parent — and `categoryId`

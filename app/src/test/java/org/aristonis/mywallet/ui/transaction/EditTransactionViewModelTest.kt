@@ -82,7 +82,6 @@ class EditTransactionViewModelTest {
             moneyParser = MoneyParser(locale),
             moneyFormatter = MoneyFormatter(locale),
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
-            settings = settingsRepo,
         )
 
         /** A live balance probe over the same fake store the view model writes through. */

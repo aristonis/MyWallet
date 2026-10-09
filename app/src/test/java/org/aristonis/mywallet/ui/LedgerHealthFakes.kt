@@ -15,9 +15,9 @@ import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import java.math.BigDecimal
 
 /**
- * A ledger whose health and category usage a test sets directly. It holds no legs: the screens under
- * test read their own data from other fakes, and this one only answers "is every stored kind
- * readable", "how many entries use each category" and "is this account in use".
+ * A ledger whose health, category usage and accounts in use a test sets directly. It holds no legs:
+ * the screens under test read their own data from other fakes, and this one only answers "is every
+ * stored kind readable", "how many entries use each category" and "which accounts are in use".
  */
 internal open class HealthLedger : LedgerQueries {
 
@@ -27,8 +27,14 @@ internal open class HealthLedger : LedgerQueries {
     /** Entries per category id, as the usage read reports them. */
     val usage = MutableStateFlow<Map<Long, Int>>(emptyMap())
 
-    /** Accounts that have legs. */
-    var accountsInUse: Set<Long> = emptySet()
+    private val inUse = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** Accounts that have legs. Setting it re-emits to every in-use reader, as a write to the legs would. */
+    var accountsInUse: Set<Long>
+        get() = inUse.value
+        set(value) {
+            inUse.value = value
+        }
 
     /** When set, every health read fails with it, as a broken disk would, instead of answering. */
     var healthFailure: Throwable? = null
@@ -49,6 +55,7 @@ internal open class HealthLedger : LedgerQueries {
             healthFailure?.let { throw it }
         }
     override suspend fun isAccountInUse(accountId: Long): Boolean = accountId in accountsInUse
+    override fun observeAccountsInUse(): Flow<Set<Long>> = inUse
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = usage.onStart { usageReads++ }
     override suspend fun fillMissingRate(code: String, rate: BigDecimal): Int = 0
     override suspend fun distinctLegRates(): List<LegRate> = emptyList()

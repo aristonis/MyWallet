@@ -25,10 +25,8 @@ import java.math.BigDecimal
 /**
  * With "Save rates I enter" on, saving a typed rate fills the older legs of that currency through the
  * rate use case, not through the save itself, so the fill happens once and a rate saved from the
- * rates screen behaves the same way.
- *
- * Assumed: `SaveEntry` keeps its constructor (including `ledger` and `setExchangeRate`) but never
- * calls `ledger.fillMissingRate` itself; `SetExchangeRate(currencies, rates, ledger)` does.
+ * rates screen behaves the same way. The save has no ledger of its own to fill through; the only
+ * ledger in the wiring is the rate use case's, and these tests count what reaches it.
  */
 class SaveEntryRateFillTest {
 
@@ -43,11 +41,10 @@ class SaveEntryRateFillTest {
         assertEquals("expected $expected but was $actual", 0, BigDecimal(expected).compareTo(actual))
     }
 
-    /** A save wired with separate recording ledgers for the save and for the rate use case. */
+    /** A save whose rate use case writes through a recording ledger. */
     private class Wiring(saveRates: Boolean, older: List<Transaction>, savedRates: List<ExchangeRate> = emptyList()) {
         val entries = FakeEntryRepository(older)
         val rates = FakeRateRepository(savedRates)
-        val saveLedger = RecordingLedgerQueries(FakeLedgerQueries(entries))
         val rateLedger = RecordingLedgerQueries(FakeLedgerQueries(entries))
         private val settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD", saveTransactionRates = saveRates))
         val saveEntry = SaveEntry(
@@ -62,13 +59,12 @@ class SaveEntryRateFillTest {
     }
 
     @Test
-    fun theSaveLeavesTheFillToTheRateUseCase() = runTest {
+    fun theTypedRateIsGivenToOlderLegsExactlyOnceThroughTheRateUseCase() = runTest {
         val wiring = Wiring(saveRates = true, older = listOf(sypExpense(id = 1)))
 
         wiring.saveEntry(sypExpense(), typedRates = mapOf("SYP" to BigDecimal("0.0002")))
 
-        assertEquals("the save must not fill legs itself", emptyList<Pair<String, BigDecimal>>(), wiring.saveLedger.fills)
-        assertEquals(1, wiring.rateLedger.fills.size)
+        assertEquals("one fill for one typed rate", 1, wiring.rateLedger.fills.size)
         assertEquals("SYP", wiring.rateLedger.fills.single().first)
         assertEquals(0, BigDecimal("0.0002").compareTo(wiring.rateLedger.fills.single().second))
     }
@@ -90,7 +86,6 @@ class SaveEntryRateFillTest {
 
         val saved = wiring.saveEntry(sypExpense(), typedRates = mapOf("SYP" to BigDecimal("0.0002")))
 
-        assertEquals(emptyList<Pair<String, BigDecimal>>(), wiring.saveLedger.fills)
         assertEquals(emptyList<Pair<String, BigDecimal>>(), wiring.rateLedger.fills)
         assertNull(rateOf(wiring.entries, 1))
         assertNull(wiring.rates.findByCode("SYP"))

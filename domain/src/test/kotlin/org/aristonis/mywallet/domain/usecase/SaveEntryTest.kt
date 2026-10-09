@@ -3,6 +3,7 @@ package org.aristonis.mywallet.domain.usecase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.fake.EntryWorld
 import org.aristonis.mywallet.domain.usecase.fake.SaveEntryRig
@@ -31,6 +32,18 @@ class SaveEntryTest {
         assertEquals(saved.id, stored.id)
         assertEquals(EntryWorld.day, stored.date)
         assertEquals(0, BigDecimal("12.50").compareTo(stored.amount.amount))
+    }
+
+    @Test
+    fun aNewIncomeIsStoredWithItsAmountAndCategory() = runTest {
+        val rig = SaveEntryRig()
+
+        val saved = rig.saveEntry(EntryWorld.income(amount = "100"), typedRates = emptyMap())
+
+        val stored = rig.entries.findById(saved.id) as Transaction.Income
+        assertEquals(Money.of("100", "USD"), stored.amount)
+        assertEquals(EntryWorld.incomeCategory.id, stored.categoryId)
+        assertEquals(EntryWorld.usdAccount.id, stored.accountId)
     }
 
     @Test

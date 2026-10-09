@@ -151,4 +151,38 @@ class SaveEntryNewTransferTest {
         assertEquals(Money.of("8", "SYP"), rig.storedTransfer(saved.id).destAmount)
         assertNull(rig.rates.findByCode("SYP"))
     }
+
+    @Test
+    fun aCrossCurrencyTransferMixesATypedRateWithASavedOne() = runTest {
+        // base SYP; 1 USD = 4.4 SYP typed, 1 EUR = 4.4 SYP saved: 100 USD is 440 SYP is 100 EUR.
+        val rig = SaveEntryRig(
+            accounts = allAccounts,
+            base = "SYP",
+            savedRates = mapOf("USD" to "4", "EUR" to "4.4"),
+            saveRates = false,
+        )
+
+        val saved = rig.saveEntry(
+            EntryWorld.transfer(sourceAccountId = 1, destAccountId = 4, amount = "100", destAmount = "1", to = "EUR"),
+            typedRates = mapOf("USD" to BigDecimal("4.4")),
+        )
+
+        assertEquals(Money.of("100", "EUR"), rig.storedTransfer(saved.id).destAmount)
+    }
+
+    @Test
+    fun aTypedRateOfZeroRefusesTheTransferAndNothingIsSaved() = runTest {
+        val rig = SaveEntryRig(accounts = allAccounts, base = "SYP", savedRates = mapOf("USD" to "4"))
+
+        val failure = runCatching {
+            rig.saveEntry(
+                EntryWorld.transfer(sourceAccountId = 1, destAccountId = 2, amount = "2", destAmount = "1", to = "SYP"),
+                typedRates = mapOf("USD" to BigDecimal.ZERO),
+            )
+        }.exceptionOrNull()
+
+        assertTrue("was $failure", failure is IllegalArgumentException)
+        assertTrue(rig.entries.rows.value.isEmpty())
+        assertNumber("4", rig.rates.findByCode("USD")!!.rateToBase)
+    }
 }

@@ -39,7 +39,7 @@ import java.util.Locale
  * Assumed API, which the implementation must provide:
  * - `TransactionsListViewModel(entries: EntryRepository, accounts, categories, currencies,
  *   observeLedgerHealth: ObserveLedgerHealth, moneyFormatter, today, savedStateHandle,
- *   defaultDispatcher, errors)`: `entries` replaces `transactions: TransactionRepository`;
+ *   defaultDispatcher, errors)`, reading its rows from `entries`;
  * - `TransactionsListViewModel.loadMore()`, which the screen calls when its last row comes into view;
  *   it does nothing while a page is loading or when there is no more;
  * - `TransactionsUiState.hasMore: Boolean` (more entries exist behind the rows shown) and

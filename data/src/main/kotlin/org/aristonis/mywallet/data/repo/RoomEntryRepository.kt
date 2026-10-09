@@ -16,7 +16,6 @@ import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.EntryKey
 import org.aristonis.mywallet.domain.port.EntryRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 
 /**
  * Stores each entry as a header plus legs, and reads them back through the kind's recipe, so a row
@@ -24,14 +23,11 @@ import org.aristonis.mywallet.domain.port.TransactionRepository
  *
  * Every write touches two tables, so each runs in its own Room transaction (joining the caller's
  * when there is one): a header never lands without its legs.
- *
- * It also serves the old [TransactionRepository] port, so every caller written against it keeps
- * working on the new tables until it moves: `add` is [insert] and `update` is [replace].
  */
 class RoomEntryRepository(
     private val database: WalletDatabase,
     private val dao: EntryDao,
-) : EntryRepository, TransactionRepository {
+) : EntryRepository {
 
     override fun observeAll(): Flow<List<Transaction>> = observeBetween(DateRange.ALL_TIME)
 
@@ -111,10 +107,6 @@ class RoomEntryRepository(
     }
 
     override suspend fun delete(id: Long) = dao.deleteById(id)
-
-    override suspend fun add(transaction: Transaction): Long = insert(transaction)
-
-    override suspend fun update(transaction: Transaction) = replace(transaction)
 
     private companion object {
         /** The tables a range read touches; a change to any of them re-runs it. */

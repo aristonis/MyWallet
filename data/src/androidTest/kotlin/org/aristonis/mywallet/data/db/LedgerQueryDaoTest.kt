@@ -28,10 +28,11 @@ import java.math.BigDecimal
  * Assumed names, which the implementation must provide:
  * - `WalletDatabase.ledgerQueryDao()` and `RoomLedgerQueries(dao: LedgerQueryDao)` implementing
  *   the `LedgerQueries` port;
- * - three top-level `const val` SQL strings in package `org.aristonis.mywallet.data.db` that the DAO's
+ * - top-level `const val` SQL strings in package `org.aristonis.mywallet.data.db` that the DAO's
  *   `@Query` annotations use, so the plan test reads the exact text the app runs:
  *   `ACCOUNT_LEGS_SQL` (the account-leg projection, no parameters), `DEBT_LEGS_SQL` (the debt-leg
- *   projection, no parameters) and `ACCOUNT_IN_USE_SQL` (one parameter, the account id).
+ *   projection, no parameters), `ACCOUNT_IN_USE_SQL` (one parameter, the account id) and
+ *   `ACCOUNTS_IN_USE_SQL` (the ids of every account in use, no parameters).
  */
 @RunWith(AndroidJUnit4::class)
 class LedgerQueryDaoTest {
@@ -115,6 +116,18 @@ class LedgerQueryDaoTest {
         assertFalse("it must not count every leg", Regex("\\bCOUNT\\s*\\(", RegexOption.IGNORE_CASE).containsMatchIn(ACCOUNT_IN_USE_SQL))
 
         val plan = plan(ACCOUNT_IN_USE_SQL, 1)
+
+        assertTrue("query plan was: $plan", plan.contains("INDEX index_entry_legs_accountId_amount"))
+    }
+
+    @Test
+    fun theAccountsInUseReadProbesTheAccountIndexAndCountsNothing() {
+        assertFalse(
+            "it must not count every leg",
+            Regex("\\bCOUNT\\s*\\(", RegexOption.IGNORE_CASE).containsMatchIn(ACCOUNTS_IN_USE_SQL),
+        )
+
+        val plan = plan(ACCOUNTS_IN_USE_SQL)
 
         assertTrue("query plan was: $plan", plan.contains("INDEX index_entry_legs_accountId_amount"))
     }

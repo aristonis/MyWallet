@@ -194,7 +194,7 @@ class SaveEntryRig(
 
     /** The one ledger the save and the rate use case both write through, so a fault reaches both. */
     val ledger: LedgerQueries = FaultyLedgerQueries(
-        FakeLedgerQueries(entries, categories.associate { it.id to it.kind }),
+        FakeLedgerQueries(entries),
         faultAfterFill,
     )
 

@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.data.repo
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.aristonis.mywallet.data.db.AccountLegRow
 import org.aristonis.mywallet.data.db.CategoryLegRow
@@ -58,6 +59,9 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
         dao.observeFirstUnknownKind(known.toList()).map { row -> row?.let { UnreadableRowRef(it.id, it.kind) } }
 
     override suspend fun isAccountInUse(accountId: Long): Boolean = dao.isAccountInUse(accountId)
+
+    override fun observeAccountsInUse(): Flow<Set<Long>> =
+        dao.observeAccountsInUse().map { it.toSet() }.distinctUntilChanged()
 
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> =
         dao.observeCategoryUsage().map { rows -> rows.associate { it.categoryId to it.entryCount } }

@@ -79,6 +79,13 @@ interface LedgerQueries {
     suspend fun isAccountInUse(accountId: Long): Boolean
 
     /**
+     * The ids of every account [isAccountInUse] answers true for, read again whenever the stored
+     * entries or accounts change. A screen listing accounts reads this to know which can be deleted,
+     * without loading any entry.
+     */
+    fun observeAccountsInUse(): Flow<Set<Long>>
+
+    /**
      * For each category id, how many entries have a category leg on it, as main or sub-category.
      * Categories no entry uses are absent.
      */

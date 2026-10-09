@@ -175,7 +175,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun crossCurrencyTransfer_withRate_creditsConvertedAmountToDest() = runTest {
-        // base USD; EUR rate 1.10. Transfer 11 USD -> EUR account = 10.00 EUR (RecordTransferTest fixture).
+        // base USD; EUR rate 1.10. Transfer 11 USD -> EUR account = 10.00 EUR (the SaveEntryNewTransferTest fixture).
         val f = Fixture(
             accounts = listOf(account(1, "USD", opening = "100"), account(2, "EUR", opening = "0")),
             currencies = listOf(usd, eur),

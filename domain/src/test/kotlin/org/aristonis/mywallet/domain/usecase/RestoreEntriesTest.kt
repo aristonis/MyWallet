@@ -3,6 +3,8 @@ package org.aristonis.mywallet.domain.usecase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.model.UndoBundle
 import org.aristonis.mywallet.domain.usecase.fake.EntryWorld
@@ -75,6 +77,32 @@ class RestoreEntriesTest {
         runCatching { rig.restoreEntries(bundleOf(fine, gone)) }
 
         assertTrue(rig.entries.rows.value.isEmpty())
+    }
+
+    @Test
+    fun aCategoryThatBecameASubCategoryRefusesTheRestore() = runTest {
+        val income = EntryWorld.income(id = 4, rate = "1")
+        val reparented = listOf(
+            Category(id = 4, name = "Work", kind = CategoryKind.INCOME),
+            Category(id = EntryWorld.incomeCategory.id, name = "Salary", kind = CategoryKind.INCOME, parentId = 4),
+        )
+        val rig = SaveEntryRig(categories = reparented, atomic = true)
+
+        val failure = runCatching { rig.restoreEntries(bundleOf(income)) }.exceptionOrNull()
+
+        assertTrue("was $failure", failure is WalletException.CategoryNotTopLevel)
+        assertTrue(rig.entries.rows.value.isEmpty())
+    }
+
+    @Test
+    fun aTransferIsRestoredEvenWithNoCategoriesAtAll() = runTest {
+        // Transfers are never categorized, so the category check must not stand in their way.
+        val transfer = EntryWorld.transfer(id = 9, sourceAccountId = 1, destAccountId = 3)
+        val rig = SaveEntryRig(categories = emptyList(), atomic = true)
+
+        rig.restoreEntries(bundleOf(transfer))
+
+        assertEquals(transfer, rig.entries.findById(9))
     }
 
     @Test

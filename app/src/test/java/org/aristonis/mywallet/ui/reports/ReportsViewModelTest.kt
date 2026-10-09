@@ -578,6 +578,7 @@ private class FakeLedger(initial: List<Transaction>) : LedgerQueries {
     // Reports read Tracking and the ledger's health only; failing here keeps a drifting test from passing quietly.
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = error("reports do not read balances")
     override suspend fun isAccountInUse(accountId: Long): Boolean = error("reports do not check account use")
+    override fun observeAccountsInUse(): Flow<Set<Long>> = error("reports do not check account use")
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = error("reports do not read category usage")
     override suspend fun distinctLegRates(): List<LegRate> = error("reports do not read leg rates")
 

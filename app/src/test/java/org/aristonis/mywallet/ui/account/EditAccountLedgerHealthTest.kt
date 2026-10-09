@@ -32,7 +32,7 @@ import java.util.Locale
  *
  * Assumed constructor, called by name here:
  * `EditAccountViewModel(accounts, currencies, ledger: LedgerQueries, observeLedgerHealth: ObserveLedgerHealth,
- * updateAccount, moneyParser, errors)`, replacing the `transactions: TransactionRepository` parameter, and
+ * updateAccount, moneyParser, errors)`, which reads no entry list, and
  * `UpdateAccount(currencies, accounts, ledger: LedgerQueries)` as the account-rule step defines it.
  */
 @OptIn(ExperimentalCoroutinesApi::class)

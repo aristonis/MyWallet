@@ -30,8 +30,8 @@ import org.junit.Test
  *
  * Assumed constructor change, called by name here:
  * `ManageCategoriesViewModel(categories, observeCategoryUsage: ObserveCategoryUsage,
- * observeLedgerHealth: ObserveLedgerHealth, createCategory, renameCategory, deleteCategory, errors)`.
- * The `transactions: TransactionRepository` parameter is gone.
+ * observeLedgerHealth: ObserveLedgerHealth, createCategory, renameCategory, deleteCategory, errors)`,
+ * which reads no entry list.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ManageCategoriesLedgerTest {

@@ -69,7 +69,6 @@ class EditEntryUndoTest {
             moneyParser = MoneyParser(Locale.US),
             moneyFormatter = MoneyFormatter(Locale.US),
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
-            settings = settingsRepo,
         )
         val state get() = viewModel.state.value
     }

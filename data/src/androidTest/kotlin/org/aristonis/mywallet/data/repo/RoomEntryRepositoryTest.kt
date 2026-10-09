@@ -13,7 +13,6 @@ import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,7 +34,6 @@ import java.util.concurrent.Executor
  *
  * Assumed constructor, which the implementation must provide:
  * `RoomEntryRepository(database: WalletDatabase, dao: EntryDao)`, with `WalletDatabase.entryDao()`.
- * It implements the `EntryRepository` port and, until the old port is retired, `TransactionRepository`.
  */
 @RunWith(AndroidJUnit4::class)
 class RoomEntryRepositoryTest {
@@ -277,35 +275,12 @@ class RoomEntryRepositoryTest {
         assertFalse("query plan was: $plan", plan.contains("USE TEMP B-TREE"))
     }
 
-    // --- The 1.1.1 port keeps working over the new tables until its callers move. ---
-
-    private val legacyPort: TransactionRepository get() = repository
-
     @Test
-    fun addThroughTheOldPortInsertsAnEntryWithItsLegs() = runTest {
-        val id = legacyPort.add(expense(amount = "8.00"))
+    fun observeAllIsEveryEntryNewestFirst() = runTest {
+        val oldest = expenseOn(LocalDate.of(2026, 1, 1))
+        val newest = expenseOn(LocalDate.of(2026, 3, 1))
+        val middleLaterId = expenseOn(LocalDate.of(2026, 2, 1))
 
-        assertTrue(id > 0)
-        assertEquals(expense(id = id, amount = "8.00"), legacyPort.findById(id))
-        assertEquals("2", legCount(id))
-    }
-
-    @Test
-    fun updateThroughTheOldPortReplacesTheEntry() = runTest {
-        val id = legacyPort.add(expense(amount = "8.00"))
-
-        legacyPort.update(expense(id = id, amount = "9.00", categoryId = 7))
-
-        assertEquals(expense(id = id, amount = "9.00", categoryId = 7), legacyPort.findById(id))
-        assertEquals("2", legCount(id))
-    }
-
-    @Test
-    fun observeAllThroughTheOldPortIsEveryEntryNewestFirst() = runTest {
-        val oldest = legacyPort.add(expense(date = LocalDate.of(2026, 1, 1)))
-        val newest = legacyPort.add(expense(date = LocalDate.of(2026, 3, 1)))
-        val middleLaterId = legacyPort.add(expense(date = LocalDate.of(2026, 2, 1)))
-
-        assertEquals(listOf(newest, middleLaterId, oldest), legacyPort.observeAll().first().map { it.id })
+        assertEquals(listOf(newest, middleLaterId, oldest), repository.observeAll().first().map { it.id })
     }
 }

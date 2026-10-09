@@ -2,8 +2,6 @@ package org.aristonis.mywallet.domain.usecase.fake
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.aristonis.mywallet.domain.model.DateRange
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
@@ -12,7 +10,6 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Settings
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
 import org.aristonis.mywallet.domain.port.BackupRepository
@@ -22,7 +19,6 @@ import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LegRateChange
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 
 /**
  * Tiny in-memory implementations of the ports for use-case tests. Because the ports are interfaces,
@@ -80,46 +76,6 @@ class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRe
         val doomed = items.value.filter { it.id == categoryId || it.parentId == categoryId }.map { it.id }.toSet()
         items.value = items.value.filterNot { it.id in doomed }
         return affectedRows
-    }
-}
-
-class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : TransactionRepository {
-    private val items = MutableStateFlow(initial)
-    private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1
-
-    /** Everything currently persisted, for assertions. */
-    val added: List<Transaction> get() = items.value
-
-    /** How many times a caller asked for the whole table; a ranged read should leave this at 0. */
-    var observeAllCalls = 0
-        private set
-
-    /** Every range a caller asked for, in order. */
-    val observedRanges = mutableListOf<DateRange>()
-
-    override fun observeAll(): Flow<List<Transaction>> {
-        observeAllCalls++
-        return items
-    }
-
-    override fun observeBetween(range: DateRange): Flow<List<Transaction>> {
-        observedRanges += range
-        return items.map { all -> all.filter { it.date in range } }
-    }
-
-    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
-
-    override suspend fun add(transaction: Transaction): Long {
-        items.value = items.value + transaction
-        return nextId++
-    }
-
-    override suspend fun update(transaction: Transaction) {
-        items.value = items.value.map { if (it.id == transaction.id) transaction else it }
-    }
-
-    override suspend fun delete(id: Long) {
-        items.value = items.value.filterNot { it.id == id }
     }
 }
 

@@ -90,7 +90,6 @@ class EntryFormsSameQuoteTest {
             moneyParser = MoneyParser(Locale.US),
             moneyFormatter = MoneyFormatter(Locale.US),
             fx = fx,
-            settings = settingsRepo,
         )
     }
 

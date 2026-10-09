@@ -170,6 +170,23 @@ class SaveEntryRefusalTest {
         assertEquals(stored, rig.entries.findById(4))
     }
 
+    @Test
+    fun aNewIncomeInAnotherCurrencyThanItsAccountIsRefused() = runTest {
+        val rig = rigWith()
+        val failure = rig.refusal(EntryWorld.income(accountId = 1, amount = "5", currency = "SYP"))
+        assertTrue("was $failure", failure is WalletException.CurrencyMismatch)
+        assertUntouched(rig, null)
+    }
+
+    @Test
+    fun aNewTransferWhoseAmountIsInAnotherCurrencyThanItsSourceIsRefused() = runTest {
+        // A SYP amount from the USD account into the SYP account: the source leg is in the wrong currency.
+        val rig = rigWith()
+        val failure = rig.refusal(EntryWorld.transfer(sourceAccountId = 1, destAccountId = 2, amount = "5", from = "SYP"))
+        assertTrue("was $failure", failure is WalletException.CurrencyMismatch)
+        assertUntouched(rig, null)
+    }
+
     // --- categories ---
 
     @Test

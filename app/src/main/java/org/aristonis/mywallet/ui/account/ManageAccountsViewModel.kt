@@ -15,9 +15,8 @@ import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.involvesAccount
 import org.aristonis.mywallet.domain.port.AccountRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import javax.inject.Inject
@@ -37,11 +36,14 @@ data class ManageAccountsUiState(
  * flag which have transactions, and archive / unarchive / delete. Deleting an account that has
  * transactions is refused by [DeleteAccount] (it would orphan history) — that surfaces as [error],
  * and the screen steers the user to archive instead.
+ *
+ * The flag comes from [LedgerQueries.observeAccountsInUse], the same answer the delete guard gives,
+ * so the screen never offers a delete the guard would refuse and never loads an entry to decide it.
  */
 @HiltViewModel
 class ManageAccountsViewModel @Inject constructor(
     accounts: AccountRepository,
-    transactions: TransactionRepository,
+    ledger: LedgerQueries,
     private val setAccountArchived: SetAccountArchived,
     private val deleteAccount: DeleteAccount,
 ) : ViewModel() {
@@ -50,12 +52,10 @@ class ManageAccountsViewModel @Inject constructor(
     val state: StateFlow<ManageAccountsUiState> = _state.asStateFlow()
 
     init {
-        combine(accounts.observeAll(), transactions.observeAll()) { accountList, transactionList ->
+        combine(accounts.observeAll(), ledger.observeAccountsInUse()) { accountList, inUse ->
             accountList
                 .sortedWith(compareBy({ it.sortOrder }, { it.name }))
-                .map { account ->
-                    ManageAccountRow(account, hasTransactions = transactionList.any { it.involvesAccount(account.id) })
-                }
+                .map { account -> ManageAccountRow(account, hasTransactions = account.id in inUse) }
         }
             .onEach { rows -> _state.update { it.copy(rows = rows, isLoading = false) } }
             .launchIn(viewModelScope)

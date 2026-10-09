@@ -12,8 +12,6 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
-import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.model.involvesAccount
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
 import org.aristonis.mywallet.ui.HealthLedger
 import org.junit.After
@@ -23,7 +21,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.LocalDate
 import java.util.Locale
 
 /**
@@ -49,22 +46,16 @@ class EditAccountViewModelTest {
         openingBalance = Money.of("100", currency), archived = archived, sortOrder = sortOrder,
     )
 
-    private fun expense(id: Long, accountId: Long) = Transaction.Expense(
-        id = id, accountId = accountId, amount = Money.of("10", "USD"), categoryId = 1, date = LocalDate.of(2026, 7, 1),
-    )
-
     private class Fixture(
         accounts: List<Account>,
         currencies: List<Currency>,
-        transactions: List<Transaction> = emptyList(),
+        accountsInUse: Set<Long> = emptySet(),
         val errors: RecordingErrorReporter = RecordingErrorReporter(),
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val currencyRepo = FakeCurrencyRepository(currencies)
-        // An account is in use once any of the given transactions moves money on it.
-        val ledger = HealthLedger().apply {
-            accountsInUse = accounts.map { it.id }.filter { id -> transactions.any { it.involvesAccount(id) } }.toSet()
-        }
+        // An account is in use once any entry moves money on it.
+        val ledger = HealthLedger().apply { this.accountsInUse = accountsInUse }
         val viewModel = EditAccountViewModel(
             accounts = accountRepo,
             currencies = currencyRepo,
@@ -93,7 +84,7 @@ class EditAccountViewModelTest {
 
     @Test
     fun load_flagsCurrencyLocked_whenAccountHasTransactions() = runTest {
-        val f = Fixture(listOf(account(1)), listOf(usd), listOf(expense(1, accountId = 1)))
+        val f = Fixture(listOf(account(1)), listOf(usd), accountsInUse = setOf(1))
 
         f.viewModel.load(1)
         advanceUntilIdle()
@@ -120,7 +111,7 @@ class EditAccountViewModelTest {
 
     @Test
     fun lockedCurrencyChange_surfacesDomainError_andDoesNotPersist() = runTest {
-        val f = Fixture(listOf(account(1)), listOf(usd, eur), listOf(expense(1, accountId = 1)))
+        val f = Fixture(listOf(account(1)), listOf(usd, eur), accountsInUse = setOf(1))
         f.viewModel.load(1)
         advanceUntilIdle()
 

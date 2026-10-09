@@ -252,6 +252,7 @@ internal class FakeLedgerQueries : LedgerQueries {
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = flowOf(emptyList())
     override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = flowOf(null)
     override suspend fun isAccountInUse(accountId: Long): Boolean = false
+    override fun observeAccountsInUse(): Flow<Set<Long>> = flowOf(emptySet())
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = flowOf(emptyMap())
     override suspend fun fillMissingRate(code: String, rate: BigDecimal): Int {
         filledRates += code to rate

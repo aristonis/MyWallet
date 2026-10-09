@@ -2,14 +2,10 @@ package org.aristonis.mywallet.ui.account
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.aristonis.mywallet.domain.model.DateRange
-import kotlinx.coroutines.flow.map
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 
 /**
  * Reactive in-memory ports shared by the account view-model tests (both live in this package, so the
@@ -47,15 +43,4 @@ internal class FakeCurrencyRepository(initial: List<Currency>) : CurrencyReposit
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Currency>> = items
     override suspend fun findByCode(code: String): Currency? = items.value.firstOrNull { it.code == code }
-}
-
-internal class FakeTransactionRepository(initial: List<Transaction> = emptyList()) : TransactionRepository {
-    private val items = MutableStateFlow(initial)
-    override fun observeAll(): Flow<List<Transaction>> = items
-    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        items.map { all -> all.filter { it.date in range } }
-    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
-    override suspend fun add(transaction: Transaction): Long = 1
-    override suspend fun update(transaction: Transaction) { items.value = items.value.map { if (it.id == transaction.id) transaction else it } }
-    override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
 }

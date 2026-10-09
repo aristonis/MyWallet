@@ -64,6 +64,17 @@ const val ACCOUNT_IN_USE_SQL =
         "OR EXISTS (SELECT 1 FROM legacy_unreadable_rows " +
         "WHERE primaryAccountId = :accountId OR secondaryAccountId = :accountId)"
 
+/**
+ * The id of every account [ACCOUNT_IN_USE_SQL] answers true for, by the same two tests. It walks the
+ * accounts, not the legs: per account the leg branch stops at the first match in the account index,
+ * so the cost follows the number of accounts, never the length of the history.
+ */
+const val ACCOUNTS_IN_USE_SQL =
+    "SELECT a.id FROM accounts AS a " +
+        "WHERE EXISTS (SELECT 1 FROM entry_legs WHERE accountId = a.id) " +
+        "OR EXISTS (SELECT 1 FROM legacy_unreadable_rows " +
+        "WHERE primaryAccountId = a.id OR secondaryAccountId = a.id)"
+
 /** One account leg: its signed amount and the account's currency. */
 data class AccountLegRow(val accountId: Long, val amount: String, val currencyCode: String)
 
@@ -137,6 +148,9 @@ interface LedgerQueryDao {
 
     @Query(ACCOUNT_IN_USE_SQL)
     suspend fun isAccountInUse(accountId: Long): Boolean
+
+    @Query(ACCOUNTS_IN_USE_SQL)
+    fun observeAccountsInUse(): Flow<List<Long>>
 
     /**
      * Distinct entries per category, counting a leg under its main category and its sub-category.

@@ -4,11 +4,9 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Settings
-import org.aristonis.mywallet.domain.model.Transaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.math.BigDecimal
@@ -51,29 +49,6 @@ interface CategoryRepository {
      * doing the get-or-create out here would strand an orphan bucket when the rest rolled back.
      */
     suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int
-}
-
-interface TransactionRepository {
-    fun observeAll(): Flow<List<Transaction>>
-
-    /**
-     * Live transactions dated inside the inclusive [range], newest first (date desc, then id desc, the
-     * same order as [observeAll]). The filter runs in storage so a month never loads the whole history;
-     * [DateRange.ALL_TIME] returns everything.
-     */
-    fun observeBetween(range: DateRange): Flow<List<Transaction>>
-
-    /** The transaction with [id], or null if none — used to guard an edit against a stale/deleted row. */
-    suspend fun findById(id: Long): Transaction?
-
-    /** Persists a new transaction and returns its generated id. */
-    suspend fun add(transaction: Transaction): Long
-
-    /** Replaces an existing transaction, matched by id. */
-    suspend fun update(transaction: Transaction)
-
-    /** Removes a transaction by id. A transfer is one row, so both legs go together (atomic). */
-    suspend fun delete(id: Long)
 }
 
 interface CurrencyRepository {

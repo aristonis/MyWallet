@@ -348,6 +348,7 @@ private open class AccountLegsLedger : LedgerQueries {
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = error("Home does not read Tracking")
     override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = flowOf(null)
     override suspend fun isAccountInUse(accountId: Long): Boolean = error("Home does not check account use")
+    override fun observeAccountsInUse(): Flow<Set<Long>> = error("Home does not check account use")
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = error("Home does not read category usage")
     override suspend fun fillMissingRate(code: String, rate: BigDecimal): Int = error("Home does not write rates")
     override suspend fun distinctLegRates(): List<LegRate> = error("Home does not read leg rates")

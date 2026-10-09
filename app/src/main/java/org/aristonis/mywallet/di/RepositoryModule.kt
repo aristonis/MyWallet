@@ -30,7 +30,6 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import javax.inject.Singleton
@@ -50,14 +49,7 @@ object RepositoryModule {
     fun provideAccountRepository(dao: AccountDao): AccountRepository = RoomAccountRepository(dao)
 
     @Provides @Singleton
-    fun provideEntryRepository(db: WalletDatabase, dao: EntryDao): RoomEntryRepository = RoomEntryRepository(db, dao)
-
-    @Provides
-    fun bindEntryRepository(repository: RoomEntryRepository): EntryRepository = repository
-
-    // The old port, served by the same adapter over the new tables until its callers move.
-    @Provides
-    fun bindTransactionRepository(repository: RoomEntryRepository): TransactionRepository = repository
+    fun provideEntryRepository(db: WalletDatabase, dao: EntryDao): EntryRepository = RoomEntryRepository(db, dao)
 
     @Provides @Singleton
     fun provideLedgerQueries(dao: LedgerQueryDao): LedgerQueries = RoomLedgerQueries(dao)

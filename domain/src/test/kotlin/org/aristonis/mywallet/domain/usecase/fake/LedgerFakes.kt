@@ -12,7 +12,6 @@ import org.aristonis.mywallet.domain.ledger.EntryRecipes
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.toParts
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountLeg
@@ -104,15 +103,8 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
 /**
  * In-memory [LedgerQueries] projecting the legs held by [entries], so balances, Tracking and guards
  * in use-case tests read the same legs the recipes wrote.
- *
- * @param categoryKinds The kind of each category id, as the tests describe their categories. The
- *   projection no longer carries a category kind (Tracking places a leg by its entry's kind), so it
- *   is accepted and not read.
  */
-class FakeLedgerQueries(
-    private val entries: FakeEntryRepository,
-    @Suppress("UNUSED_PARAMETER") categoryKinds: Map<Long, CategoryKind> = emptyMap(),
-) : LedgerQueries {
+class FakeLedgerQueries(private val entries: FakeEntryRepository) : LedgerQueries {
 
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = entries.rows.map { rows ->
         rows.flatMap { row ->
@@ -148,6 +140,10 @@ class FakeLedgerQueries(
 
     override suspend fun isAccountInUse(accountId: Long): Boolean =
         entries.rows.value.any { row -> row.legs.any { it.target == LegTarget.Account(accountId) } }
+
+    override fun observeAccountsInUse(): Flow<Set<Long>> = entries.rows.map { rows ->
+        rows.flatMap { row -> row.legs.mapNotNull { (it.target as? LegTarget.Account)?.id } }.toSet()
+    }
 
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = entries.rows.map { rows ->
         rows.flatMap { row -> categoryIdsOf(row) }.groupingBy { it }.eachCount()

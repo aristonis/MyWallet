@@ -2,7 +2,6 @@ package org.aristonis.mywallet.domain.usecase
 
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
@@ -65,7 +64,7 @@ class ChangeBaseCurrencyRoundTripTest {
 
     private suspend fun trackedExpense(entries: FakeEntryRepository, base: String): Money {
         val result = ComputeCategoryBreakdown(
-            ledger = FakeLedgerQueries(entries, mapOf(6L to CategoryKind.EXPENSE)),
+            ledger = FakeLedgerQueries(entries),
             fx = fakeFx(currencies, emptyList(), base),
         )(DateRange.ALL_TIME).first() as CategoryBreakdownResult.Resolved
         return result.breakdown.expense.single().total
