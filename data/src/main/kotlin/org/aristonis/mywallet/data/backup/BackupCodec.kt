@@ -21,4 +21,18 @@ object BackupCodec {
     fun encode(backup: WalletBackup): String = json.encodeToString(backup)
 
     fun decode(text: String): WalletBackup = json.decodeFromString(text)
+
+    fun encode(backup: WalletBackupV2): String = json.encodeToString(backup)
+
+    /**
+     * Reads a format-2 file with the same strict settings as [decode]. A file whose `version` is
+     * not 2 is refused with IllegalArgumentException even when its keys happen to fit.
+     */
+    fun decodeV2(text: String): WalletBackupV2 {
+        val backup: WalletBackupV2 = json.decodeFromString(text)
+        require(backup.version == BACKUP_FORMAT_V2) {
+            "expected backup version $BACKUP_FORMAT_V2, found ${backup.version}"
+        }
+        return backup
+    }
 }

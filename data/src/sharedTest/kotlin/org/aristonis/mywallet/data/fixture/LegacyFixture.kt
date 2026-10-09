@@ -368,10 +368,42 @@ object LegacyFixture {
             reason = null,
             expectedPairRate = null,
         ),
+        // An unknown type with no category: it must still be called unknown, not missing a category.
+        Case(
+            Row(26, "SPLIT", MAR_1 + 12, "Old split", CASH, "9.99", USD),
+            KIND_UNREADABLE,
+            emptyList(),
+            reason = UNKNOWN_TYPE,
+            expectedPairRate = null,
+        ),
+        // An expense with no category and a stray secondary amount: the missing category wins.
+        Case(
+            Row(27, EXPENSE, MAR_1 + 13, null, CASH, "4.00", USD, secondaryAmount = "4.00"),
+            KIND_UNREADABLE,
+            emptyList(),
+            reason = MISSING_CATEGORY,
+            expectedPairRate = null,
+        ),
+        // A readable income with a stray destination account 1.1.1 never read.
+        Case(
+            Row(28, INCOME, MAR_1 + 14, "Refund", CASH, "7.25", USD, categoryId = GIFTS, secondaryAccountId = EURO_SAVINGS),
+            INCOME,
+            listOf(account(CASH, "7.25", USD), main(GIFTS, null, "7.25", USD, RATE_ONE)),
+            reason = IGNORED_COLUMNS,
+            expectedPairRate = null,
+        ),
+        // Types are compared exactly, so a lower-case "income" is a type 1.1.1 never wrote.
+        Case(
+            Row(29, "income", MAR_1 + 15, null, CASH, "3.00", USD, categoryId = SALARY),
+            KIND_UNREADABLE,
+            emptyList(),
+            reason = UNKNOWN_TYPE,
+            expectedPairRate = null,
+        ),
     )
 
-    /** `sqlite_sequence.seq` for `transactions`: above the last row, because rows 24 and 25 were deleted. */
-    val sequenceBefore: Long = 25L
+    /** `sqlite_sequence.seq` for `transactions`: above the last row, because rows 30 and 31 were deleted. */
+    val sequenceBefore: Long = 31L
 
     /**
      * The category each role must point at after the upgrade.
