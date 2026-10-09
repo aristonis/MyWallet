@@ -44,6 +44,7 @@ fun UiMessage.text(): String = when (this) {
     is UiMessage.AmountRoundsToZero -> stringResource(R.string.msg_amount_rounds_to_zero, currencyCode)
 
     UiMessage.TransactionNotFound -> stringResource(R.string.msg_transaction_not_found)
+    UiMessage.DataUnreadable -> stringResource(R.string.msg_data_unreadable)
     UiMessage.TransferCurrencyPairChanged -> stringResource(R.string.msg_transfer_currency_pair_changed)
     UiMessage.TransactionRestoreFailed -> stringResource(R.string.msg_transaction_restore_failed)
 

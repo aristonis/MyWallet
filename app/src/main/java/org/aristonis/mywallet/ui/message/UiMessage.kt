@@ -61,6 +61,9 @@ sealed interface UiMessage {
     data object TransferCurrencyPairChanged : UiMessage
     data object TransactionRestoreFailed : UiMessage
 
+    /** A stored entry this build cannot read; its id and kind stay in the log, never on screen. */
+    data object DataUnreadable : UiMessage
+
     // -- Backup and restore -----------------------------------------------------------------------
 
     data object BackupSaved : UiMessage

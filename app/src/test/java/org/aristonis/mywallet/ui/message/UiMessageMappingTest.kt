@@ -56,6 +56,15 @@ class UiMessageMappingTest {
      * up with "%d" holes for numbers the user has no use for.
      */
     @Test
+    fun `a stored row the app cannot read says so without its id or kind`() {
+        assertEquals(UiMessage.DataUnreadable, WalletException.UnreadableRow(42, "REFUND").toUiMessage())
+        assertEquals(
+            WalletException.UnreadableRow(1, "A").toUiMessage(),
+            WalletException.UnreadableRow(9, "B").toUiMessage(),
+        )
+    }
+
+    @Test
     fun `an internal row id never reaches the message`() {
         assertEquals(
             WalletException.AccountNotFound(11).toUiMessage(),

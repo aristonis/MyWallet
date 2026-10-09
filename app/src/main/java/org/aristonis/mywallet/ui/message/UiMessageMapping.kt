@@ -28,6 +28,7 @@ fun WalletException.toUiMessage(): UiMessage = when (this) {
     is WalletException.RateUnderflow -> UiMessage.RateUnderflow(code)
     is WalletException.MissingRate -> UiMessage.MissingRate(code)
     is WalletException.TransactionNotFound -> UiMessage.TransactionNotFound
+    is WalletException.UnreadableRow -> UiMessage.DataUnreadable
     is WalletException.TransferCurrencyPairChanged -> UiMessage.TransferCurrencyPairChanged
     is WalletException.AmountRoundsToZero -> UiMessage.AmountRoundsToZero(currencyCode)
     is WalletException.BackupInvalid -> UiMessage.BackupNotRecognized

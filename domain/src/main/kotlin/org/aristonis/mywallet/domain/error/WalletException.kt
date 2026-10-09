@@ -90,6 +90,13 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class AmountRoundsToZero(val currencyCode: String) :
         WalletException("The amount is too small to convert to $currencyCode; it rounds to zero")
 
+    /**
+     * A stored entry whose kind, legs or values cannot be turned back into an entry. It is the only
+     * error the read side throws for bad stored data, so screens can name the row instead of crashing.
+     */
+    class UnreadableRow(val id: Long, val kind: String, cause: Throwable? = null) :
+        WalletException("Entry $id of kind $kind could not be read", cause)
+
     /** A backup file could not be read — malformed, truncated, or missing required fields. */
     class BackupInvalid(cause: Throwable? = null) :
         WalletException("Backup data could not be read: it is corrupt or in an unrecognized format", cause)

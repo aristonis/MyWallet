@@ -21,6 +21,8 @@ sealed interface Transaction {
         val subCategoryId: Long? = null,
         override val date: LocalDate,
         override val note: String? = null,
+        /** The rate to the base currency this entry was recorded with; null means none is stored yet. */
+        val rateToBase: BigDecimal? = null,
     ) : Transaction {
         init { require(amount.isPositive) { "income amount must be > 0" } }
     }
@@ -33,6 +35,8 @@ sealed interface Transaction {
         val subCategoryId: Long? = null,
         override val date: LocalDate,
         override val note: String? = null,
+        /** The rate to the base currency this entry was recorded with; null means none is stored yet. */
+        val rateToBase: BigDecimal? = null,
     ) : Transaction {
         init { require(amount.isPositive) { "expense amount must be > 0" } }
     }
