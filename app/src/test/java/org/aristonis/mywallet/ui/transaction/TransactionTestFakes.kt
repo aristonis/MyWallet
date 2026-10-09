@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.transaction
 
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.onStart
@@ -8,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.model.Account
@@ -43,7 +45,12 @@ internal class FakeAccountRepository(initial: List<Account> = emptyList()) : Acc
 
 internal class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRepository {
     private val items = MutableStateFlow(initial)
-    override fun observeAll(): Flow<List<Category>> = items
+
+    /** Every read of the categories fails, as one over a broken table would. */
+    var failing = false
+
+    override fun observeAll(): Flow<List<Category>> =
+        flow { if (failing) throw IllegalStateException("categories could not be read") else emitAll(items) }
     override suspend fun findById(id: Long): Category? = items.value.firstOrNull { it.id == id }
 
     // The transaction screens only read categories — managing them is a different screen. Failing
@@ -64,13 +71,27 @@ internal class FakeTransactionRepository(initial: List<Transaction> = emptyList(
 
     override fun observeAll(): Flow<List<Transaction>> = items
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        (if (range == unreadableRange) flow { throw IllegalStateException("a stored row could not be read") } else items)
+        flow<List<Transaction>> {
+            if (range == unreadableRange) throw IllegalStateException("a stored row could not be read")
+            if (failedReadsLeft > 0) {
+                failedReadsLeft--
+                throw IllegalStateException("a stored row could not be read")
+            }
+            if (hangsAfterFailures) awaitCancellation()
+            emitAll(items)
+        }
             .map { all -> all.filter { it.date in range } }
             .onStart { activeReads++; readsOpened++ }
             .onCompletion { activeReads-- }
 
     /** A read over exactly this range fails, as one over a row the app cannot decode would. */
     var unreadableRange: DateRange? = null
+
+    /** The next this-many ranged reads fail, then reads serve again (a read that fails once). */
+    var failedReadsLeft = 0
+
+    /** Once the failing reads are used up, reads never answer: the state a retry is in while it reads. */
+    var hangsAfterFailures = false
 
     /** Ranged reads someone is still collecting; zero once every screen has stopped watching. */
     var activeReads = 0

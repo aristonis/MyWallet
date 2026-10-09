@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.MenuAction
 import org.aristonis.mywallet.ui.components.OverflowMenu
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
@@ -118,9 +119,11 @@ fun ManageCategoriesScreen(
         onAcknowledge = viewModel::acknowledge,
         affectedByChild = viewModel::affectedBy,
         onDone = onDone,
+        onRetry = viewModel::retry,
     )
 }
 
+/** [onRetry] reads the categories again after a failed read. */
 @Composable
 internal fun ManageCategoriesContent(
     state: ManageCategoriesUiState,
@@ -130,6 +133,7 @@ internal fun ManageCategoriesContent(
     onAcknowledge: () -> Unit,
     affectedByChild: (Long) -> Int,
     onDone: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     // Saved across recreation so a rotation mid-edit does not silently drop what was being typed.
     var prompt by rememberSaveable(stateSaver = CategoryPromptSaver) { mutableStateOf<CategoryPrompt?>(null) }
@@ -156,6 +160,12 @@ internal fun ManageCategoriesContent(
 
             if (state.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                return@Column
+            }
+
+            // An empty list here would read as "no categories" and invite the user to add them again.
+            if (state.loadFailed) {
+                LoadFailedState(message = stringResource(R.string.msg_data_unreadable), onRetry = onRetry)
                 return@Column
             }
 
@@ -471,6 +481,7 @@ private fun ManageCategoriesPreview() {
             onAcknowledge = {},
             affectedByChild = { 0 },
             onDone = {},
+            onRetry = {},
         )
     }
 }

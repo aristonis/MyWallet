@@ -42,6 +42,7 @@ class TransactionsListWindowContentTest {
                     onEditTransaction = {},
                     onShowSavedEntry = {},
                     onSavedEntryMessageDone = {},
+                    onRetry = {},
                 )
             }
         }
@@ -88,6 +89,7 @@ class TransactionsListWindowContentTest {
                     onEditTransaction = {},
                     onShowSavedEntry = { shown = true },
                     onSavedEntryMessageDone = {},
+                    onRetry = {},
                 )
             }
         }
@@ -117,6 +119,7 @@ class TransactionsListWindowContentTest {
                         onEditTransaction = {},
                         onShowSavedEntry = {},
                         onSavedEntryMessageDone = { letGo = true },
+                        onRetry = {},
                     )
                 }
             }
@@ -144,6 +147,7 @@ class TransactionsListWindowContentTest {
                     onEditTransaction = {},
                     onShowSavedEntry = {},
                     onSavedEntryMessageDone = {},
+                    onRetry = {},
                 )
             }
         }

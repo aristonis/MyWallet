@@ -1,5 +1,7 @@
 package org.aristonis.mywallet.ui.home
 
+import org.aristonis.mywallet.cancelAndAwait
+import kotlinx.coroutines.awaitCancellation
 import org.aristonis.mywallet.namedWorkThread
 import org.aristonis.mywallet.ThreadRecordingList
 import kotlinx.coroutines.flow.first
@@ -227,10 +229,14 @@ class HomeViewModelTest {
         val homeData = ThreadRecordingList(listOf(Currency("USD", "$", 2)))
         val vm = buildVm(accounts = listOf(account("USD", "100")), currencies = homeData, work = work)
 
-        val built = vm.state.first { it.accounts.isNotEmpty() }
+        try {
+            val built = vm.state.first { it.accounts.isNotEmpty() }
 
-        assertEquals(1, built.accounts.size)
-        assertEquals(setOf(WORK_THREAD), homeData.threads)
+            assertEquals(1, built.accounts.size)
+            assertEquals(setOf(WORK_THREAD), homeData.threads)
+        } finally {
+            vm.cancelAndAwait()
+        }
     }
 
     @Test
@@ -252,9 +258,70 @@ class HomeViewModelTest {
         assertFalse(vm.state.value.isLoading)
         assertEquals(listOf("a stored row could not be read"), errors.reported.map { it.message })
     }
+
+    @Test
+    fun retryShowsHomeLoadingAgainWhileItReads() = runTest {
+        val flaky = UnreadableUntilRecoveredTransactions(hangOnceRecovered = true)
+        val vm = buildVm(
+            accounts = listOf(account("USD", "100")),
+            currencies = listOf(Currency("USD", "$", 2)),
+            transactions = flaky,
+            errors = RecordingErrorReporter(),
+        )
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertTrue(vm.state.value.loadFailed)
+
+        flaky.recover()
+        vm.retry()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.loadFailed)
+        assertTrue(vm.state.value.isLoading)
+    }
+
+    @Test
+    fun retryAfterAFailedReadReadsAgainAndShowsTheWallet() = runTest {
+        val flaky = UnreadableUntilRecoveredTransactions()
+        val errors = RecordingErrorReporter()
+        val vm = buildVm(
+            accounts = listOf(account("USD", "100")),
+            currencies = listOf(Currency("USD", "$", 2)),
+            transactions = flaky,
+            errors = errors,
+        )
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertTrue(vm.state.value.loadFailed)
+        assertEquals(listOf("a stored row could not be read"), errors.reported.map { it.message })
+
+        flaky.recover()
+        vm.retry()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.loadFailed)
+        assertFalse(vm.state.value.isLoading)
+        assertEquals(1, vm.state.value.accounts.size)
+        assertEquals(NetWorthState.Amount("100.00 USD"), vm.state.value.netWorth)
+    }
 }
 
 private const val WORK_THREAD = "work-test"
+
+/** Every read of all transactions fails until [recover] is called, then serves an empty history. */
+private class UnreadableUntilRecoveredTransactions(
+    private val hangOnceRecovered: Boolean = false,
+) : TransactionRepository by FakeTransactionRepository() {
+    private var failing = true
+
+    fun recover() { failing = false }
+
+    override fun observeAll(): Flow<List<Transaction>> = flow {
+        if (failing) throw IllegalStateException("a stored row could not be read")
+        if (hangOnceRecovered) awaitCancellation()
+        emit(emptyList())
+    }
+}
 
 private class FakeAccountRepository(initial: List<Account>) : AccountRepository {
     private val items = MutableStateFlow(initial)

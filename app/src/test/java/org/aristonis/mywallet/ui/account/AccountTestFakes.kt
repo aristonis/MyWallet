@@ -25,7 +25,16 @@ internal class FakeAccountRepository(initial: List<Account> = emptyList()) : Acc
     val upserted: List<Account> get() = items.value
 
     override fun observeAll(): Flow<List<Account>> = items
-    override suspend fun findById(id: Long): Account? = items.value.firstOrNull { it.id == id }
+    /** The next this-many single-account reads fail, then reads serve again. */
+    var failedReadsLeft = 0
+
+    override suspend fun findById(id: Long): Account? {
+        if (failedReadsLeft > 0) {
+            failedReadsLeft--
+            throw IllegalStateException("a stored row could not be read")
+        }
+        return items.value.firstOrNull { it.id == id }
+    }
     override suspend fun upsert(account: Account): Long {
         val id = if (account.id == 0L) nextId++ else account.id
         items.value = items.value.filterNot { it.id == id } + account.copy(id = id)

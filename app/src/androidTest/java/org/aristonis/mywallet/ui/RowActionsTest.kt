@@ -163,6 +163,7 @@ class RowActionsTest {
             onAcknowledge = {},
             affectedByChild = { 0 },
             onDone = {},
+            onRetry = {},
         )
     }
 

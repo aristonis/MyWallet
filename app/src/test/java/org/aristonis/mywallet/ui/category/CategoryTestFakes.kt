@@ -1,9 +1,12 @@
 package org.aristonis.mywallet.ui.category
 
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emitAll
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -27,7 +30,20 @@ internal class FakeManageCategoryRepository(initial: List<Category> = emptyList(
     /** Set to make the next write fail, so the screen's error path can be driven. */
     var failWith: WalletException? = null
 
-    override fun observeAll(): Flow<List<Category>> = items
+    /** The next this-many reads fail, then reads serve again (a read that fails once). */
+    var failedReadsLeft = 0
+
+    /** Once the failing reads are used up, reads never answer: the state a retry is in while it reads. */
+    var hangsAfterFailures = false
+
+    override fun observeAll(): Flow<List<Category>> = flow {
+        if (failedReadsLeft > 0) {
+            failedReadsLeft--
+            throw IllegalStateException("a stored row could not be read")
+        }
+        if (hangsAfterFailures) awaitCancellation()
+        emitAll(items)
+    }
     override suspend fun findById(id: Long): Category? = items.value.firstOrNull { it.id == id }
 
     override suspend fun upsert(category: Category): Long {

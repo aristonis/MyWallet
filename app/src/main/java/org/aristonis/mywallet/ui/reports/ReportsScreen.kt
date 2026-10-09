@@ -34,6 +34,7 @@ import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.CategoryLabel
+import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.StatusCard
 import org.aristonis.mywallet.ui.components.StatusTone
@@ -61,7 +62,7 @@ private val LINE_SPACING = 8.dp
 fun ReportsScreen(viewModel: ReportsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     RefreshOnStart { viewModel.onScreenStart() }
-    ReportsContent(state = state, windowActions = viewModel.windowActions)
+    ReportsContent(state = state, windowActions = viewModel.windowActions, onRetry = viewModel::retry)
 }
 
 /**
@@ -70,9 +71,16 @@ fun ReportsScreen(viewModel: ReportsViewModel = hiltViewModel()) {
  *
  * Which categories are open lives here rather than in the list: a step to a month with a missing
  * rate swaps the list for a warning, and stepping back should find the same categories still open.
+ *
+ * A failed read is said under the date bar rather than instead of it, so other dates can still be
+ * chosen. [onRetry] reads the dates in force again.
  */
 @Composable
-internal fun ReportsContent(state: ReportsUiState, windowActions: DateWindowActions) {
+internal fun ReportsContent(
+    state: ReportsUiState,
+    windowActions: DateWindowActions,
+    onRetry: () -> Unit,
+) {
     val expanded = rememberSaveable(stateSaver = ExpandedIdsSaver) { mutableStateOf(emptySet<Long>()) }
     val onToggle: (Long) -> Unit = remember(expanded) {
         { id -> expanded.value = if (id in expanded.value) expanded.value - id else expanded.value + id }
@@ -93,6 +101,11 @@ internal fun ReportsContent(state: ReportsUiState, windowActions: DateWindowActi
             verticalArrangement = Arrangement.spacedBy(REGION_SPACING),
         ) {
             DateWindowBar(window = state.window, actions = windowActions)
+
+            if (state.loadFailed) {
+                LoadFailedState(message = stringResource(R.string.tracking_data_unreadable), onRetry = onRetry)
+                return@Column
+            }
 
             when (val data = state.data) {
                 ReportsData.Loading -> CircularProgressIndicator()
@@ -212,6 +225,7 @@ private fun ReportsPreview() {
                 ),
             ),
             windowActions = DateWindowActions.None,
+            onRetry = {},
         )
     }
 }

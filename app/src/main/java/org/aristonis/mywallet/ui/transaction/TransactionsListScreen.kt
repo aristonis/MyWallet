@@ -38,6 +38,7 @@ import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.components.EmptyState
+import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.WalletListRow
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
@@ -80,6 +81,7 @@ fun TransactionsListScreen(
         onEditTransaction = onEditTransaction,
         onShowSavedEntry = viewModel::showSavedEntry,
         onSavedEntryMessageDone = viewModel::dismissSavedEntryMessage,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -89,6 +91,7 @@ fun TransactionsListScreen(
  *
  * An entry just saved outside the dates gets a snackbar naming its day, with an action that moves the
  * dates onto it. [onShowSavedEntry] and [onSavedEntryMessageDone] report how the snackbar ended.
+ * [onRetry] reads the dates in force again after a failed read.
  */
 @Composable
 internal fun TransactionsListContent(
@@ -98,6 +101,7 @@ internal fun TransactionsListContent(
     onEditTransaction: (Long) -> Unit,
     onShowSavedEntry: () -> Unit,
     onSavedEntryMessageDone: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     SavedOutsideSnackbar(
@@ -132,7 +136,7 @@ internal fun TransactionsListContent(
                 actions = windowActions,
                 modifier = Modifier.padding(horizontal = SCREEN_PADDING),
             )
-            TransactionsBody(state = state, onEditTransaction = onEditTransaction)
+            TransactionsBody(state = state, onEditTransaction = onEditTransaction, onRetry = onRetry)
         }
     }
 }
@@ -169,7 +173,11 @@ private fun SavedOutsideSnackbar(
 }
 
 @Composable
-private fun TransactionsBody(state: TransactionsUiState, onEditTransaction: (Long) -> Unit) {
+private fun TransactionsBody(
+    state: TransactionsUiState,
+    onEditTransaction: (Long) -> Unit,
+    onRetry: () -> Unit,
+) {
     when {
         // Inline, under the date bar rather than instead of it, so the screen does not flicker
         // between two different layouts on every refresh.
@@ -180,7 +188,7 @@ private fun TransactionsBody(state: TransactionsUiState, onEditTransaction: (Lon
         // Said in place of the list, under the date bar, so other dates can still be chosen; an empty
         // message here would claim there is nothing to show, which is not known.
         state.loadFailed -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
-            EmptyState(message = stringResource(R.string.transactions_data_unreadable))
+            LoadFailedState(message = stringResource(R.string.transactions_data_unreadable), onRetry = onRetry)
         }
 
         // An empty filter is not an empty wallet: inviting a first transaction while the user's
@@ -364,6 +372,7 @@ private fun TransactionsListPreview() {
             onEditTransaction = {},
             onShowSavedEntry = {},
             onSavedEntryMessageDone = {},
+            onRetry = {},
         )
     }
 }

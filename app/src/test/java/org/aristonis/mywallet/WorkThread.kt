@@ -1,7 +1,11 @@
 package org.aristonis.mywallet
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
@@ -31,3 +35,11 @@ class ThreadRecordingList<T>(private val inner: List<T>) : List<T> by inner {
  */
 fun namedWorkThread(name: String): CoroutineDispatcher =
     Executors.newSingleThreadExecutor { runnable -> Thread(runnable, name).apply { isDaemon = true } }.asCoroutineDispatcher()
+
+/**
+ * Cancels everything [this] view model started and waits until it has finished, including work that
+ * ran on a real background thread. A test that hands a view model a real thread ends with this:
+ * otherwise that thread can finish after the test has reset the main dispatcher, hand its result to
+ * a main dispatcher that is no longer there, and fail whichever test runs next.
+ */
+suspend fun ViewModel.cancelAndAwait() = viewModelScope.coroutineContext.job.cancelAndJoin()

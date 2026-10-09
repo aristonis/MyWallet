@@ -97,6 +97,7 @@ class BoundedListLayoutTest {
                 onManageAccounts = {},
                 onManageRates = {},
                 onSettings = {},
+                onRetry = {},
             )
         }
 
@@ -135,6 +136,7 @@ class BoundedListLayoutTest {
                 onManageAccounts = {},
                 onManageRates = {},
                 onSettings = {},
+                onRetry = {},
             )
         }
 
@@ -222,6 +224,7 @@ class BoundedListLayoutTest {
                     ),
                 ),
                 windowActions = DateWindowActions.None,
+                onRetry = {},
             )
         }
 

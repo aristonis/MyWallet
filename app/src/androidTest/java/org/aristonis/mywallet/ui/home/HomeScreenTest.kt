@@ -31,6 +31,7 @@ class HomeScreenTest {
                     onManageAccounts = {},
                     onManageRates = {},
                     onSettings = {},
+                    onRetry = {},
                 )
             }
         }

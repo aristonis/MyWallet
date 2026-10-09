@@ -1,5 +1,7 @@
 package org.aristonis.mywallet.ui.reports
 
+import org.aristonis.mywallet.cancelAndAwait
+import kotlinx.coroutines.awaitCancellation
 import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -9,6 +11,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -17,6 +21,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.ThreadRecordingList
 import org.aristonis.mywallet.namedWorkThread
@@ -38,6 +43,8 @@ import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.aristonis.mywallet.ui.CategoryLabel
@@ -74,10 +81,11 @@ class ReportsViewModelTest {
         savedState: SavedStateHandle = SavedStateHandle(),
         txRepo: FakeTransactionRepository = FakeTransactionRepository(transactions),
         work: CoroutineDispatcher = dispatcher,
+        errors: RecordingErrorReporter = RecordingErrorReporter(),
+        categoryRepo: FakeCategoryRepository = FakeCategoryRepository(categories),
     ): ReportsViewModel {
         val currencyRepo = FakeCurrencyRepository(currencies)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
-        val categoryRepo = FakeCategoryRepository(categories)
         return ReportsViewModel(
             computeCategoryBreakdown = ComputeCategoryBreakdown(txRepo, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             categories = categoryRepo,
@@ -86,6 +94,7 @@ class ReportsViewModelTest {
             today = TodayProvider { now },
             savedStateHandle = savedState,
             defaultDispatcher = work,
+            errors = errors,
         )
     }
 
@@ -411,10 +420,90 @@ class ReportsViewModelTest {
             work = work,
         )
 
-        val ready = vm.state.first { it.data is ReportsData.Ready }
+        try {
+            val ready = vm.state.first { it.data is ReportsData.Ready }
 
-        assertEquals("5.00 USD", ready(ready).expenseDisplay)
-        assertEquals(setOf(WORK_THREAD), reportData.threads)
+            assertEquals("5.00 USD", ready(ready).expenseDisplay)
+            assertEquals(setOf(WORK_THREAD), reportData.threads)
+        } finally {
+            vm.cancelAndAwait()
+        }
+    }
+
+    private val julyRange get() = TrackingWindow.Period(TrackingPeriod.MONTH, julRef).range
+
+    @Test
+    fun aFailedReadShowsTheErrorAndReportsTheCause() = runTest {
+        val repo = FakeTransactionRepository(emptyList()).apply { unreadableRange = julyRange }
+        val errors = RecordingErrorReporter()
+        val vm = buildVm(transactions = emptyList(), txRepo = repo, errors = errors)
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.loadFailed)
+        assertEquals(TrackingWindow.Period(TrackingPeriod.MONTH, julRef), vm.state.value.window)
+        assertEquals(listOf("a stored row could not be read"), errors.reported.map { it.message })
+    }
+
+    @Test
+    fun retryAfterAFailedReadReadsAgainAndShowsTheReport() = runTest {
+        val repo = FakeTransactionRepository(
+            listOf(expense(usd("5"), category = 2, date = LocalDate.of(2026, 7, 3))),
+        ).apply { failedReadsLeft = 1 }
+        val vm = buildVm(transactions = emptyList(), txRepo = repo)
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertTrue(vm.state.value.loadFailed)
+
+        vm.retry()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.loadFailed)
+        assertEquals("5.00 USD", ready(vm.state.value).expenseDisplay)
+    }
+
+    @Test
+    fun retryShowsTheReportLoadingAgainWhileItReads() = runTest {
+        val repo = FakeTransactionRepository(emptyList()).apply { failedReadsLeft = 1; hangsAfterFailures = true }
+        val vm = buildVm(transactions = emptyList(), txRepo = repo)
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertTrue(vm.state.value.loadFailed)
+
+        vm.retry()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.loadFailed)
+        assertEquals(ReportsData.Loading, vm.state.value.data)
+    }
+
+    @Test
+    fun aFailedCategoryReadShowsTheErrorInsteadOfClosingTheApp() = runTest {
+        val errors = RecordingErrorReporter()
+        val categories = FakeCategoryRepository(emptyList()).apply { failing = true }
+        val vm = buildVm(transactions = emptyList(), categoryRepo = categories, errors = errors)
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.loadFailed)
+        assertEquals(listOf("categories could not be read"), errors.reported.map { it.message })
+    }
+
+    @Test
+    fun aFailureInOneWindowDoesNotStopALaterWindowFromLoading() = runTest {
+        val repo = FakeTransactionRepository(
+            listOf(expense(usd("8"), category = 2, date = LocalDate.of(2026, 8, 3))),
+        ).apply { unreadableRange = julyRange }
+        val vm = buildVm(transactions = emptyList(), txRepo = repo)
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertTrue(vm.state.value.loadFailed)
+
+        vm.windowActions.onStep(1) // July -> August
+
+        advanceUntilIdle()
+        assertFalse(vm.state.value.loadFailed)
+        assertEquals("8.00 USD", ready(vm.state.value).expenseDisplay)
     }
 }
 
@@ -426,7 +515,24 @@ private class FakeTransactionRepository(initial: List<Transaction>) : Transactio
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Transaction>> = items
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        items.map { all -> all.filter { it.date in range } }.onStart { readsOpened++ }
+        flow<List<Transaction>> {
+            if (range == unreadableRange) throw IllegalStateException("a stored row could not be read")
+            if (failedReadsLeft > 0) {
+                failedReadsLeft--
+                throw IllegalStateException("a stored row could not be read")
+            }
+            if (hangsAfterFailures) awaitCancellation()
+            emitAll(items)
+        }.map { all -> all.filter { it.date in range } }.onStart { readsOpened++ }
+
+    /** Once the failing reads are used up, reads never answer: the state a retry is in while it reads. */
+    var hangsAfterFailures = false
+
+    /** A read over exactly this range fails, as one over a row the app cannot decode would. */
+    var unreadableRange: DateRange? = null
+
+    /** The next this-many ranged reads fail, then reads serve again. */
+    var failedReadsLeft = 0
 
     /** How many ranged reads were ever started; each one re-runs on every write. */
     var readsOpened = 0
@@ -440,7 +546,12 @@ private class FakeTransactionRepository(initial: List<Transaction>) : Transactio
 
 private class FakeCategoryRepository(initial: List<Category>) : CategoryRepository {
     private val items = MutableStateFlow(initial)
-    override fun observeAll(): Flow<List<Category>> = items
+
+    /** Every read of the categories fails, as one over a broken table would. */
+    var failing = false
+
+    override fun observeAll(): Flow<List<Category>> =
+        flow { if (failing) throw IllegalStateException("categories could not be read") else emitAll(items) }
     override suspend fun findById(id: Long): Category? = items.value.firstOrNull { it.id == id }
 
     // Reports only read categories — managing them is a different screen. Failing here rather than

@@ -39,6 +39,7 @@ import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.LabeledDropdown
+import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.SearchableCurrencyField
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
@@ -72,6 +73,7 @@ fun EditAccountScreen(
         onOpeningBalanceChanged = viewModel::setOpeningBalance,
         onSubmit = viewModel::submit,
         onCancel = onDone,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -84,6 +86,7 @@ private fun EditAccountContent(
     onOpeningBalanceChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -94,6 +97,12 @@ private fun EditAccountContent(
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             when {
                 // A missing row is a fail-loud dead end, not a blank editor — show why and offer Back.
+                // A failed read is not a missing account: the row may still be there, so offer to read it again.
+                state.loaded == null && state.loadFailed -> LoadFailedState(
+                    message = stringResource(R.string.msg_data_unreadable),
+                    onRetry = onRetry,
+                    modifier = Modifier.padding(16.dp),
+                )
                 state.loaded == null && error != null -> MissingAccount(message = error.text(), onCancel = onCancel)
                 state.loaded == null -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 else -> EditAccountForm(
@@ -239,6 +248,7 @@ private fun EditAccountPreview() {
             onOpeningBalanceChanged = {},
             onSubmit = {},
             onCancel = {},
+            onRetry = {},
         )
     }
 }

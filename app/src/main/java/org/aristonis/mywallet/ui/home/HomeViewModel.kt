@@ -23,7 +23,9 @@ import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.NetWorth
 import org.aristonis.mywallet.ui.format.display
+import org.aristonis.mywallet.ui.load.ReadAttempts
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 /** Net-worth hero state. A missing rate becomes a warning, never a silently wrong total. */
 sealed interface NetWorthState {
@@ -66,9 +68,8 @@ data class HomeUiState(
  * Home: total net worth (base currency, warns on a missing rate) + per-account native balances.
  *
  * A read that throws (a stored row that cannot be decoded) becomes a failed state instead of
- * crashing the app. Home has no dates to change, so nothing re-reads straight away: the catch ends
- * the reads, and the next start of the screen (once the reads have stopped while it was hidden)
- * subscribes and reads again.
+ * crashing the app. The catch ends that attempt's reads; [retry] starts a fresh attempt, and so does
+ * the next start of the screen (once the reads have stopped while it was hidden).
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -81,7 +82,10 @@ class HomeViewModel @Inject constructor(
     private val errors: ErrorReporter,
 ) : ViewModel() {
 
-    val state: StateFlow<HomeUiState> =
+    /** Starts the reads over on [retry]; the catch inside each attempt ends only that attempt. */
+    private val attempts = ReadAttempts()
+
+    val state: StateFlow<HomeUiState> = attempts.reading(loading = { HomeUiState() }) {
         combine(
             getAccountBalancesInBase(),
             // ComputeNetWorth emits a live sealed result: a missing rate is a value, not a thrown
@@ -103,10 +107,15 @@ class HomeViewModel @Inject constructor(
             // belongs off the main thread, where the other screens already build theirs.
             .flowOn(defaultDispatcher)
             .catch { error ->
+                if (error is CancellationException) throw error
                 errors.report("Home could not read the wallet", error)
                 emit(HomeUiState(isLoading = false, loadFailed = true))
             }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HomeUiState())
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HomeUiState())
+
+    /** Reads the wallet again after a failed read, showing loading until the new read answers. */
+    fun retry() = attempts.retry()
 
     private fun netWorthState(result: NetWorth, currencies: List<Currency>): NetWorthState =
         when (result) {

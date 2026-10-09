@@ -6,6 +6,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -56,12 +57,14 @@ class ManageCategoriesViewModelTest {
     private fun viewModel(
         categories: FakeManageCategoryRepository,
         transactions: FakeCategoryTransactionRepository = FakeCategoryTransactionRepository(),
+        errors: RecordingErrorReporter = RecordingErrorReporter(),
     ) = ManageCategoriesViewModel(
         categories = categories,
         transactions = transactions,
         createCategory = CreateCategory(categories),
         renameCategory = RenameCategory(categories),
         deleteCategory = DeleteCategory(categories),
+        errors = errors,
     )
 
     @Test
@@ -234,5 +237,49 @@ class ManageCategoriesViewModelTest {
 
         assertNotNull(vm.state.value.error)
         assertEquals(1, repo.stored.size)
+    }
+
+    @Test
+    fun aFailedReadShowsTheErrorInsteadOfThrowing() = runTest(dispatcher) {
+        val repo = FakeManageCategoryRepository(listOf(food, salary)).apply { failedReadsLeft = 1 }
+        val errors = RecordingErrorReporter()
+        val vm = viewModel(repo, errors = errors)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.state.value
+        assertTrue(state.loadFailed)
+        assertFalse(state.isLoading)
+        assertTrue(state.expense.isEmpty())
+        assertEquals(listOf("a stored row could not be read"), errors.reported.map { it.message })
+    }
+
+    @Test
+    fun retryShowsTheCategoriesLoadingAgainWhileItReads() = runTest(dispatcher) {
+        val repo = FakeManageCategoryRepository(listOf(food, salary)).apply { failedReadsLeft = 1; hangsAfterFailures = true }
+        val vm = viewModel(repo)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.loadFailed)
+
+        vm.retry()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.state.value.loadFailed)
+        assertTrue(vm.state.value.isLoading)
+    }
+
+    @Test
+    fun retryAfterAFailedReadReadsAgainAndShowsTheCategories() = runTest(dispatcher) {
+        val repo = FakeManageCategoryRepository(listOf(food, salary)).apply { failedReadsLeft = 1 }
+        val vm = viewModel(repo)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.loadFailed)
+
+        vm.retry()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.state.value
+        assertFalse(state.loadFailed)
+        assertEquals(listOf("Food"), state.expense.map { it.category.name })
+        assertEquals(listOf("Salary"), state.income.map { it.category.name })
     }
 }

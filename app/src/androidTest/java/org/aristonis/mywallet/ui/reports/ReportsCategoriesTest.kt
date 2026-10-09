@@ -78,6 +78,7 @@ class ReportsCategoriesTest {
                         ),
                     ),
                     windowActions = DateWindowActions.None,
+                    onRetry = {},
                 )
             }
         }

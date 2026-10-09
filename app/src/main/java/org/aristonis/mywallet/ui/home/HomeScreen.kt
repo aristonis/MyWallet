@@ -35,6 +35,7 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.account.accountTypeLabel
 import org.aristonis.mywallet.ui.components.EmptyState
+import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.SectionHeader
 import org.aristonis.mywallet.ui.components.StatusCard
@@ -56,9 +57,18 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    HomeContent(state, onAddTransaction, onAddAccount, onManageAccounts, onManageRates, onSettings)
+    HomeContent(
+        state = state,
+        onAddTransaction = onAddTransaction,
+        onAddAccount = onAddAccount,
+        onManageAccounts = onManageAccounts,
+        onManageRates = onManageRates,
+        onSettings = onSettings,
+        onRetry = viewModel::retry,
+    )
 }
 
+/** [onRetry] reads the wallet again after a failed read. */
 @Composable
 internal fun HomeContent(
     state: HomeUiState,
@@ -67,6 +77,7 @@ internal fun HomeContent(
     onManageAccounts: () -> Unit,
     onManageRates: () -> Unit,
     onSettings: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -117,8 +128,9 @@ internal fun HomeContent(
                 // A failed read is not an empty wallet: offering a first account would suggest the
                 // user's accounts are gone.
                 state.loadFailed -> item(key = "accounts-unreadable") {
-                    EmptyState(
+                    LoadFailedState(
                         message = stringResource(R.string.home_data_unreadable),
+                        onRetry = onRetry,
                         modifier = Modifier.padding(top = 16.dp),
                     )
                 }
@@ -257,6 +269,7 @@ private fun HomePreview() {
                 ),
                 baseCurrencyCode = "USD",
             ),
+            onRetry = {},
         )
     }
 }

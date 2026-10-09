@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.transaction
 
+import org.aristonis.mywallet.cancelAndAwait
 import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -275,10 +276,14 @@ class TransactionsListViewModelTest {
             errors = RecordingErrorReporter(),
         )
 
-        val built = viewModel.state.first { !it.isLoading }
+        try {
+            val built = viewModel.state.first { !it.isLoading }
 
-        assertEquals(listOf(1L), built.rows.map { it.id })
-        assertEquals(setOf(WORK_THREAD), formattingData.threads)
+            assertEquals(listOf(1L), built.rows.map { it.id })
+            assertEquals(setOf(WORK_THREAD), formattingData.threads)
+        } finally {
+            viewModel.cancelAndAwait()
+        }
     }
 
 
@@ -312,10 +317,14 @@ class TransactionsListViewModelTest {
     }
 
 
-    private fun listOver(repo: FakeTransactionRepository, errors: RecordingErrorReporter = RecordingErrorReporter()) = TransactionsListViewModel(
+    private fun listOver(
+        repo: FakeTransactionRepository,
+        errors: RecordingErrorReporter = RecordingErrorReporter(),
+        categories: FakeCategoryRepository = FakeCategoryRepository(listOf(food)),
+    ) = TransactionsListViewModel(
         transactions = repo,
         accounts = FakeAccountRepository(listOf(cash)),
-        categories = FakeCategoryRepository(listOf(food)),
+        categories = categories,
         currencies = FakeCurrencyRepository(currencies),
         moneyFormatter = MoneyFormatter(Locale.US),
         today = { LocalDate.of(2026, 8, 26) },
@@ -359,6 +368,74 @@ class TransactionsListViewModelTest {
         assertFalse(state.loadFailed)
         assertEquals(TrackingPeriod.MONTH, (state.window as TrackingWindow.Period).period)
         assertEquals(listOf(1L), state.rows.map { it.id })
+    }
+
+    @Test
+    fun aFailedCategoryReadShowsTheErrorInsteadOfClosingTheApp() = runTest {
+        val errors = RecordingErrorReporter()
+        val viewModel = listOver(
+            FakeTransactionRepository(emptyList()),
+            errors,
+            categories = FakeCategoryRepository(listOf(food)).apply { failing = true },
+        )
+        watch(viewModel)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.loadFailed)
+        assertEquals(listOf("categories could not be read"), errors.reported.map { it.message })
+    }
+
+    @Test
+    fun retryShowsTheListLoadingAgainWhileItReads() = runTest {
+        val repo = FakeTransactionRepository(emptyList()).apply { failedReadsLeft = 1; hangsAfterFailures = true }
+        val viewModel = listOver(repo, RecordingErrorReporter())
+        watch(viewModel)
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.loadFailed)
+
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.loadFailed)
+        assertTrue(viewModel.state.value.isLoading)
+    }
+
+    @Test
+    fun retryAfterAFailedReadReadsAgainAndShowsTheData() = runTest {
+        val repo = FakeTransactionRepository(
+            listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
+        ).apply { failedReadsLeft = 1 }
+        val errors = RecordingErrorReporter()
+        val viewModel = listOver(repo, errors)
+        watch(viewModel)
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.loadFailed)
+        assertEquals(1, errors.reported.size)
+
+        viewModel.retry()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertFalse(state.loadFailed)
+        assertFalse(state.isLoading)
+        assertEquals(listOf(1L), state.rows.map { it.id })
+        assertEquals(2, repo.readsOpened)
+    }
+
+    @Test
+    fun retryWhileNothingHasFailedDoesNotBreakTheList() = runTest {
+        val repo = FakeTransactionRepository(
+            listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
+        )
+        val viewModel = listOver(repo)
+        watch(viewModel)
+        advanceUntilIdle()
+
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.loadFailed)
+        assertEquals(listOf(1L), viewModel.state.value.rows.map { it.id })
     }
 
     private companion object {

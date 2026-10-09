@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
@@ -54,6 +55,7 @@ class EditAccountViewModelTest {
         accounts: List<Account>,
         currencies: List<Currency>,
         transactions: List<Transaction> = emptyList(),
+        val errors: RecordingErrorReporter = RecordingErrorReporter(),
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val currencyRepo = FakeCurrencyRepository(currencies)
@@ -64,6 +66,7 @@ class EditAccountViewModelTest {
             transactions = txRepo,
             updateAccount = UpdateAccount(currencyRepo, accountRepo, txRepo),
             moneyParser = MoneyParser(Locale.US),
+            errors = errors,
         )
     }
 
@@ -178,6 +181,49 @@ class EditAccountViewModelTest {
 
         f.viewModel.acknowledgeSaved()
         assertFalse(f.viewModel.state.value.saved)
+    }
+
+    @Test
+    fun load_whenTheReadFails_showsTheErrorInsteadOfThrowing() = runTest {
+        val f = Fixture(listOf(account(1)), listOf(usd))
+        f.accountRepo.failedReadsLeft = 1
+
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        val s = f.viewModel.state.value
+        assertTrue(s.loadFailed)
+        assertEquals(null, s.loaded)
+        assertFalse(s.canSubmit)
+        assertEquals(listOf("a stored row could not be read"), f.errors.reported.map { it.message })
+    }
+
+    @Test
+    fun retry_afterAFailedRead_readsAgainAndPopulatesTheForm() = runTest {
+        val f = Fixture(listOf(account(1)), listOf(usd))
+        f.accountRepo.failedReadsLeft = 1
+        f.viewModel.load(1)
+        advanceUntilIdle()
+        assertTrue(f.viewModel.state.value.loadFailed)
+
+        f.viewModel.retry()
+        advanceUntilIdle()
+
+        val s = f.viewModel.state.value
+        assertFalse(s.loadFailed)
+        assertEquals("Cash", s.name)
+        assertEquals("USD", s.selectedCurrencyCode)
+    }
+
+    @Test
+    fun retry_beforeAnyLoad_doesNothing() = runTest {
+        val f = Fixture(listOf(account(1)), listOf(usd))
+
+        f.viewModel.retry()
+        advanceUntilIdle()
+
+        assertFalse(f.viewModel.state.value.loadFailed)
+        assertEquals(null, f.viewModel.state.value.loaded)
     }
 }
 

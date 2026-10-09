@@ -32,6 +32,7 @@ import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.ui.format.display
+import org.aristonis.mywallet.ui.load.ReadAttempts
 import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.window.TrackingWindowHolder
 import java.time.LocalDate
@@ -111,10 +112,19 @@ data class TransactionsUiState(
 }
 
 /**
- * The transactions of one window, kept with the window they were read for. A null [transactions]
- * means the read failed: the failure is a value here so it belongs to that window alone.
+ * Where the read of one window stands, kept with the window it is for. A failure is a value here so
+ * it belongs to that window alone.
  */
-private data class WindowedTransactions(val window: TrackingWindow, val transactions: List<Transaction>?)
+private sealed interface WindowedTransactions {
+    val window: TrackingWindow
+
+    data class Failed(override val window: TrackingWindow) : WindowedTransactions
+
+    data class Read(
+        override val window: TrackingWindow,
+        val transactions: List<Transaction>,
+    ) : WindowedTransactions
+}
 
 /**
  * The transactions history. The window's transactions are joined with the accounts, categories and
@@ -160,21 +170,49 @@ class TransactionsListViewModel @Inject constructor(
      */
     private val currentDay = MutableStateFlow(today.today())
 
+    /** Starts the window's read and the lookups over on [retry]. */
+    private val attempts = ReadAttempts()
+
     /**
      * A read that throws (a stored row that cannot be decoded) is caught here, on the window's own
      * read, and becomes a failed value for that window. Caught any further down, the whole chain
      * would complete and the date bar would stop doing anything until the screen was rebuilt; caught
-     * here, only this read ends, and choosing other dates (or the screen coming back after its reads
-     * stopped) reads again.
+     * here, only this read ends, and choosing other dates, [retry], or the screen coming back after
+     * its reads stopped reads again.
      */
-    private val windowed: Flow<WindowedTransactions> = holder.window.flatMapLatest { window ->
-        transactions.observeBetween(window.range)
-            .map<List<Transaction>, WindowedTransactions> { WindowedTransactions(window, it) }
-            .catch { error ->
-                errors.report("Transactions for ${window.range} could not be read", error)
-                emit(WindowedTransactions(window, null))
+    private val windowed: Flow<WindowedTransactions> =
+        holder.window.flatMapLatest { window ->
+            transactions.observeBetween(window.range)
+                .map<List<Transaction>, WindowedTransactions> { WindowedTransactions.Read(window, it) }
+                .catch { error ->
+                    if (error is CancellationException) throw error
+                    errors.report("Transactions for ${window.range} could not be read", error)
+                    emit(WindowedTransactions.Failed(window))
+                }
+        }
+
+    /**
+     * Null when the accounts, categories or currencies could not be read. The catch ends only this
+     * attempt's lookups: combine keeps the null as their last value, so the window's own read carries
+     * on and the screen shows the failure instead of the app closing. [retry] reads them again.
+     */
+    private val lookups: Flow<Lookups?> =
+        combine(
+            accounts.observeAll(),
+            categories.observeAll(),
+            currencies.observeAll(),
+        ) { accountList, categoryList, currencyList ->
+            Lookups(
+                accountsById = accountList.associateBy { it.id },
+                categoriesById = categoryList.associateBy { it.id },
+                currencies = currencyList,
+            )
+        }
+            .catch<Lookups?> { error ->
+                if (error is CancellationException) throw error
+                errors.report("Transactions could not read the accounts, categories or currencies", error)
+                emit(null)
             }
-    }
 
     /** The date of an entry saved outside the window, until the user acts on it or lets it go. */
     private val savedOutside = MutableStateFlow<LocalDate?>(null)
@@ -189,22 +227,11 @@ class TransactionsListViewModel @Inject constructor(
      *
      * There is deliberately no catch at the end of this chain: a catch completes the flow it guards,
      * and the list would freeze on the failure. Failures are turned into state where they happen, in
-     * [windowed] and in [stateFor].
+     * [windowed], in [lookups] and in [stateFor].
      */
     val state: StateFlow<TransactionsUiState> =
-        combine(
-            windowed,
-            accounts.observeAll(),
-            categories.observeAll(),
-            currencies.observeAll(),
-            currentDay,
-        ) { read, accountList, categoryList, currencyList, day ->
-            val lookups = Lookups(
-                accountsById = accountList.associateBy { it.id },
-                categoriesById = categoryList.associateBy { it.id },
-                currencies = currencyList,
-            )
-            stateFor(read, lookups, day)
+        attempts.reading(loading = { TransactionsUiState(window = holder.window.value) }) {
+            combine(windowed, lookups, currentDay) { read, lookup, day -> stateFor(read, lookup, day) }
         }
             .flowOn(defaultDispatcher)
             .combine(savedOutside) { built, saved -> built.copy(savedOutsideWindow = saved) }
@@ -255,6 +282,12 @@ class TransactionsListViewModel @Inject constructor(
         savedOutside.value = null
     }
 
+    /**
+     * Reads the window in force and the lookups again, after a failed read. The dates stay as they
+     * are, and the list shows as loading until the new read answers.
+     */
+    fun retry() = attempts.retry()
+
     /** The user let the message go; the window stays where they put it. */
     fun dismissSavedEntryMessage() {
         savedOutside.value = null
@@ -264,14 +297,19 @@ class TransactionsListViewModel @Inject constructor(
      * The state for one emission. Building is guarded too: a row the formatter cannot handle would
      * otherwise throw out of the combine and take the list down with it. The guard covers this one
      * emission only, so the next change of data or dates builds again. Cancellation is not a failure
-     * and is passed on.
+     * and is passed on. Null [lookups] means they could not be read, which fails the list too: rows
+     * without names or currencies would misstate what was recorded.
      */
-    private fun stateFor(read: WindowedTransactions, lookups: Lookups, day: LocalDate): TransactionsUiState {
+    private fun stateFor(read: WindowedTransactions, lookups: Lookups?, day: LocalDate): TransactionsUiState {
         val failed = TransactionsUiState(isLoading = false, window = read.window, loadFailed = true)
-        val transactions = read.transactions ?: return failed
+        val served = when (read) {
+            is WindowedTransactions.Failed -> return failed
+            is WindowedTransactions.Read -> read
+        }
+        if (lookups == null) return failed
         return try {
             TransactionsUiState(
-                sections = buildSections(transactions, lookups, day),
+                sections = buildSections(served.transactions, lookups, day),
                 isLoading = false,
                 window = read.window,
             )

@@ -128,4 +128,18 @@ class WalletComponentsTest {
 
         compose.onNodeWithText("Cash").assertIsDisplayed()
     }
+
+    @Test
+    fun aLoadFailedStateShowsItsMessageAndARetryButtonThatCallsBack() {
+        var retried = 0
+        setContent { LoadFailedState(message = "Could not read your data.", onRetry = { retried++ }) }
+
+        compose.onNodeWithText("Could not read your data.").assertIsDisplayed()
+        compose.onNodeWithText("Retry").assertIsDisplayed().assertHasClickAction()
+        assertEquals(0, retried)
+
+        compose.onNodeWithText("Retry").performClick()
+
+        assertEquals(1, retried)
+    }
 }
