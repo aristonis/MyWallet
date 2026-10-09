@@ -7,7 +7,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * Builds the Room database — keeps all Room construction inside `:data`. The `onCreate` callback
- * seeds the default currencies and categories the first time the DB is created (runs once).
+ * seeds the default currencies, categories, pre-made categories and their roles the first time the
+ * DB is created (runs once). An upgraded database gets the pre-made rows from the migration instead.
  */
 object DatabaseFactory {
 
@@ -40,6 +41,30 @@ object DatabaseFactory {
                 )
             }
             DefaultData.subCategories.forEach { insertSubCategory(db, it) }
+            DefaultData.preMadeCategories.forEach { preMade ->
+                db.execSQL(
+                    "INSERT INTO categories (name, kind, parentId) VALUES (?, ?, $TOP_LEVEL_PARENT_ID)",
+                    arrayOf<Any?>(preMade.name, preMade.kind.name),
+                )
+            }
+            DefaultData.preMadeCategories.forEach { preMade ->
+                preMade.role?.let { bindRole(db, it, preMade) }
+            }
+        }
+
+        /** Same shape as [insertSubCategory]: the category's id is resolved inside the INSERT. */
+        private fun bindRole(db: SupportSQLiteDatabase, role: String, category: DefaultData.PreMadeCategory) {
+            db.compileStatement(
+                "INSERT INTO category_roles (role, categoryId) " +
+                    "SELECT ?, id FROM categories WHERE name = ? AND kind = ? AND parentId = $TOP_LEVEL_PARENT_ID",
+            ).use { statement ->
+                statement.bindString(1, role)
+                statement.bindString(2, category.name)
+                statement.bindString(3, category.kind.name)
+                check(statement.executeInsert() != -1L) {
+                    "seed role $role found no top-level ${category.kind} category named \"${category.name}\""
+                }
+            }
         }
 
         /**

@@ -8,15 +8,17 @@ import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.ThemePreference
-import org.aristonis.mywallet.domain.model.Transaction
 import java.math.BigDecimal
 
 /**
  * Pure entity ↔ domain mappers (no Room runtime) — unit-tested on the JVM. Money is stored as an
- * exact TEXT string (`toPlainString`, never scientific notation) plus its currency code.
+ * exact TEXT string (`toPlainString`, never scientific notation) plus its currency code. Entries
+ * have their own mappers in LegMappers.kt.
  */
 
 // --- Account ---
+// The credit limit and default fee columns have no domain field yet, so they read as nothing and an
+// account saved from the domain writes them empty.
 fun AccountEntity.toDomain(): Account = Account(
     id = id,
     name = name,
@@ -82,70 +84,3 @@ fun Settings.toEntity(): SettingsEntity =
         schemaVersion = schemaVersion,
         saveTransactionRates = saveTransactionRates,
     )
-
-// --- Transaction (single-table inheritance) ---
-fun TransactionEntity.toDomain(): Transaction = when (type) {
-    "INCOME" -> Transaction.Income(
-        id = id,
-        accountId = primaryAccountId,
-        amount = Money.of(primaryAmount, primaryCurrency),
-        categoryId = requireNotNull(categoryId) { "income row $id missing categoryId" },
-        subCategoryId = subCategoryId,
-        date = date,
-        note = note,
-    )
-
-    "EXPENSE" -> Transaction.Expense(
-        id = id,
-        accountId = primaryAccountId,
-        amount = Money.of(primaryAmount, primaryCurrency),
-        categoryId = requireNotNull(categoryId) { "expense row $id missing categoryId" },
-        subCategoryId = subCategoryId,
-        date = date,
-        note = note,
-    )
-
-    "TRANSFER" -> Transaction.Transfer(
-        id = id,
-        sourceAccountId = primaryAccountId,
-        destAccountId = requireNotNull(secondaryAccountId) { "transfer row $id missing destAccountId" },
-        sourceAmount = Money.of(primaryAmount, primaryCurrency),
-        destAmount = Money.of(requireNotNull(secondaryAmount), requireNotNull(secondaryCurrency)),
-        rateUsed = BigDecimal(requireNotNull(rateUsed)),
-        date = date,
-        note = note,
-    )
-
-    else -> error("unknown transaction type: $type")
-}
-
-fun Transaction.toEntity(): TransactionEntity = when (this) {
-    is Transaction.Income -> TransactionEntity(
-        id = id, type = "INCOME", date = date, note = note,
-        primaryAccountId = accountId,
-        primaryAmount = amount.amount.toPlainString(),
-        primaryCurrency = amount.currencyCode,
-        categoryId = categoryId,
-        subCategoryId = subCategoryId,
-    )
-
-    is Transaction.Expense -> TransactionEntity(
-        id = id, type = "EXPENSE", date = date, note = note,
-        primaryAccountId = accountId,
-        primaryAmount = amount.amount.toPlainString(),
-        primaryCurrency = amount.currencyCode,
-        categoryId = categoryId,
-        subCategoryId = subCategoryId,
-    )
-
-    is Transaction.Transfer -> TransactionEntity(
-        id = id, type = "TRANSFER", date = date, note = note,
-        primaryAccountId = sourceAccountId,
-        primaryAmount = sourceAmount.amount.toPlainString(),
-        primaryCurrency = sourceAmount.currencyCode,
-        secondaryAccountId = destAccountId,
-        secondaryAmount = destAmount.amount.toPlainString(),
-        secondaryCurrency = destAmount.currencyCode,
-        rateUsed = rateUsed.toPlainString(),
-    )
-}

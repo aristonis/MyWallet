@@ -6,8 +6,8 @@ import kotlinx.serialization.json.Json
 
 /**
  * The single JSON gateway for wallet backups. Reads are strict — unknown keys and missing required
- * fields are rejected rather than silently defaulted — so a decoded [WalletBackup] is guaranteed
- * complete before restore touches it. [decode] deliberately lets SerializationException /
+ * fields are rejected rather than silently defaulted — so a decoded backup is guaranteed complete
+ * before restore touches it. [decode] deliberately lets SerializationException /
  * IllegalArgumentException propagate on corrupt or partial input; callers treat that as "reject".
  */
 object BackupCodec {
@@ -18,8 +18,13 @@ object BackupCodec {
         encodeDefaults = true
     }
 
+    /**
+     * Writes format 1. The app only writes format 2 now; this stays so a format-1 file can be built
+     * and read back, which is how the frozen format-1 reader is kept honest.
+     */
     fun encode(backup: WalletBackup): String = json.encodeToString(backup)
 
+    /** Reads a format-1 file (1.0 and 1.1), to be converted with [BackupUpgrade.v1ToV2]. */
     fun decode(text: String): WalletBackup = json.decodeFromString(text)
 
     fun encode(backup: WalletBackupV2): String = json.encodeToString(backup)

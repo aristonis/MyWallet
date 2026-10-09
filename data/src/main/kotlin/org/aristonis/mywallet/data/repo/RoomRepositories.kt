@@ -8,46 +8,32 @@ import org.aristonis.mywallet.data.db.CategoryDao
 import org.aristonis.mywallet.data.db.CurrencyDao
 import org.aristonis.mywallet.data.db.RateDao
 import org.aristonis.mywallet.data.db.SettingsDao
-import org.aristonis.mywallet.data.db.TransactionDao
 import org.aristonis.mywallet.data.db.toDomain
 import org.aristonis.mywallet.data.db.toEntity
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
-import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.data.db.UPSERT_NO_ROW_ID
 import org.aristonis.mywallet.domain.error.WalletException
 
 /**
  * The Room-backed implementations of the domain ports. Each one is a thin adapter: call the DAO,
- * map entities ↔ domain. Business rules stay in the use-cases; these are pure CRUD.
+ * map entities ↔ domain. Business rules stay in the use-cases; these are pure CRUD. Entries and
+ * the ledger projections have their own files.
  */
 
 class RoomAccountRepository(private val dao: AccountDao) : AccountRepository {
     override fun observeAll(): Flow<List<Account>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
     override suspend fun findById(id: Long): Account? = dao.findById(id)?.toDomain()
     override suspend fun upsert(account: Account): Long = dao.upsert(account.toEntity())
-    override suspend fun delete(id: Long) = dao.deleteById(id)
-}
-
-class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRepository {
-    override fun observeAll(): Flow<List<Transaction>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
-    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        dao.observeBetween(range.start, range.endInclusive).map { rows -> rows.map { it.toDomain() } }
-
-    override suspend fun findById(id: Long): Transaction? = dao.findById(id)?.toDomain()
-    override suspend fun add(transaction: Transaction): Long = dao.insert(transaction.toEntity())
-    override suspend fun update(transaction: Transaction) = dao.update(transaction.toEntity())
     override suspend fun delete(id: Long) = dao.deleteById(id)
 }
 

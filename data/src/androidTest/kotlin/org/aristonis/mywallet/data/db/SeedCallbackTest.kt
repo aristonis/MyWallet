@@ -48,12 +48,15 @@ class SeedCallbackTest {
     @Test
     fun everySeededTopLevelCategoryUsesTheSentinelNotNull() = runTest {
         val topLevel = categories().filter { it.parentId == TOP_LEVEL_PARENT_ID }
+        // The starter categories and the pre-made ones are both seeded at top level.
+        val seeded = DefaultData.categories.map { it.kind.name to it.name } +
+            DefaultData.preMadeCategories.map { it.kind.name to it.name }
 
-        assertEquals(DefaultData.categories.size, topLevel.size)
+        assertEquals(seeded.size, topLevel.size)
         assertEquals(
             "every seeded name is present at top level",
-            DefaultData.categories.map { it.name }.toSet(),
-            topLevel.map { it.name }.toSet(),
+            seeded.toSet(),
+            topLevel.map { it.kind to it.name }.toSet(),
         )
     }
 
@@ -86,5 +89,62 @@ class SeedCallbackTest {
         val keys = categories().map { Triple(it.kind, it.parentId, it.name.lowercase()) }
 
         assertEquals("the seed contains a duplicate sibling name", keys.size, keys.toSet().size)
+    }
+
+    private val sql get() = db.openHelper.writableDatabase
+
+    /** The categories every install carries for interest, tax, fees and written-off debt. */
+    private val preMade = listOf(
+        listOf("Interest", "INCOME"),
+        listOf("Interest", "EXPENSE"),
+        listOf("Tax", "EXPENSE"),
+        listOf("Fees", "EXPENSE"),
+        listOf("Lost debt", "EXPENSE"),
+        listOf("Debt forgiven", "INCOME"),
+    )
+
+    @Test
+    fun aFreshInstallHasEachPreMadeCategoryExactlyOnceAtTopLevel() = runTest {
+        categories()
+
+        preMade.forEach { (name, kind) ->
+            assertEquals(
+                "$kind $name",
+                "1",
+                sql.scalar(
+                    "SELECT COUNT(*) FROM categories WHERE name = ? AND kind = ? AND parentId = $TOP_LEVEL_PARENT_ID",
+                    name, kind,
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun aFreshInstallBindsFiveRolesToTheirPreMadeCategories() = runTest {
+        categories()
+
+        val boundTo = sql.textRows(
+            "SELECT r.role, c.name, c.kind FROM category_roles r JOIN categories c ON c.id = r.categoryId",
+        ).associate { it[0] to listOf(it[1], it[2]) }
+
+        assertEquals(
+            mapOf(
+                "INTEREST_IN" to listOf("Interest", "INCOME"),
+                "INTEREST_OUT" to listOf("Interest", "EXPENSE"),
+                "FEES" to listOf("Fees", "EXPENSE"),
+                "LOST_DEBT" to listOf("Lost debt", "EXPENSE"),
+                "DEBT_FORGIVEN" to listOf("Debt forgiven", "INCOME"),
+            ),
+            boundTo,
+        )
+        assertEquals("exactly five roles, no extra rows", "5", sql.scalar("SELECT COUNT(*) FROM category_roles"))
+    }
+
+    @Test
+    fun aFreshInstallHasNoUnreadableRowsAndNoEntries() = runTest {
+        categories()
+
+        assertEquals("0", sql.scalar("SELECT COUNT(*) FROM legacy_unreadable_rows"))
+        assertEquals("0", sql.scalar("SELECT COUNT(*) FROM entries"))
     }
 }

@@ -106,4 +106,22 @@ class DefaultDataTest {
             assertTrue("\"${it.parentName}\" is not an expense category", it.parentName in expenseNames)
         }
     }
+
+    @Test
+    fun preMadeCategoriesNeverCollideWithTheStarterOnes() {
+        // Both lists are inserted top-level by the seed; a shared name and kind would abort it.
+        val starter = DefaultData.categories.map { it.kind to it.name.lowercase() }.toSet()
+        val preMade = DefaultData.preMadeCategories.map { it.kind to it.name.lowercase() }
+
+        assertEquals("no duplicate among the pre-made ones", preMade.size, preMade.toSet().size)
+        assertTrue("a pre-made category repeats a starter one", preMade.none { it in starter })
+    }
+
+    @Test
+    fun eachRoleIsBoundOnceAndOnlyTaxHasNone() {
+        val roles = DefaultData.preMadeCategories.mapNotNull { it.role }
+
+        assertEquals(listOf("INTEREST_IN", "INTEREST_OUT", "FEES", "LOST_DEBT", "DEBT_FORGIVEN"), roles)
+        assertEquals(listOf("Tax"), DefaultData.preMadeCategories.filter { it.role == null }.map { it.name })
+    }
 }

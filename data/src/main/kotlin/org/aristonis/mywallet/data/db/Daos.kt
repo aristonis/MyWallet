@@ -4,42 +4,9 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
-import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import org.aristonis.mywallet.domain.error.WalletException
-import java.time.LocalDate
-
-@Dao
-interface TransactionDao {
-    @Query("SELECT * FROM transactions ORDER BY date DESC, id DESC")
-    fun observeAll(): Flow<List<TransactionEntity>>
-
-    /** Same order as [observeAll], restricted to the inclusive [start]..[end] dates; served by the date index. */
-    @Query("SELECT * FROM transactions WHERE date BETWEEN :start AND :end ORDER BY date DESC, id DESC")
-    fun observeBetween(start: LocalDate, end: LocalDate): Flow<List<TransactionEntity>>
-
-    @Query("SELECT * FROM transactions WHERE id = :id")
-    suspend fun findById(id: Long): TransactionEntity?
-
-    @Insert
-    suspend fun insert(transaction: TransactionEntity): Long
-
-    @Update
-    suspend fun update(transaction: TransactionEntity)
-
-    @Query("DELETE FROM transactions WHERE id = :id")
-    suspend fun deleteById(id: Long)
-
-    @Query("SELECT * FROM transactions")
-    suspend fun getAll(): List<TransactionEntity>
-
-    @Insert
-    suspend fun insertAll(rows: List<TransactionEntity>)
-
-    @Query("DELETE FROM transactions")
-    suspend fun clear()
-}
 
 @Dao
 interface CategoryDao {
@@ -92,51 +59,66 @@ interface CategoryDao {
     @Query("DELETE FROM categories")
     suspend fun clear()
 
-    // --- Reassignment: the transaction-side half of deleting a category ---
+    // --- Reassignment: the entry-side half of deleting a category ---
 
     /**
-     * Clears sub-category [subCategoryId] off every transaction that referenced it, and moves the
-     * ones that named it as their MAIN category up to [parentId].
+     * Clears sub-category [subCategoryId] off every leg that referenced it, and moves the legs that
+     * named it as their category up to [parentId].
      *
-     * For a row filed the ordinary way — parent in `categoryId`, child in `subCategoryId` — only
-     * the finer label goes; `categoryId` is untouched on purpose, because the money was spent on
-     * the parent category and still was, and rewriting it would silently restate every past report.
-     * A row that put the child in `categoryId` instead is malformed, but it is the same spend under
-     * the same parent, so it lands on that parent rather than being left naming a row this
-     * statement is about to delete.
-     *
-     * Both halves are one statement so the changed-row count stays exact: a row that matched on
-     * both columns is still one row, and the number the confirmation dialog quotes back to the user
-     * is the number of transactions that actually moved.
+     * For a leg filed the ordinary way (parent in `categoryId`, child in `subCategoryId`) only the
+     * finer label goes; `categoryId` is untouched on purpose, because the money was spent on the
+     * parent category and still was, and rewriting it would silently restate every past report. A
+     * leg that put the child in `categoryId` instead is malformed, but it is the same spend under
+     * the same parent, so it lands on that parent rather than naming a row about to be deleted.
+     * Both halves are one statement so no leg is ever left half moved.
      */
     @Query(
-        "UPDATE transactions SET " +
+        "UPDATE entry_legs SET " +
             "categoryId = CASE WHEN categoryId = :subCategoryId THEN :parentId ELSE categoryId END, " +
             "subCategoryId = NULL " +
             "WHERE categoryId = :subCategoryId OR subCategoryId = :subCategoryId",
     )
-    suspend fun detachSubCategory(subCategoryId: Long, parentId: Long): Int
-
-    @Query(
-        "SELECT COUNT(*) FROM transactions " +
-            "WHERE categoryId IN (:categoryIds) OR subCategoryId IN (:categoryIds)",
-    )
-    suspend fun countReferencing(categoryIds: List<Long>): Int
+    suspend fun detachSubCategoryFromLegs(subCategoryId: Long, parentId: Long)
 
     /**
-     * Moves every transaction that referenced a doomed parent OR one of its children onto
-     * [fallbackId]. Both columns move in one statement: clearing `subCategoryId` separately would
-     * leave a window where a row points at a child that is about to disappear.
+     * How many entries have a leg on any of [categoryIds], as main or sub-category. This is the
+     * number the confirmation quotes back: an entry with two legs on the category is one entry.
      */
     @Query(
-        "UPDATE transactions SET categoryId = :fallbackId, subCategoryId = NULL " +
+        "SELECT COUNT(DISTINCT entryId) FROM entry_legs " +
             "WHERE categoryId IN (:categoryIds) OR subCategoryId IN (:categoryIds)",
     )
-    suspend fun reassignToFallback(categoryIds: List<Long>, fallbackId: Long): Int
+    suspend fun countEntriesReferencing(categoryIds: List<Long>): Int
 
     /**
-     * Deletes [categoryId] and re-files the transactions that referenced it, returning how many of
-     * them changed.
+     * Whether anything at all points at [categoryIds]: a leg, as main or sub-category, or a
+     * deduction item that files its expense there. A deduction item has no foreign key on that
+     * column, so without this it would be left naming a category that no longer exists.
+     */
+    @Query(
+        "SELECT EXISTS (SELECT 1 FROM entry_legs WHERE categoryId IN (:categoryIds) OR subCategoryId IN (:categoryIds)) " +
+            "OR EXISTS (SELECT 1 FROM deduction_items WHERE expenseCategoryId IN (:categoryIds))",
+    )
+    suspend fun isAnythingFiledUnder(categoryIds: List<Long>): Boolean
+
+    /**
+     * Moves every leg that referenced a doomed parent OR one of its children onto [fallbackId]. Both
+     * columns move in one statement: clearing `subCategoryId` separately would leave a window where
+     * a leg points at a child that is about to disappear.
+     */
+    @Query(
+        "UPDATE entry_legs SET categoryId = :fallbackId, subCategoryId = NULL " +
+            "WHERE categoryId IN (:categoryIds) OR subCategoryId IN (:categoryIds)",
+    )
+    suspend fun reassignLegsToFallback(categoryIds: List<Long>, fallbackId: Long)
+
+    /** Points every deduction item that files its expense under one of [categoryIds] at [targetId] instead. */
+    @Query("UPDATE deduction_items SET expenseCategoryId = :targetId WHERE expenseCategoryId IN (:categoryIds)")
+    suspend fun reassignDeductionItems(categoryIds: List<Long>, targetId: Long)
+
+    /**
+     * Deletes [categoryId] and re-files the entry legs and deduction items that referenced it,
+     * returning how many entries moved.
      *
      * `@Transaction` on a suspending method makes Room wrap the whole body in one database
      * transaction, so the child lookup, the bucket's get-or-create, the reassignment and the
@@ -162,7 +144,7 @@ interface CategoryDao {
         // loud rather than delete nothing and report zero — and the same argument applies to the
         // protection guard, so it is re-checked here too. Deleting a bucket that only became
         // app-owned after the caller looked (a restore landing mid-flight) would leave the next
-        // delete of that kind with nowhere to move its transactions.
+        // delete of that kind with nowhere to move its legs.
         val target = findById(categoryId) ?: throw WalletException.CategoryNotFound(categoryId)
         if (target.systemKey != null) throw WalletException.SystemCategoryProtected(categoryId)
         // Everything below reads the kind off the row rather than the parameter. Re-reading to
@@ -175,19 +157,21 @@ interface CategoryDao {
         val doomedIds =
             if (isSubCategory) listOf(target.id) else listOf(target.id) + childIdsOf(target.id, targetKind)
 
-        val moved = if (isSubCategory) {
-            detachSubCategory(subCategoryId = target.id, parentId = target.parentId)
-        } else if (countReferencing(doomedIds) == 0) {
-            // Nothing to move, so no reason to bring a bucket into existence yet.
-            0
-        } else {
+        // Counted before anything moves: afterwards the legs no longer name the doomed ids.
+        val moved = countEntriesReferencing(doomedIds)
+        if (isSubCategory) {
+            detachSubCategoryFromLegs(subCategoryId = target.id, parentId = target.parentId)
+            reassignDeductionItems(doomedIds, target.parentId)
+        } else if (isAnythingFiledUnder(doomedIds)) {
             val fallbackId = resolveOrCreateBucket(targetKind, fallbackKey, fallbackName)
             // A restored backup can carry a bucket parented under the very category being deleted,
-            // which puts the bucket in doomedIds: every reassigned row would be pointed at a
+            // which puts the bucket in doomedIds: every reassigned leg would be pointed at a
             // category this same call is about to remove, orphaning the lot in one go.
             if (fallbackId in doomedIds) throw WalletException.CategoryStructureInvalid(fallbackId)
-            reassignToFallback(doomedIds, fallbackId)
+            reassignLegsToFallback(doomedIds, fallbackId)
+            reassignDeductionItems(doomedIds, fallbackId)
         }
+        // Otherwise nothing points here, so there is no reason to bring a bucket into existence yet.
 
         deleteByIds(doomedIds)
 
@@ -202,7 +186,7 @@ interface CategoryDao {
      * The ids that go down with parent [parentId] of [kind]. A child of the OTHER kind stops the
      * delete instead of joining the group: it can only have come from a restore, which validates
      * neither kind nor parent, and there is no safe thing to do with it here. Taking it along files
-     * its transactions under the wrong kind's bucket, where no report shows them; leaving it behind
+     * its legs under the wrong kind's bucket, where no report shows them; leaving it behind
      * strands it under a parent that no longer exists. Refusing at least says something is wrong
      * while the data is still intact.
      */
@@ -219,7 +203,7 @@ interface CategoryDao {
      * The insert's result is checked rather than returned as-is. A brand-new row that comes back
      * [UPSERT_NO_ROW_ID] was never written — here that means a top-level category of this kind
      * already holds [name], so the sibling-uniqueness index refused it. Handing that value on would
-     * run `UPDATE transactions SET categoryId = -1` across every row being reassigned, without a
+     * run `UPDATE entry_legs SET categoryId = -1` across every leg being reassigned, without a
      * word, and there would be no row left to explain where the money went.
      */
     suspend fun resolveOrCreateBucket(kind: String, systemKey: String, name: String): Long {

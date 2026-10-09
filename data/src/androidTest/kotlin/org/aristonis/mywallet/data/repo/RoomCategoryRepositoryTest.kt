@@ -6,8 +6,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.data.db.CategoryEntity
 import org.aristonis.mywallet.data.db.TOP_LEVEL_PARENT_ID
-import org.aristonis.mywallet.data.db.TransactionEntity
+import org.aristonis.mywallet.data.db.EntryEntity
+import org.aristonis.mywallet.data.db.EntryLegEntity
 import org.aristonis.mywallet.data.db.WalletDatabase
+import org.aristonis.mywallet.data.db.scalar
+import org.aristonis.mywallet.data.db.textRows
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.junit.After
@@ -40,21 +43,27 @@ class RoomCategoryRepositoryTest {
     private val salary = CategoryEntity(id = 30, name = "Salary", kind = "INCOME")
     private val health = CategoryEntity(id = 40, name = "Health", kind = "EXPENSE")
 
-    /** Every combination that the reassignment has to tell apart. */
-    private val underGroceries = expense(id = 1, categoryId = 10, subCategoryId = 11)
-    private val underRestaurants = expense(id = 2, categoryId = 10, subCategoryId = 12)
-    private val underFoodOnly = expense(id = 3, categoryId = 10, subCategoryId = null)
-    private val underTransport = expense(id = 4, categoryId = 20, subCategoryId = null)
-    private val transfer = TransactionEntity(
-        id = 5, type = "TRANSFER", date = LocalDate.of(2026, 2, 1),
-        primaryAccountId = 1, primaryAmount = "20.00", primaryCurrency = "USD",
-        secondaryAccountId = 2, secondaryAmount = "18.40", secondaryCurrency = "EUR", rateUsed = "0.92",
+    /** Every combination that the reassignment has to tell apart, as entry ids. */
+    private val underGroceries = 1L
+    private val underRestaurants = 2L
+    private val underFoodOnly = 3L
+    private val underTransport = 4L
+    private val transfer = 5L
+
+    private val february = LocalDate.of(2026, 2, 1)
+
+    /** An expense's two legs: money out of an account, and the same amount on its category. */
+    private fun expenseLegs(entryId: Long, categoryId: Long, subCategoryId: Long?) = listOf(
+        EntryLegEntity(entryId = entryId, role = "ACCOUNT", position = 0, accountId = 1, amount = "-12.99", currencyCode = "USD"),
+        EntryLegEntity(
+            entryId = entryId, role = "MAIN", position = 0, categoryId = categoryId, subCategoryId = subCategoryId,
+            amount = "12.99", currencyCode = "USD", rateToBase = "1",
+        ),
     )
 
-    private fun expense(id: Long, categoryId: Long, subCategoryId: Long?) = TransactionEntity(
-        id = id, type = "EXPENSE", date = LocalDate.of(2026, 2, 1),
-        primaryAccountId = 1, primaryAmount = "12.99", primaryCurrency = "USD",
-        categoryId = categoryId, subCategoryId = subCategoryId,
+    private val transferLegs = listOf(
+        EntryLegEntity(entryId = transfer, role = "SOURCE", position = 0, accountId = 1, amount = "-20.00", currencyCode = "USD"),
+        EntryLegEntity(entryId = transfer, role = "DEST", position = 0, accountId = 2, amount = "18.40", currencyCode = "EUR"),
     )
 
     private val expenseBucketKey = Category.uncategorizedKeyFor(CategoryKind.EXPENSE)
@@ -74,13 +83,22 @@ class RoomCategoryRepositoryTest {
 
     private suspend fun seed() {
         db.categoryDao().insertAll(listOf(food, groceries, restaurants, transport, salary, health))
-        db.transactionDao().insertAll(
-            listOf(underGroceries, underRestaurants, underFoodOnly, underTransport, transfer),
-        )
+        insertExpense(underGroceries, categoryId = 10, subCategoryId = 11)
+        insertExpense(underRestaurants, categoryId = 10, subCategoryId = 12)
+        insertExpense(underFoodOnly, categoryId = 10, subCategoryId = null)
+        insertExpense(underTransport, categoryId = 20, subCategoryId = null)
+        db.entryDao().insertAll(listOf(EntryEntity(id = transfer, kind = "TRANSFER", date = february, pairRate = "0.92")))
+        db.entryDao().insertLegs(transferLegs)
     }
 
-    private suspend fun transaction(id: Long): TransactionEntity =
-        requireNotNull(db.transactionDao().findById(id)) { "transaction $id is missing" }
+    private suspend fun insertExpense(entryId: Long, categoryId: Long, subCategoryId: Long?) {
+        db.entryDao().insertAll(listOf(EntryEntity(id = entryId, kind = "EXPENSE", date = february)))
+        db.entryDao().insertLegs(expenseLegs(entryId, categoryId, subCategoryId))
+    }
+
+    /** The category leg of entry [entryId]. */
+    private suspend fun mainLeg(entryId: Long): EntryLegEntity =
+        db.entryDao().getAllLegs().single { it.entryId == entryId && it.role == "MAIN" }
 
     private suspend fun bucket(systemKey: String): CategoryEntity? = db.categoryDao().findBySystemKey(systemKey)
 
@@ -93,15 +111,15 @@ class RoomCategoryRepositoryTest {
         val moved = repository.deleteAndReassign(groceries.id, CategoryKind.EXPENSE, expenseBucketKey)
 
         assertEquals(1, moved)
-        val row = transaction(underGroceries.id)
+        val leg = mainLeg(underGroceries)
         // The single most important assertion in the whole feature: the spend was on Food and still
-        // is. Moving categoryId here would silently rewrite every report that ever covered this row.
-        assertEquals("categoryId must not change", food.id, row.categoryId)
-        assertNull("the deleted sub-category must be cleared", row.subCategoryId)
+        // is. Moving categoryId here would silently rewrite every report that ever covered this leg.
+        assertEquals("categoryId must not change", food.id, leg.categoryId)
+        assertNull("the deleted sub-category must be cleared", leg.subCategoryId)
 
         // Nothing else may be touched: not the sibling sub-category, not the parent, not the bucket.
-        assertEquals(restaurants.id, transaction(underRestaurants.id).subCategoryId)
-        assertEquals(food.id, transaction(underFoodOnly.id).categoryId)
+        assertEquals(restaurants.id, mainLeg(underRestaurants).subCategoryId)
+        assertEquals(food.id, mainLeg(underFoodOnly).categoryId)
         assertTrue("the parent must survive", food.id in categoryIds())
         assertNull("a sub-category delete never needs a bucket", bucket(expenseBucketKey))
     }
@@ -112,30 +130,30 @@ class RoomCategoryRepositoryTest {
 
         val moved = repository.deleteAndReassign(food.id, CategoryKind.EXPENSE, expenseBucketKey)
 
-        assertEquals("all three rows referencing Food or its children", 3, moved)
+        assertEquals("all three entries referencing Food or its children", 3, moved)
         val fallback = requireNotNull(bucket(expenseBucketKey)) { "the fallback bucket must exist" }
         assertEquals("EXPENSE", fallback.kind)
         // Storage spells "no parent" as the sentinel, not NULL — that is what lets the sibling
         // uniqueness index constrain top-level rows at all.
         assertEquals("the bucket is top-level", TOP_LEVEL_PARENT_ID, fallback.parentId)
 
-        listOf(underGroceries, underRestaurants, underFoodOnly).forEach { seeded ->
-            val row = transaction(seeded.id)
-            assertEquals("row ${seeded.id} must move to the bucket", fallback.id, row.categoryId)
-            assertNull("row ${seeded.id} must lose its sub-category", row.subCategoryId)
+        listOf(underGroceries, underRestaurants, underFoodOnly).forEach { entryId ->
+            val leg = mainLeg(entryId)
+            assertEquals("entry $entryId must move to the bucket", fallback.id, leg.categoryId)
+            assertNull("entry $entryId must lose its sub-category", leg.subCategoryId)
         }
 
         val remaining = categoryIds()
         assertTrue("the parent and both children are gone", remaining.intersect(setOf(10L, 11L, 12L)).isEmpty())
-        assertEquals("an unrelated category is untouched", transport.id, transaction(underTransport.id).categoryId)
+        assertEquals("an unrelated category is untouched", transport.id, mainLeg(underTransport).categoryId)
 
         // The point of nulling subCategoryId in the same statement: nothing may be left pointing at
         // a row that no longer exists, which the editor would refuse to save.
-        db.transactionDao().getAll().forEach { row ->
-            val category = row.categoryId
-            val subCategory = row.subCategoryId
-            assertTrue("row ${row.id} points at a deleted category", category == null || category in remaining)
-            assertTrue("row ${row.id} points at a deleted sub-category", subCategory == null || subCategory in remaining)
+        db.entryDao().getAllLegs().forEach { leg ->
+            val category = leg.categoryId
+            val subCategory = leg.subCategoryId
+            assertTrue("leg ${leg.id} points at a deleted category", category == null || category in remaining)
+            assertTrue("leg ${leg.id} points at a deleted sub-category", subCategory == null || subCategory in remaining)
         }
     }
 
@@ -153,7 +171,7 @@ class RoomCategoryRepositoryTest {
                 ),
             ),
         )
-        db.transactionDao().insertAll(listOf(underFoodOnly))
+        insertExpense(underFoodOnly, categoryId = 10, subCategoryId = null)
 
         try {
             repository.deleteAndReassign(food.id, CategoryKind.EXPENSE, expenseBucketKey)
@@ -163,17 +181,17 @@ class RoomCategoryRepositoryTest {
         }
 
         assertTrue("nothing may be deleted", food.id in categoryIds())
-        assertEquals("nothing may be reassigned", food.id, transaction(underFoodOnly.id).categoryId)
+        assertEquals("nothing may be reassigned", food.id, mainLeg(underFoodOnly).categoryId)
     }
 
     @Test
     fun theReturnedCountMatchesTheRowsThatActuallyChanged() = runTest {
         seed()
-        val before = db.transactionDao().getAll().associateBy { it.id }
+        val before = db.entryDao().getAllLegs().groupBy { it.entryId }
 
         val moved = repository.deleteAndReassign(food.id, CategoryKind.EXPENSE, expenseBucketKey)
 
-        val actuallyChanged = db.transactionDao().getAll().count { it != before.getValue(it.id) }
+        val actuallyChanged = db.entryDao().getAllLegs().groupBy { it.entryId }.count { (entryId, legs) -> legs != before.getValue(entryId) }
         assertEquals("the confirmation dialog quotes this number back to the user", actuallyChanged, moved)
     }
 
@@ -193,7 +211,7 @@ class RoomCategoryRepositoryTest {
 
         val moved = repository.deleteAndReassign(salary.id, CategoryKind.INCOME, incomeBucketKey)
 
-        assertEquals("no income transaction existed to move", 0, moved)
+        assertEquals("no income entry existed to move", 0, moved)
         // A kind with nothing in it leaves the add-transaction form with nothing to pick and its
         // Save button permanently disabled, so the bucket has to stand in even with nothing to hold.
         assertNotNull("INCOME must not be left empty", bucket(incomeBucketKey))
@@ -209,7 +227,7 @@ class RoomCategoryRepositoryTest {
             "CREATE TRIGGER refuse_category_delete BEFORE DELETE ON categories " +
                 "BEGIN SELECT RAISE(ABORT, 'delete refused'); END",
         )
-        val before = db.transactionDao().getAll().toSet()
+        val before = db.entryDao().getAllLegs().toSet()
 
         var thrown: Throwable? = null
         try {
@@ -220,7 +238,7 @@ class RoomCategoryRepositoryTest {
 
         assertNotNull("a refused delete must surface, not be swallowed", thrown)
         assertNull("a rolled-back delete must not strand an orphan bucket", bucket(expenseBucketKey))
-        assertEquals("no row may be left partially reassigned", before, db.transactionDao().getAll().toSet())
+        assertEquals("no leg may be left partially reassigned", before, db.entryDao().getAllLegs().toSet())
         assertEquals("every category must still be there", setOf(10L, 11L, 12L, 20L, 30L, 40L), categoryIds())
     }
 
@@ -235,5 +253,114 @@ class RoomCategoryRepositoryTest {
 
         assertEquals("an edit keeps its id", created, renamed)
         assertEquals("Reading", db.categoryDao().findById(created)?.name)
+    }
+
+    // --- Entries on legs: a category's money lives on entry legs and deduction items, not on rows of its own. ---
+
+    private val sql get() = db.openHelper.writableDatabase
+
+    /** An entry with an account leg and one MAIN category leg, written as plain rows. */
+    private fun entryOn(entryId: Long, kind: String, categoryId: Long, subCategoryId: Long?) {
+        sql.execSQL("INSERT INTO entries (id, kind, date) VALUES (?, ?, 20454)", arrayOf<Any?>(entryId, kind))
+        sql.execSQL(
+            "INSERT INTO entry_legs (entryId, role, position, accountId, amount, currencyCode) " +
+                "VALUES (?, 'ACCOUNT', 0, 1, '12.99', 'USD')",
+            arrayOf<Any?>(entryId),
+        )
+        sql.execSQL(
+            "INSERT INTO entry_legs (entryId, role, position, categoryId, subCategoryId, amount, currencyCode, rateToBase) " +
+                "VALUES (?, 'MAIN', 0, ?, ?, '12.99', 'USD', '1')",
+            arrayOf<Any?>(entryId, categoryId, subCategoryId),
+        )
+    }
+
+    private fun mainLegOf(entryId: Long): List<Long?> =
+        sql.textRows("SELECT categoryId, subCategoryId FROM entry_legs WHERE entryId = ? AND role = 'MAIN'", entryId)
+            .single().map { it?.toLong() }
+
+    private fun deductionItem(id: Long, expenseCategoryId: Long) {
+        sql.execSQL(
+            "INSERT INTO deduction_items (id, name, nameKey, mode, value, valueCurrencyCode, timing, " +
+                "expenseCategoryId, enabled, sortOrder) VALUES (?, ?, ?, 'PERCENT', '5', NULL, 'NOW', ?, 1, 0)",
+            arrayOf<Any?>(id, "Item $id", "item $id", expenseCategoryId),
+        )
+    }
+
+    private fun itemCategory(id: Long): Long =
+        requireNotNull(sql.scalar("SELECT expenseCategoryId FROM deduction_items WHERE id = ?", id)).toLong()
+
+    private suspend fun seedCategories() {
+        db.categoryDao().insertAll(listOf(food, groceries, restaurants, transport, salary, health))
+    }
+
+    @Test
+    fun deletingACategoryRefilesItsLegsOntoUncategorizedAndLeavesOtherLegsAlone() = runTest {
+        seedCategories()
+        entryOn(1, "EXPENSE", categoryId = 10, subCategoryId = 11)
+        entryOn(2, "EXPENSE", categoryId = 10, subCategoryId = null)
+        entryOn(3, "EXPENSE", categoryId = 20, subCategoryId = null)
+
+        val moved = repository.deleteAndReassign(food.id, CategoryKind.EXPENSE, expenseBucketKey)
+
+        val fallback = requireNotNull(bucket(expenseBucketKey)) { "the fallback bucket must exist" }
+        assertEquals("two entries had a leg on Food", 2, moved)
+        assertEquals(listOf<Long?>(fallback.id, null), mainLegOf(1))
+        assertEquals(listOf<Long?>(fallback.id, null), mainLegOf(2))
+        assertEquals("a leg on another category is untouched", listOf<Long?>(20, null), mainLegOf(3))
+        assertEquals("no entry is lost with its category", "3", sql.scalar("SELECT COUNT(*) FROM entries"))
+        assertEquals("the account legs are untouched", "3", sql.scalar("SELECT COUNT(*) FROM entry_legs WHERE role = 'ACCOUNT'"))
+    }
+
+    @Test
+    fun deletingASubCategoryClearsItOffTheLegAndKeepsTheParentOnIt() = runTest {
+        seedCategories()
+        entryOn(1, "EXPENSE", categoryId = 10, subCategoryId = 11)
+        entryOn(2, "EXPENSE", categoryId = 10, subCategoryId = 12)
+
+        val moved = repository.deleteAndReassign(groceries.id, CategoryKind.EXPENSE, expenseBucketKey)
+
+        assertEquals(1, moved)
+        assertEquals("the spend was on Food and still is", listOf<Long?>(10, null), mainLegOf(1))
+        assertEquals(listOf<Long?>(10, 12), mainLegOf(2))
+        assertNull("a sub-category delete never needs a bucket", bucket(expenseBucketKey))
+    }
+
+    @Test
+    fun deletingAnIncomeCategoryRefilesItsLegsOntoTheIncomeBucket() = runTest {
+        seedCategories()
+        entryOn(1, "INCOME", categoryId = 30, subCategoryId = null)
+
+        repository.deleteAndReassign(salary.id, CategoryKind.INCOME, incomeBucketKey)
+
+        val fallback = requireNotNull(bucket(incomeBucketKey)) { "the income bucket must exist" }
+        assertEquals("INCOME", fallback.kind)
+        assertEquals(listOf<Long?>(fallback.id, null), mainLegOf(1))
+    }
+
+    @Test
+    fun deletingACategoryReassignsTheDeductionItemsThatFileTheirExpenseUnderIt() = runTest {
+        seedCategories()
+        deductionItem(1, expenseCategoryId = 10)
+        deductionItem(2, expenseCategoryId = 11)
+        deductionItem(3, expenseCategoryId = 20)
+
+        repository.deleteAndReassign(food.id, CategoryKind.EXPENSE, expenseBucketKey)
+
+        val fallback = requireNotNull(bucket(expenseBucketKey)) { "the fallback bucket must exist" }
+        assertEquals("an item on the parent moves to the bucket", fallback.id, itemCategory(1))
+        assertEquals("an item on a child of the parent moves too", fallback.id, itemCategory(2))
+        assertEquals("an item on another category is untouched", transport.id, itemCategory(3))
+    }
+
+    @Test
+    fun aCategoryOnlyADeductionItemUsesIsStillRefiled() = runTest {
+        // No entry refers to it, but the item would be left naming a category that no longer exists.
+        seedCategories()
+        deductionItem(1, expenseCategoryId = 40)
+
+        repository.deleteAndReassign(health.id, CategoryKind.EXPENSE, expenseBucketKey)
+
+        val fallback = requireNotNull(bucket(expenseBucketKey)) { "the fallback bucket must exist" }
+        assertEquals(fallback.id, itemCategory(1))
     }
 }

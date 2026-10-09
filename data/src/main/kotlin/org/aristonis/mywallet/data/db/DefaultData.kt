@@ -52,6 +52,27 @@ object DefaultData {
     )
 
     /**
+     * A category every install carries for interest, tax, fees and written-off debts, and the
+     * [role] that files legs under it, if any. Like every category the owner may rename or delete
+     * one; a role whose category is gone falls back to the Uncategorized bucket of its kind.
+     */
+    data class PreMadeCategory(val name: String, val kind: CategoryKind, val role: String?)
+
+    /**
+     * Seeded once on a fresh install, after [categories]. The upgrade from an older database adds the
+     * same rows from its own frozen copy of these literals, not from this list, so editing this
+     * list changes new installs only.
+     */
+    val preMadeCategories: List<PreMadeCategory> = listOf(
+        PreMadeCategory(name = "Interest", kind = CategoryKind.INCOME, role = "INTEREST_IN"),
+        PreMadeCategory(name = "Interest", kind = CategoryKind.EXPENSE, role = "INTEREST_OUT"),
+        PreMadeCategory(name = "Tax", kind = CategoryKind.EXPENSE, role = null),
+        PreMadeCategory(name = "Fees", kind = CategoryKind.EXPENSE, role = "FEES"),
+        PreMadeCategory(name = "Lost debt", kind = CategoryKind.EXPENSE, role = "LOST_DEBT"),
+        PreMadeCategory(name = "Debt forgiven", kind = CategoryKind.INCOME, role = "DEBT_FORGIVEN"),
+    )
+
+    /**
      * A starter sub-category names its parent rather than pointing at an id, because the parent
      * only gets its id when the seed inserts it. The seed resolves the id and copies the parent's
      * kind along with it, so a child can never land under a parent of the other kind.

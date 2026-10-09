@@ -166,4 +166,19 @@ class LegacyFixtureTest {
             assertEquals(expected, account.amount)
         }
     }
+
+    @Test
+    fun coversAnExpenseOnAnIncomeCategoryAnIncomeOnAnExpenseCategoryAndAnIncomeOnAMissingCategory() {
+        val kindById = LegacyFixture.categories.associate { it.id to it.kind }
+        val rows = LegacyFixture.categoryMismatchRowIds.map { id -> LegacyFixture.cases.single { it.row.id == id } }
+
+        assertTrue(rows.any { it.row.type == LegacyFixture.EXPENSE && kindById[it.row.categoryId] == LegacyFixture.INCOME })
+        assertTrue(rows.any { it.row.type == LegacyFixture.INCOME && kindById[it.row.categoryId] == LegacyFixture.EXPENSE })
+        assertTrue(rows.any { it.row.type == LegacyFixture.INCOME && it.row.categoryId !in kindById.keys })
+        rows.forEach { case ->
+            assertNull("row ${case.row.id} is read cleanly, so it keeps no raw copy", case.reason)
+            assertEquals(2, case.expectedLegs.size)
+            assertEquals(case.row.categoryId, case.expectedLegs.single { it.role == "MAIN" }.categoryId)
+        }
+    }
 }

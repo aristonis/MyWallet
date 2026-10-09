@@ -21,9 +21,14 @@ object DatabaseModule {
         DatabaseFactory.create(context)
 
     @Provides fun provideAccountDao(db: WalletDatabase) = db.accountDao()
-    @Provides fun provideTransactionDao(db: WalletDatabase) = db.transactionDao()
+    @Provides fun provideEntryDao(db: WalletDatabase) = db.entryDao()
+    @Provides fun provideLedgerQueryDao(db: WalletDatabase) = db.ledgerQueryDao()
     @Provides fun provideCategoryDao(db: WalletDatabase) = db.categoryDao()
     @Provides fun provideCurrencyDao(db: WalletDatabase) = db.currencyDao()
     @Provides fun provideRateDao(db: WalletDatabase) = db.rateDao()
     @Provides fun provideSettingsDao(db: WalletDatabase) = db.settingsDao()
+    @Provides fun provideDebtDao(db: WalletDatabase) = db.debtDao()
+    @Provides fun provideDeductionDao(db: WalletDatabase) = db.deductionDao()
+    @Provides fun provideCategoryRoleDao(db: WalletDatabase) = db.categoryRoleDao()
+    @Provides fun provideLegacyRowDao(db: WalletDatabase) = db.legacyRowDao()
 }

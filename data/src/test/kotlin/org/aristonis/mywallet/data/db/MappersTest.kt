@@ -8,17 +8,15 @@ import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.ThemePreference
-import org.aristonis.mywallet.domain.model.Transaction
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.math.BigDecimal
-import java.time.LocalDate
 
-/** Every mapper must round-trip: domain → entity → domain reproduces the original exactly. */
+/**
+ * Every mapper must round-trip: domain → entity → domain reproduces the original exactly. Entries are
+ * stored as legs and have their own tests (EntryMapperRoundTripTest, EntryLegRowsTest).
+ */
 class MappersTest {
-
-    private val today = LocalDate.of(2026, 7, 2)
 
     @Test
     fun account_roundTrips() {
@@ -48,41 +46,5 @@ class MappersTest {
     fun settings_roundTrips() {
         val s = Settings(baseCurrencyCode = "USD", theme = ThemePreference.DARK, schemaVersion = 1)
         assertEquals(s, s.toEntity().toDomain())
-    }
-
-    @Test
-    fun income_roundTrips() {
-        val t = Transaction.Income(id = 1, accountId = 2, amount = Money.of("50", "USD"), categoryId = 3, subCategoryId = 4, date = today, note = "salary")
-        assertEquals(t, t.toEntity().toDomain())
-    }
-
-    @Test
-    fun expense_roundTrips() {
-        val t = Transaction.Expense(id = 1, accountId = 2, amount = Money.of("12.50", "USD"), categoryId = 3, date = today)
-        assertEquals(t, t.toEntity().toDomain())
-    }
-
-    @Test
-    fun transfer_roundTrips() {
-        val t = Transaction.Transfer(
-            id = 1, sourceAccountId = 2, destAccountId = 3,
-            sourceAmount = Money.of("5", "USD"), destAmount = Money.of("4.60", "EUR"),
-            rateUsed = BigDecimal("0.92"), date = today, note = "move",
-        )
-        assertEquals(t, t.toEntity().toDomain())
-    }
-
-    @Test
-    fun anUnknownTransactionTypeFailsLoudly() {
-        // A row from a newer build, or a hand-edited backup, must stop the read rather than be skipped:
-        // a skipped row would leave every balance and total silently wrong. The screens catch this.
-        val row = TransactionEntity(
-            type = "LOAN", date = LocalDate.of(2026, 8, 1),
-            primaryAccountId = 1, primaryAmount = "5", primaryCurrency = "USD",
-        )
-
-        val failure = assertThrows(IllegalStateException::class.java) { row.toDomain() }
-
-        assertEquals("unknown transaction type: LOAN", failure.message)
     }
 }

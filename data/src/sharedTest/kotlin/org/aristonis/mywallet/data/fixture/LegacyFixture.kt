@@ -132,6 +132,9 @@ object LegacyFixture {
     private const val FEES = 7L
     private const val TRANSPORT = 8L
 
+    /** An id no category in [categories] has: 1.1.1 kept no key on `categoryId`, so a row can name one. */
+    const val DELETED_CATEGORY = 99L
+
     /** `settings.baseCurrencyCode`. */
     val baseCurrencyCode: String = USD
 
@@ -368,6 +371,25 @@ object LegacyFixture {
             reason = null,
             expectedPairRate = null,
         ),
+        // 1.1.1 never checked that a category suits the type, so an expense can sit on an income category.
+        Case(
+            Row(24, EXPENSE, MAR_1 + 16, "Filed under salary", CASH, "33.30", USD, categoryId = SALARY),
+            EXPENSE,
+            listOf(account(CASH, "-33.30", USD), main(SALARY, null, "33.30", USD, RATE_ONE)),
+            reason = null,
+            expectedPairRate = null,
+        ),
+        // The same the other way round: an income on an expense category with one of its sub-categories.
+        Case(
+            Row(
+                25, INCOME, MAR_1 + 17, "Filed under food", EURO_SAVINGS, "14.10", EUR,
+                categoryId = FOOD, subCategoryId = GROCERIES,
+            ),
+            INCOME,
+            listOf(account(EURO_SAVINGS, "14.10", EUR), main(FOOD, GROCERIES, "14.10", EUR, EUR_RATE)),
+            reason = null,
+            expectedPairRate = null,
+        ),
         // An unknown type with no category: it must still be called unknown, not missing a category.
         Case(
             Row(26, "SPLIT", MAR_1 + 12, "Old split", CASH, "9.99", USD),
@@ -400,9 +422,24 @@ object LegacyFixture {
             reason = UNKNOWN_TYPE,
             expectedPairRate = null,
         ),
+        // An income whose category was deleted afterwards: schema 2 has no key on categoryId, so the
+        // row still names an id that no longer exists.
+        Case(
+            Row(30, INCOME, MAR_1 + 18, "Category since deleted", CASH, "5.55", USD, categoryId = DELETED_CATEGORY),
+            INCOME,
+            listOf(account(CASH, "5.55", USD), main(DELETED_CATEGORY, null, "5.55", USD, RATE_ONE)),
+            reason = null,
+            expectedPairRate = null,
+        ),
     )
 
-    /** `sqlite_sequence.seq` for `transactions`: above the last row, because rows 30 and 31 were deleted. */
+    /**
+     * The rows that sit on a category of the other kind or on one that does not exist. The upgrade
+     * keeps them as they are, and a backup of the upgraded wallet must restore them as they are.
+     */
+    val categoryMismatchRowIds: List<Long> = listOf(24L, 25L, 30L)
+
+    /** `sqlite_sequence.seq` for `transactions`: above the last row, because row 31 was deleted. */
     val sequenceBefore: Long = 31L
 
     /**

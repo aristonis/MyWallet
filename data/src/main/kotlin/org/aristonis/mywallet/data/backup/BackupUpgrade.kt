@@ -6,17 +6,21 @@ import org.aristonis.mywallet.data.db.TOP_LEVEL_PARENT_ID
 /**
  * Turns a format-1 backup (written by 1.0 or 1.1) into format 2.
  *
- * It must produce exactly what the schema 2 to 3 database upgrade makes of the same rows. Otherwise
- * a wallet would come out one way when the phone upgrades and another way when the same data is
- * restored from an old file. Both paths are tested against one shared list of old rows and their
- * expected results, so they cannot drift apart.
+ * It must produce what the schema 2 to 3 database upgrade makes of the same rows: the same entries,
+ * legs and raw copies, and roles bound to the same categories. Only the ids given to newly added
+ * pre-made categories can differ (see below). Otherwise a wallet would come out one way when the
+ * phone upgrades and another way when the same data is restored from an old file. Both paths are
+ * tested against one shared list of old rows and their expected results, so they cannot drift apart.
  *
  * That is why the rules here copy the upgrade's SQL rather than the domain model:
  * - the same shape check decides which rows keep a raw copy, and why;
  * - amounts are copied as text and money going out gets a leading "-" as text, never through
  *   arithmetic, so "1.50" stays "1.50";
  * - a category leg's rate is "1" for the base currency, else the backup's own saved rate, else none;
- * - the pre-made categories are added with the same insert-or-ignore rule and the same ids.
+ * - the pre-made categories are added with the same insert-or-ignore rule. Their ids are counted
+ *   from the highest category id in the file, which is what the upgrade gives them on a database
+ *   whose category sequence never went past that id. A database that once held higher ids (since
+ *   deleted) numbers them higher; the names, kinds and roles are the same either way.
  *
  * The literals below are frozen with the upgrade. They are not read from the app's current defaults,
  * because those may change later while old files and old databases stay as they are.
@@ -39,7 +43,7 @@ object BackupUpgrade {
     internal const val IGNORED_COLUMNS = "IGNORED_COLUMNS"
 
     /** Reasons whose row has no legs and an unreadable header. */
-    private val UNREADABLE_REASONS = setOf(UNKNOWN_TYPE, MISSING_CATEGORY, MISSING_DESTINATION)
+    internal val UNREADABLE_REASONS = setOf(UNKNOWN_TYPE, MISSING_CATEGORY, MISSING_DESTINATION)
 
     private const val ROLE_ACCOUNT = "ACCOUNT"
     private const val ROLE_SOURCE = "SOURCE"

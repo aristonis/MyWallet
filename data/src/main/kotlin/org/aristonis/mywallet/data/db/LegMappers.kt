@@ -25,6 +25,61 @@ import java.math.BigDecimal
 data class StoredEntry(val entry: EntryEntity, val legs: List<EntryLegEntity>)
 
 /**
+ * The entries these rows hold, in the order each entry first appears, so the query's order is kept.
+ *
+ * @throws WalletException.UnreadableRow for the first entry whose kind or legs cannot be read.
+ */
+fun List<EntryLegRow>.toTransactions(): List<Transaction> =
+    groupBy { it.entryId }.values.map { rows ->
+        rows.toStoredEntry().toTransaction(rows.debtSides())
+    }
+
+/** One entry's rows as its header and legs. A row with no leg id is an entry with no legs at all. */
+private fun List<EntryLegRow>.toStoredEntry(): StoredEntry {
+    val first = first()
+    return StoredEntry(
+        entry = EntryEntity(
+            id = first.entryId,
+            kind = first.kind,
+            date = first.date,
+            note = first.note,
+            pairRate = first.pairRate,
+        ),
+        legs = mapNotNull { it.toLegEntity() },
+    )
+}
+
+/**
+ * Role, position, amount and currency are NOT NULL columns, so a leg row that has an id has them.
+ * A null there would mean the schema itself is not what this build expects.
+ */
+private fun EntryLegRow.toLegEntity(): EntryLegEntity? {
+    val id = legId ?: return null
+    return EntryLegEntity(
+        id = id,
+        entryId = entryId,
+        role = checkNotNull(role) { "leg $id has no role" },
+        position = checkNotNull(position) { "leg $id has no position" },
+        accountId = accountId,
+        debtId = debtId,
+        categoryId = categoryId,
+        subCategoryId = subCategoryId,
+        amount = checkNotNull(amount) { "leg $id has no amount" },
+        currencyCode = checkNotNull(currencyCode) { "leg $id has no currency" },
+        rateToBase = rateToBase,
+    )
+}
+
+/**
+ * The side of each debt these rows point at. A side this build does not know is left out, so the
+ * leg on it reads as a debt with no row and the entry is reported unreadable instead of guessed at.
+ */
+private fun List<EntryLegRow>.debtSides(): Map<Long, DebtSide> = mapNotNull { row ->
+    val debtId = row.debtId ?: return@mapNotNull null
+    DebtSide.entries.firstOrNull { it.name == row.debtSide }?.let { debtId to it }
+}.toMap()
+
+/**
  * The rows that store these parts. A debt leg writes only its `debtId`: the side belongs to the debt
  * row, so storing it again would let the two disagree.
  */

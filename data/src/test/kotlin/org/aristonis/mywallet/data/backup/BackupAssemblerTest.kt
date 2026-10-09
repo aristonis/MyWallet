@@ -2,10 +2,13 @@ package org.aristonis.mywallet.data.backup
 
 import org.aristonis.mywallet.data.db.AccountEntity
 import org.aristonis.mywallet.data.db.CategoryEntity
+import org.aristonis.mywallet.data.db.CategoryRoleEntity
 import org.aristonis.mywallet.data.db.CurrencyEntity
+import org.aristonis.mywallet.data.db.EntryEntity
+import org.aristonis.mywallet.data.db.EntryLegEntity
+import org.aristonis.mywallet.data.db.LegacyUnreadableRowEntity
 import org.aristonis.mywallet.data.db.RateEntity
 import org.aristonis.mywallet.data.db.SettingsEntity
-import org.aristonis.mywallet.data.db.TransactionEntity
 import org.aristonis.mywallet.domain.error.WalletException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -25,42 +28,80 @@ class BackupAssemblerTest {
         CurrencyEntity(code = "EUR", symbol = "€", decimalPlaces = 2),
     )
     private val categories = listOf(
+        CategoryEntity(id = 10, name = "Salary", kind = "INCOME"),
         CategoryEntity(id = 11, name = "Food", kind = "EXPENSE"),
         // a sub-category (parentId set) exercises the nullable parent reference
         CategoryEntity(id = 21, name = "Groceries", kind = "EXPENSE", parentId = 11),
+        CategoryEntity(id = 32, name = "Fees", kind = "EXPENSE"),
     )
     private val accounts = listOf(
         AccountEntity(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalanceAmount = "100.50"),
         AccountEntity(id = 2, name = "Bank", typeKey = "card", currencyCode = "EUR", openingBalanceAmount = "0.00"),
     )
     private val rates = listOf(RateEntity(currencyCode = "EUR", rateToBase = "1.086956"))
-    private val transactions = listOf(
-        TransactionEntity(
-            id = 1, type = "INCOME", date = LocalDate.of(2026, 1, 5),
-            primaryAccountId = 1, primaryAmount = "1234.00", primaryCurrency = "USD", categoryId = 11,
+    private val entries = listOf(
+        EntryEntity(id = 1, kind = "INCOME", date = LocalDate.of(2026, 1, 5)),
+        EntryEntity(id = 2, kind = "EXPENSE", date = LocalDate.of(2026, 1, 6), note = "lunch"),
+        // a transfer carries its applied rate on the header
+        EntryEntity(id = 3, kind = "TRANSFER", date = LocalDate.of(2026, 1, 7), pairRate = "0.920000"),
+    )
+    private val legs = listOf(
+        EntryLegEntity(entryId = 1, role = "ACCOUNT", position = 0, accountId = 1, amount = "1234.00", currencyCode = "USD"),
+        EntryLegEntity(
+            entryId = 1, role = "MAIN", position = 0, categoryId = 10, amount = "1234.00", currencyCode = "USD",
+            rateToBase = "1",
         ),
-        TransactionEntity(
-            id = 2, type = "EXPENSE", date = LocalDate.of(2026, 1, 6), note = "lunch",
-            primaryAccountId = 1, primaryAmount = "12.99", primaryCurrency = "USD",
-            categoryId = 11, subCategoryId = 21,
+        EntryLegEntity(entryId = 2, role = "ACCOUNT", position = 0, accountId = 1, amount = "-12.99", currencyCode = "USD"),
+        EntryLegEntity(
+            entryId = 2, role = "MAIN", position = 0, categoryId = 11, subCategoryId = 21, amount = "12.99",
+            currencyCode = "USD", rateToBase = "1",
         ),
-        // a transfer carries the secondary leg + the applied rate
-        TransactionEntity(
-            id = 3, type = "TRANSFER", date = LocalDate.of(2026, 1, 7),
-            primaryAccountId = 1, primaryAmount = "20.000", primaryCurrency = "USD",
-            secondaryAccountId = 2, secondaryAmount = "18.40", secondaryCurrency = "EUR",
-            rateUsed = "0.920000",
+        EntryLegEntity(entryId = 3, role = "SOURCE", position = 0, accountId = 1, amount = "-20.000", currencyCode = "USD"),
+        EntryLegEntity(entryId = 3, role = "DEST", position = 0, accountId = 2, amount = "18.40", currencyCode = "EUR"),
+    )
+    private val roles = listOf(CategoryRoleEntity(role = "FEES", categoryId = 32))
+    private val rawCopies = listOf(
+        LegacyUnreadableRowEntity(
+            id = 9, type = "REFUND", date = LocalDate.of(2026, 1, 2), primaryAccountId = 1,
+            primaryAmount = "5.00", primaryCurrency = "USD", reason = "UNKNOWN_TYPE",
         ),
     )
     private val settings = SettingsEntity(baseCurrencyCode = "USD", theme = "SYSTEM", schemaVersion = 4)
 
-    private fun build(settingsRow: SettingsEntity? = settings) =
-        buildBackup(accounts, transactions, categories, currencies, rates, settingsRow)
+    private fun snapshot(settingsRow: SettingsEntity? = settings, categoryRows: List<CategoryEntity> = categories) =
+        TableSnapshot(
+            settings = settingsRow,
+            accounts = accounts,
+            categories = categoryRows,
+            currencies = currencies,
+            rates = rates,
+            entries = entries + EntryEntity(id = 9, kind = "LEGACY_UNREADABLE", date = LocalDate.of(2026, 1, 2)),
+            legs = legs,
+            debts = emptyList(),
+            deductionItems = emptyList(),
+            deductionAutoCategories = emptyList(),
+            deductionLines = emptyList(),
+            categoryRoles = roles,
+            legacyRows = rawCopies,
+        )
+
+    private fun build(settingsRow: SettingsEntity? = settings) = buildBackup(snapshot(settingsRow))
 
     @Test
     fun buildBackup_roundTripsThroughEncodeAndValidatedDecode() {
         val built = build()
         assertEquals(built, decodeValidated(BackupCodec.encode(built)))
+    }
+
+    @Test
+    fun buildBackup_carriesEveryTableItWasGiven() {
+        val built = build()
+
+        assertEquals(4, built.entries.size)
+        assertEquals(legs.size, built.legs.size)
+        assertEquals("-20.000", built.legs.single { it.entryId == 3L && it.role == "SOURCE" }.amount)
+        assertEquals(listOf(CategoryRoleDto("FEES", 32)), built.categoryRoles)
+        assertEquals(listOf(9L to "UNKNOWN_TYPE"), built.legacyRows.map { it.id to it.reason })
     }
 
     @Test
@@ -95,14 +136,8 @@ class BackupAssemblerTest {
 
     @Test(expected = WalletException.BackupVersionUnsupported::class)
     fun decodeValidated_rejectsUnsupportedVersion() {
-        val newerFormat = BackupCodec.encode(build().copy(version = 2))
+        val newerFormat = BackupCodec.encode(build().copy(version = 3))
         decodeValidated(newerFormat)
-    }
-
-    @Test
-    fun decodeValidated_acceptsValidCurrentVersion_returnsEqual() {
-        val built = build()
-        assertEquals(built, decodeValidated(BackupCodec.encode(built)))
     }
 
     @Test
@@ -110,14 +145,11 @@ class BackupAssemblerTest {
         // Identity of the fallback bucket is the key, not the display name, so a backup that dropped
         // it would restore the bucket as an ordinary category the user could then delete.
         val withBucket = buildBackup(
-            accounts,
-            transactions,
-            categories + CategoryEntity(
-                id = 99, name = "Uncategorized", kind = "EXPENSE", systemKey = "UNCATEGORIZED_EXPENSE",
+            snapshot(
+                categoryRows = categories + CategoryEntity(
+                    id = 99, name = "Uncategorized", kind = "EXPENSE", systemKey = "UNCATEGORIZED_EXPENSE",
+                ),
             ),
-            currencies,
-            rates,
-            settings,
         )
         val restored = decodeValidated(BackupCodec.encode(withBucket))
 
@@ -126,9 +158,9 @@ class BackupAssemblerTest {
     }
 
     @Test
-    fun decodeValidated_acceptsABackupWrittenBeforeSystemKeysExisted() {
-        // Older files simply have no such field; they must still restore, with every category read
-        // back as user-owned rather than the decode failing on a missing key.
+    fun decodeValidated_acceptsABackupWhoseCategoriesCarryNoSystemKeyField() {
+        // The field is optional in the shared category DTO; a file without it must still restore,
+        // with every category read back as user-owned rather than the decode failing on a missing key.
         // The document is pretty-printed, so the field is stripped by pattern rather than by literal
         // text; it is written last in the object, so the comma taken with it is always the preceding one.
         val withoutTheField = BackupCodec.encode(build())
@@ -140,64 +172,67 @@ class BackupAssemblerTest {
     }
 
     @Test(expected = WalletException.BackupInvalid::class)
-    fun decodeValidated_rejectsATransactionNamingACategoryTheBackupDoesNotCarry() {
-        // Transactions have a foreign key on their sub-category, so this would otherwise abort the
-        // restore part-way with a raw SQLite error the user can do nothing with.
-        val dangling = build().let { b ->
-            b.copy(transactions = b.transactions.map { if (it.id == 2L) it.copy(subCategoryId = 4242) else it })
-        }
-        decodeValidated(BackupCodec.encode(dangling))
-    }
-
-    @Test(expected = WalletException.BackupInvalid::class)
-    fun decodeValidated_rejectsATransactionWhoseMainCategoryIsMissing() {
-        val dangling = build().let { b ->
-            b.copy(transactions = b.transactions.map { if (it.id == 1L) it.copy(categoryId = 4242) else it })
-        }
+    fun decodeValidated_rejectsALegNamingASubCategoryTheBackupDoesNotCarry() {
+        // Legs have a foreign key on their sub-category, so this would otherwise abort the restore
+        // part-way with a raw SQLite error the user can do nothing with.
+        val dangling = withLegs { if (it.entryId == 2L && it.role == "MAIN") it.copy(subCategoryId = 4242) else it }
         decodeValidated(BackupCodec.encode(dangling))
     }
 
     @Test
-    fun decodeValidated_acceptsATransferWhichNamesNoCategoryAtAll() {
-        // Transfers are never categorized, so null references must not be mistaken for dangling ones.
-        val transfersOnly = build().let { b -> b.copy(transactions = b.transactions.filter { it.type == "TRANSFER" }) }
+    fun decodeValidated_acceptsALegWhoseMainCategoryIsMissing() {
+        // The old table had no key on the main category, so an upgraded wallet can hold such a leg,
+        // and a backup of that wallet has to restore. Only the sub-category has a key.
+        val dangling = withLegs { if (it.entryId == 1L && it.role == "MAIN") it.copy(categoryId = 4242) else it }
 
-        assertEquals(1, decodeValidated(BackupCodec.encode(transfersOnly)).transactions.size)
+        assertEquals(dangling, decodeValidated(BackupCodec.encode(dangling)))
+    }
+
+    @Test
+    fun decodeValidated_acceptsATransferWhichNamesNoCategoryAtAll() {
+        // Transfers are never categorized, so legs with no category must not be mistaken for dangling ones.
+        val transfersOnly = build().let { b ->
+            b.copy(entries = b.entries.filter { it.kind == "TRANSFER" }, legs = b.legs.filter { it.entryId == 3L }, legacyRows = emptyList())
+        }
+
+        assertEquals(1, decodeValidated(BackupCodec.encode(transfersOnly)).entries.size)
     }
 
     @Test
     fun aBackupFromANewerBuildSaysSoEvenWithFieldsThisBuildDoesNotKnow() {
         val newer = BackupCodec.encode(build())
-            .replaceFirst(Regex("\"version\"\\s*:\\s*1"), "\"version\": 2")
-            .replaceFirst("{", "{\n    \"debts\": [],")
+            .replaceFirst(Regex("\"version\"\\s*:\\s*2"), "\"version\": 3")
+            .replaceFirst("{", "{\n    \"loans\": [],")
 
         val error = runCatching { decodeValidated(newer) }.exceptionOrNull()
 
         assertTrue("was: $error", error is WalletException.BackupVersionUnsupported)
-        assertEquals(2, (error as WalletException.BackupVersionUnsupported).version)
+        assertEquals(3, (error as WalletException.BackupVersionUnsupported).version)
     }
 
     // Every row must be one the app can read back. A row it cannot read gets through the JSON decode
     // (kinds, themes and amounts are plain strings there) and then fails on every launch or every
     // read of its table. Refused here, the restore stops before anything is replaced.
 
-    private fun withTransaction(id: Long, change: (TransactionDto) -> TransactionDto) =
-        build().let { b -> b.copy(transactions = b.transactions.map { if (it.id == id) change(it) else it }) }
+    private fun withLegs(change: (LegDto) -> LegDto) = build().let { b -> b.copy(legs = b.legs.map(change)) }
+
+    private fun withEntry(id: Long, change: (EntryDto) -> EntryDto) =
+        build().let { b -> b.copy(entries = b.entries.map { if (it.id == id) change(it) else it }) }
 
     @Test(expected = WalletException.BackupInvalid::class)
-    fun decodeValidated_rejectsATransactionOfAKindThisBuildCannotRead() {
+    fun decodeValidated_rejectsAnEntryOfAKindThisBuildCannotRead() {
         // What a backup from a newer build that adds a kind looks like to this one.
-        decodeValidated(BackupCodec.encode(withTransaction(1) { it.copy(type = "LOAN") }))
+        decodeValidated(BackupCodec.encode(withEntry(1) { it.copy(kind = "LOAN") }))
     }
 
     @Test(expected = WalletException.BackupInvalid::class)
     fun decodeValidated_rejectsATransferWithoutItsRate() {
-        decodeValidated(BackupCodec.encode(withTransaction(3) { it.copy(rateUsed = null) }))
+        decodeValidated(BackupCodec.encode(withEntry(3) { it.copy(pairRate = null) }))
     }
 
     @Test(expected = WalletException.BackupInvalid::class)
     fun decodeValidated_rejectsAnAmountThatIsNotANumber() {
-        decodeValidated(BackupCodec.encode(withTransaction(2) { it.copy(primaryAmount = "12,99") }))
+        decodeValidated(BackupCodec.encode(withLegs { if (it.entryId == 2L) it.copy(amount = "12,99") else it }))
     }
 
     @Test(expected = WalletException.BackupInvalid::class)
@@ -223,5 +258,26 @@ class BackupAssemblerTest {
     fun decodeValidated_rejectsARateThatIsNotANumber() {
         val backup = build().let { b -> b.copy(rates = b.rates.map { it.copy(rateToBase = "") }) }
         decodeValidated(BackupCodec.encode(backup))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsALegOfAnEntryTheFileDoesNotCarry() {
+        val orphan = LegDto(
+            entryId = 77, role = "ACCOUNT", position = 0, accountId = 1, debtId = null, categoryId = null,
+            subCategoryId = null, amount = "1", currencyCode = "USD", rateToBase = null,
+        )
+        decodeValidated(BackupCodec.encode(build().let { it.copy(legs = it.legs + orphan) }))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsTwoEntriesWithOneId() {
+        decodeValidated(BackupCodec.encode(build().let { it.copy(entries = it.entries + it.entries.first()) }))
+    }
+
+    @Test(expected = WalletException.BackupInvalid::class)
+    fun decodeValidated_rejectsADebtLegOnADebtTheFileDoesNotCarry() {
+        decodeValidated(
+            BackupCodec.encode(withLegs { if (it.entryId == 2L && it.role == "ACCOUNT") it.copy(accountId = null, debtId = 5) else it }),
+        )
     }
 }

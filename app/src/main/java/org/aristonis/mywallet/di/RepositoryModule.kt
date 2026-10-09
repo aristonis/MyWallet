@@ -9,7 +9,12 @@ import org.aristonis.mywallet.data.db.CategoryDao
 import org.aristonis.mywallet.data.db.CurrencyDao
 import org.aristonis.mywallet.data.db.RateDao
 import org.aristonis.mywallet.data.db.SettingsDao
-import org.aristonis.mywallet.data.db.TransactionDao
+import org.aristonis.mywallet.data.db.CategoryRoleDao
+import org.aristonis.mywallet.data.db.DebtDao
+import org.aristonis.mywallet.data.db.DeductionDao
+import org.aristonis.mywallet.data.db.EntryDao
+import org.aristonis.mywallet.data.db.LedgerQueryDao
+import org.aristonis.mywallet.data.db.LegacyRowDao
 import org.aristonis.mywallet.data.db.WalletDatabase
 import org.aristonis.mywallet.data.backup.RoomBackupRepository
 import org.aristonis.mywallet.data.repo.RoomAccountRepository
@@ -17,7 +22,8 @@ import org.aristonis.mywallet.data.repo.RoomCategoryRepository
 import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
 import org.aristonis.mywallet.data.repo.RoomRateRepository
 import org.aristonis.mywallet.data.repo.RoomSettingsRepository
-import org.aristonis.mywallet.data.repo.RoomTransactionRepository
+import org.aristonis.mywallet.data.repo.RoomEntryRepository
+import org.aristonis.mywallet.data.repo.RoomLedgerQueries
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
@@ -25,6 +31,8 @@ import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.port.EntryRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import javax.inject.Singleton
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.data.repo.RoomFxRepository
@@ -42,7 +50,17 @@ object RepositoryModule {
     fun provideAccountRepository(dao: AccountDao): AccountRepository = RoomAccountRepository(dao)
 
     @Provides @Singleton
-    fun provideTransactionRepository(dao: TransactionDao): TransactionRepository = RoomTransactionRepository(dao)
+    fun provideEntryRepository(db: WalletDatabase, dao: EntryDao): RoomEntryRepository = RoomEntryRepository(db, dao)
+
+    @Provides
+    fun bindEntryRepository(repository: RoomEntryRepository): EntryRepository = repository
+
+    // The old port, served by the same adapter over the new tables until its callers move.
+    @Provides
+    fun bindTransactionRepository(repository: RoomEntryRepository): TransactionRepository = repository
+
+    @Provides @Singleton
+    fun provideLedgerQueries(dao: LedgerQueryDao): LedgerQueries = RoomLedgerQueries(dao)
 
     @Provides @Singleton
     fun provideCategoryRepository(dao: CategoryDao): CategoryRepository = RoomCategoryRepository(dao)
@@ -70,12 +88,17 @@ object RepositoryModule {
     fun provideBackupRepository(
         database: WalletDatabase,
         accountDao: AccountDao,
-        transactionDao: TransactionDao,
+        entryDao: EntryDao,
         categoryDao: CategoryDao,
         currencyDao: CurrencyDao,
         rateDao: RateDao,
         settingsDao: SettingsDao,
+        categoryRoleDao: CategoryRoleDao,
+        legacyRowDao: LegacyRowDao,
+        debtDao: DebtDao,
+        deductionDao: DeductionDao,
     ): BackupRepository = RoomBackupRepository(
-        database, accountDao, transactionDao, categoryDao, currencyDao, rateDao, settingsDao,
+        database, accountDao, entryDao, categoryDao, currencyDao, rateDao, settingsDao,
+        categoryRoleDao, legacyRowDao, debtDao, deductionDao,
     )
 }

@@ -83,6 +83,28 @@ class BackupUpgradeTest {
     }
 
     @Test
+    fun rowsOnTheOtherKindOfCategoryOrOnAMissingCategoryConvertToTheLegsTheUpgradeMakesWithTheCategoryIdKept() {
+        LegacyFixture.categoryMismatchRowIds.forEach { id ->
+            val case = LegacyFixture.cases.single { it.row.id == id }
+            val entry = v2.entries.single { it.id == id }
+            val main = v2.legs.single { it.entryId == id && it.role == "MAIN" }
+
+            assertEquals("row $id", case.expectedKind, entry.kind)
+            assertEquals("row $id", case.row.categoryId, main.categoryId)
+            assertEquals("row $id", case.row.subCategoryId, main.subCategoryId)
+            assertEquals("row $id", case.row.primaryAmount, main.amount)
+            assertEquals("row $id keeps no raw copy", 0, v2.legacyRows.count { it.id == id })
+        }
+    }
+
+    @Test
+    fun theConvertedFixtureFileIsOneTheRestoreChecksAccept() {
+        val text = BackupCodec.encode(v2)
+
+        assertEquals(v2, decodeValidated(text))
+    }
+
+    @Test
     fun ratesComeFromTheBackupsOwnRatesTable() {
         val changed = v1.copy(rates = v1.rates.map { if (it.currencyCode == "EUR") it.copy(rateToBase = "9.99") else it })
         val eurMain = BackupUpgrade.v1ToV2(changed).legs.filter { it.role == "MAIN" && it.currencyCode == "EUR" }

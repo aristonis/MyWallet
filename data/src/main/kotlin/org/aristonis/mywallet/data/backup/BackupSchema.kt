@@ -7,39 +7,15 @@ import org.aristonis.mywallet.data.db.SETTINGS_ROW_ID
 import java.time.LocalDate
 
 /**
- * Versioned, Room-independent backup schema. Each DTO mirrors its Room entity's fields (identical
+ * The backup DTOs that format 1 and format 2 share. Each mirrors its Room entity's fields (identical
  * names and types; money stays an exact String) but carries no Room annotations, so the on-disk
- * backup format stays stable even when the database schema later evolves. [version] lets a future
- * restore branch on the format it is reading.
+ * format stays stable even when the database schema later evolves.
+ *
+ * These are frozen: both formats are read by every later build, and a reader rejects keys it does
+ * not know, so a field added here would change two released formats at once. A table that needs a
+ * new field gets its own DTO in a new format instead. Format 1's own DTOs are in BackupSchemaV1.kt,
+ * format 2's in BackupSchemaV2.kt.
  */
-
-@Serializable
-data class AccountDto(
-    val id: Long = 0,
-    val name: String,
-    val typeKey: String,
-    val currencyCode: String,
-    val openingBalanceAmount: String,
-    val archived: Boolean = false,
-    val sortOrder: Int = 0,
-)
-
-@Serializable
-data class TransactionDto(
-    val id: Long = 0,
-    val type: String,
-    @Serializable(with = LocalDateSerializer::class) val date: LocalDate,
-    val note: String? = null,
-    val primaryAccountId: Long,
-    val primaryAmount: String,
-    val primaryCurrency: String,
-    val categoryId: Long? = null,
-    val subCategoryId: Long? = null,
-    val secondaryAccountId: Long? = null,
-    val secondaryAmount: String? = null,
-    val secondaryCurrency: String? = null,
-    val rateUsed: String? = null,
-)
 
 /**
  * [systemKey] defaults to null so a backup written before fallback buckets existed still decodes —
@@ -81,15 +57,4 @@ data class SettingsDto(
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val saveTransactionRates: Boolean = true,
-)
-
-@Serializable
-data class WalletBackup(
-    val version: Int = 1,
-    val settings: SettingsDto?,
-    val accounts: List<AccountDto>,
-    val transactions: List<TransactionDto>,
-    val categories: List<CategoryDto>,
-    val currencies: List<CurrencyDto>,
-    val rates: List<RateDto>,
 )

@@ -14,7 +14,9 @@ import androidx.room.PrimaryKey
  * debt with history cannot be deleted; [subCategoryId] clears itself when its category goes.
  *
  * The `(accountId, amount)` and `(debtId, amount)` indexes cover the balance sums, and still lead
- * with the key column so they serve the joins too.
+ * with the key column so they serve the joins too. The `(entryId, position)` index hands an entry's
+ * legs to the entry reads already in position order (the rowid, last in every index entry, breaks a
+ * tie by id), so reading a date range never needs a temporary sort.
  */
 @Entity(
     tableName = "entry_legs",
@@ -40,6 +42,7 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["entryId", "role", "position"], unique = true),
+        Index(value = ["entryId", "position"]),
         Index(value = ["accountId", "amount"]),
         Index(value = ["debtId", "amount"]),
         Index(value = ["categoryId"]),
