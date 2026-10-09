@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.transaction
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +15,6 @@ import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.TodayProvider
-import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.ui.message.MissingSelectionException
@@ -27,10 +27,8 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.usecase.RecordExpense
-import org.aristonis.mywallet.domain.usecase.RecordIncome
-import org.aristonis.mywallet.domain.usecase.RecordTransfer
-import org.aristonis.mywallet.domain.usecase.RecordWithTypedRates
+import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.usecase.SaveEntry
 import java.math.BigDecimal
 import java.time.LocalDate
 import javax.inject.Inject
@@ -52,12 +50,12 @@ data class AddTransactionUiState(
     val note: String = "",
     val isSubmitting: Boolean = false,
     val error: UiMessage? = null,
-    val saved: Boolean = false,
+    /** The date the save stored the entry under; set once by a save, cleared by acknowledging it. */
+    val savedOn: LocalDate? = null,
     /** Rates typed on the form, by currency code; kept across type and account changes. */
     val rateInputs: Map<String, String> = emptyMap(),
     /** The saved rates and base currency the previews are priced against; null until loaded. */
     val fx: FxSnapshot? = null,
-    val saveTransactionRates: Boolean = true,
     val rateFields: List<RateField> = emptyList(),
     /** The amount in the base currency, e.g. "8.00 SYP"; null when there is nothing to convert. */
     val baseEquivalent: String? = null,
@@ -91,43 +89,41 @@ data class AddTransactionUiState(
     val destAccounts: List<Account>
         get() = accounts.filter { it.id != selectedAccountId }
 
+    /** False while a save runs or its date waits to be acknowledged, so one tap stores one entry. */
     val canSubmit: Boolean
-        get() = when (type) {
+        get() = !isSubmitting && savedOn == null && amountInput.isNotBlank() && when (type) {
             TransactionType.TRANSFER ->
                 selectedAccountId != null && destAccountId != null &&
-                    destAccountId != selectedAccountId && amountInput.isNotBlank() && !isSubmitting &&
-                    !rateRequired
-            else ->
-                selectedAccountId != null && selectedCategoryId != null &&
-                    amountInput.isNotBlank() && !isSubmitting
+                    destAccountId != selectedAccountId && !rateRequired
+            TransactionType.INCOME, TransactionType.EXPENSE ->
+                selectedAccountId != null && selectedCategoryId != null
         }
 }
 
 /**
- * Records an income, expense, or transfer. One view model, a [TransactionType] selector, and a
- * `when` that routes [submit] to the matching use-case. The amount is always built in the SELECTED
+ * Records an income, expense, or transfer through [SaveEntry]. One view model, a [TransactionType]
+ * selector, and a `when` that builds the matching entry. The amount is always built in the SELECTED
  * account's currency, so it matches by construction (the domain guard stays as defense). Because the
- * write goes through the same repositories Home reads, recording a transaction moves the balances and
- * net worth automatically — this view model never touches balance math.
+ * write goes through the same storage Home reads, recording an entry moves the balances and net
+ * worth automatically; this view model never touches balance math.
  *
  * Rates: a foreign-currency entry shows its rate on the form and what the amount is worth in the base
- * currency, so a missing or stale rate is fixed here instead of in a detour through Settings. Whether a
- * typed rate also becomes the saved rate is the user's setting; with it off, a typed rate prices only
- * the transfer being recorded.
+ * currency, so a missing or stale rate is fixed here instead of in a detour through Settings. The
+ * save decides every stored rate from the typed rates handed to it; whether a typed rate also becomes
+ * the saved rate is the user's setting, applied by the save.
  */
 @HiltViewModel
 class AddTransactionViewModel @Inject constructor(
     accounts: AccountRepository,
     categories: CategoryRepository,
-    private val recordIncome: RecordIncome,
-    private val recordExpense: RecordExpense,
-    private val recordTransfer: RecordTransfer,
+    private val saveEntry: SaveEntry,
     private val today: TodayProvider,
     private val moneyParser: MoneyParser,
     fx: FxRepository,
-    settings: SettingsRepository,
+    // The save reads "Save rates I enter" itself; the form no longer needs it, since every rate field
+    // takes typing either way. Kept so the injected shape stays the one callers build.
+    @Suppress("UNUSED_PARAMETER") settings: SettingsRepository,
     moneyFormatter: MoneyFormatter,
-    private val recordWithTypedRates: RecordWithTypedRates,
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
@@ -152,9 +148,6 @@ class AddTransactionViewModel @Inject constructor(
             }
             .launchIn(viewModelScope)
         fx.observeFx().onEach { snapshot -> mutate { it.copy(fx = snapshot) } }.launchIn(viewModelScope)
-        settings.observeOrNull()
-            .onEach { saved -> mutate { it.copy(saveTransactionRates = saved?.saveTransactionRates ?: true) } }
-            .launchIn(viewModelScope)
     }
 
     /**
@@ -164,7 +157,7 @@ class AddTransactionViewModel @Inject constructor(
      */
     private fun mutate(change: (AddTransactionUiState) -> AddTransactionUiState) = _state.update { current ->
         val next = change(current)
-        val quote = quoter.quote(next)
+        val quote = quoter.quote(next.quoteInput())
         next.copy(
             rateFields = quote.rateFields,
             baseEquivalent = quote.baseEquivalent,
@@ -203,16 +196,15 @@ class AddTransactionViewModel @Inject constructor(
     fun setNote(text: String) = _state.update { it.copy(note = text) }
 
     /**
-     * Clear the one-shot `saved` signal once the screen has acted on it, and reset the form for the
-     * next entry. Without a nav back-stack this view model is retained across the Home toggle, so a
-     * stale `saved == true` would otherwise bounce a re-opened screen straight back to Home — and a
-     * stale `date` would silently post the next transaction to the wrong day. The date re-reads
+     * Clear the one-shot `savedOn` signal once the screen has acted on it, and reset the form for the
+     * next entry. A retained view model would otherwise bounce a re-opened screen straight back, and
+     * a stale `date` would silently post the next transaction to the wrong day. The date re-reads
      * "today"; the type and source account are kept for fast repeat entry. Typed rates are dropped:
      * with saving on they are already the saved rates, and with it off they were for that entry only.
      */
     fun acknowledgeSaved() = mutate {
         it.copy(
-            saved = false,
+            savedOn = null,
             amountInput = "",
             note = "",
             selectedCategoryId = null,
@@ -224,112 +216,90 @@ class AddTransactionViewModel @Inject constructor(
         )
     }
 
+    /**
+     * Saves the form once. A second call while a save runs, or after one finished but before the
+     * screen acknowledged it, does nothing: `isSubmitting` is set before the save is launched, so two
+     * taps in a row cannot both get through and store the entry twice.
+     */
     fun submit() {
         val snapshot = _state.value
+        if (snapshot.isSubmitting || snapshot.savedOn != null) return
         val account = snapshot.accounts.firstOrNull { it.id == snapshot.selectedAccountId } ?: return
+        _state.update { it.copy(isSubmitting = true, error = null) }
         viewModelScope.launch {
-            _state.update { it.copy(isSubmitting = true, error = null) }
             try {
-                record(snapshot, account)
-                _state.update { it.copy(isSubmitting = false, saved = true) }
-            } catch (e: WalletException) {
-                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
-            } catch (e: IllegalArgumentException) {
-                // A bad amount or a missing choice names itself; a model invariant (amount > 0, no
-                // self-transfer) does not, and its text was written for a stack trace.
+                val saved = saveEntry(
+                    entry = entryFrom(snapshot, account),
+                    typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
+                )
+                _state.update { it.copy(isSubmitting = false, savedOn = saved.date) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A domain refusal, a bad amount or rate, or a missing choice names itself; anything
+                // else shows as unexpected, and the form is freed so it can be tried again.
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
     }
 
     /**
-     * Validates everything first, then records. Typed rates that should become the saved rates are
-     * written after the record and in the same database transaction, so a refused entry keeps no rate
-     * and a failed rate write takes the entry back out; a retry never finds half of it saved.
+     * The entry for the chosen type. A missing category or destination is thrown here, before
+     * anything is written. A transfer's destination amount and rate are placeholders: the save prices
+     * them from the source amount and the typed rates, the same way the preview did.
      */
-    private suspend fun record(snapshot: AddTransactionUiState, account: Account) {
+    private fun entryFrom(snapshot: AddTransactionUiState, account: Account): Transaction {
         val amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode)
-        val typedRates = typedRates(snapshot)
-        val write = writeFor(snapshot, account, amount, typedRates)
-        val toKeep = ratesToKeep(snapshot, typedRates)
-        if (toKeep.isEmpty()) write() else recordWithTypedRates(toKeep, write)
-    }
-
-    /**
-     * The record call for the chosen type. A missing category or destination is thrown here, before
-     * anything is written. A transfer is priced at the typed rates whether or not they are kept, so it
-     * records exactly what the preview showed.
-     */
-    private fun writeFor(
-        snapshot: AddTransactionUiState,
-        account: Account,
-        amount: Money,
-        typedRates: Map<String, BigDecimal>,
-    ): suspend () -> Long {
         val note = snapshot.note.trim().ifEmpty { null }
         return when (snapshot.type) {
-            TransactionType.INCOME -> {
-                val categoryId = requireCategory(snapshot)
-                suspend {
-                    recordIncome(
-                        accountId = account.id,
-                        amount = amount,
-                        categoryId = categoryId,
-                        subCategoryId = snapshot.selectedSubCategoryId,
-                        date = snapshot.date,
-                        note = note,
-                    )
-                }
-            }
-            TransactionType.EXPENSE -> {
-                val categoryId = requireCategory(snapshot)
-                suspend {
-                    recordExpense(
-                        accountId = account.id,
-                        amount = amount,
-                        categoryId = categoryId,
-                        subCategoryId = snapshot.selectedSubCategoryId,
-                        date = snapshot.date,
-                        note = note,
-                    )
-                }
-            }
+            TransactionType.INCOME -> Transaction.Income(
+                accountId = account.id,
+                amount = amount,
+                categoryId = requireCategory(snapshot),
+                subCategoryId = snapshot.selectedSubCategoryId,
+                date = snapshot.date,
+                note = note,
+            )
+            TransactionType.EXPENSE -> Transaction.Expense(
+                accountId = account.id,
+                amount = amount,
+                categoryId = requireCategory(snapshot),
+                subCategoryId = snapshot.selectedSubCategoryId,
+                date = snapshot.date,
+                note = note,
+            )
             TransactionType.TRANSFER -> {
-                val destId = requireDestAccount(snapshot)
-                suspend {
-                    recordTransfer(
-                        sourceAccountId = account.id,
-                        destAccountId = destId,
-                        amount = amount,
-                        date = snapshot.date,
-                        note = note,
-                        rateOverrides = typedRates,
-                    )
-                }
+                val dest = requireDestAccount(snapshot)
+                Transaction.Transfer(
+                    sourceAccountId = account.id,
+                    destAccountId = dest.id,
+                    sourceAmount = amount,
+                    destAmount = Money.of(amount.amount, dest.currencyCode),
+                    rateUsed = BigDecimal.ONE,
+                    date = snapshot.date,
+                    note = note,
+                )
             }
         }
-    }
-
-    /**
-     * The rates the user typed, parsed strictly. Untouched fields are left out: they still hold the
-     * saved rate, which needs neither re-saving nor overriding. A read-only field is left out too, so
-     * an income or expense with saving off never carries a rate anywhere.
-     */
-    private fun typedRates(snapshot: AddTransactionUiState): Map<String, BigDecimal> =
-        snapshot.rateFields
-            .filter { it.isEditable && it.currencyCode in snapshot.rateInputs }
-            .associate { it.currencyCode to moneyParser.parseRate(it.input) }
-
-    /** With saving on, the typed rates that differ from the saved ones (or have none saved yet). */
-    private fun ratesToKeep(snapshot: AddTransactionUiState, rates: Map<String, BigDecimal>): Map<String, BigDecimal> {
-        if (!snapshot.saveTransactionRates) return emptyMap()
-        val saved = snapshot.fx?.ratesToBase.orEmpty()
-        return rates.filter { (code, rate) -> saved[code]?.compareTo(rate) != 0 }
     }
 
     private fun requireCategory(snapshot: AddTransactionUiState): Long =
         snapshot.selectedCategoryId ?: throw MissingSelectionException(UiMessage.CategoryRequired)
 
-    private fun requireDestAccount(snapshot: AddTransactionUiState): Long =
-        snapshot.destAccountId ?: throw MissingSelectionException(UiMessage.DestinationAccountRequired)
+    private fun requireDestAccount(snapshot: AddTransactionUiState): Account =
+        snapshot.accounts.firstOrNull { it.id == snapshot.destAccountId }
+            ?: throw MissingSelectionException(UiMessage.DestinationAccountRequired)
+}
+
+/** What the rate previews are priced from; the edit form builds the same input from its own state. */
+internal fun AddTransactionUiState.quoteInput(): RateQuoteInput {
+    val isTransfer = type == TransactionType.TRANSFER
+    return RateQuoteInput(
+        fx = fx,
+        sourceCurrency = accounts.firstOrNull { it.id == selectedAccountId }?.currencyCode,
+        destCurrency = if (isTransfer) accounts.firstOrNull { it.id == destAccountId }?.currencyCode else null,
+        isTransfer = isTransfer,
+        amountInput = amountInput,
+        rateInputs = rateInputs,
+    )
 }

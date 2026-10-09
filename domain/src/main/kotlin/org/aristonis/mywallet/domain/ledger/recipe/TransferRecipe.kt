@@ -52,7 +52,7 @@ object TransferRecipe : EntryRecipe<Transaction.Transfer> {
     }
 
     /** Empty: a transfer has no category legs, and account legs never count in Tracking. */
-    override fun trackingRules(entry: Transaction.Transfer): Map<LegRole, TrackingRule> = emptyMap()
+    override val trackingRuleByRole: Map<LegRole, TrackingRule> = emptyMap()
 
     override fun examples(): List<Transaction.Transfer> = listOf(
         Transaction.Transfer(

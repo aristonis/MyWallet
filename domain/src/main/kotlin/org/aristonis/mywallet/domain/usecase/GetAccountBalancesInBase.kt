@@ -11,7 +11,9 @@ import org.aristonis.mywallet.domain.service.CurrencyConverter
  * Live per-account balances with each one also converted to the base currency (an account shows its
  * own currency AND the base). A missing rate makes only THAT account's base `null` (shown as "needs
  * a rate") — the rest of the list still resolves; total net worth is where a missing rate is fully
- * fail-loud. Re-runs whenever accounts, transactions, currencies, rates, or the base currency change.
+ * fail-loud. Converts at today's saved rates, not the rates entries were recorded with: a balance is
+ * what the money is worth now. Re-runs whenever accounts, account legs, currencies, rates, or the base
+ * currency change.
  */
 class GetAccountBalancesInBase(
     private val getAccountBalances: GetAccountBalances,

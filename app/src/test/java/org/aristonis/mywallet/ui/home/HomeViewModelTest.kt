@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.DateRange
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -27,12 +27,15 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.port.AccountLeg
+import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.port.LegRate
+import org.aristonis.mywallet.domain.port.UnreadableRowRef
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
@@ -67,15 +70,14 @@ class HomeViewModelTest {
         rates: List<ExchangeRate> = emptyList(),
         base: String = "USD",
         work: CoroutineDispatcher = dispatcher,
-        transactions: TransactionRepository = FakeTransactionRepository(),
+        ledger: LedgerQueries = AccountLegsLedger(),
         errors: RecordingErrorReporter = RecordingErrorReporter(),
     ): HomeViewModel {
         val accountRepo = FakeAccountRepository(accounts)
-        val txRepo = transactions
         val currencyRepo = FakeCurrencyRepository(currencies)
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
-        val getBalances = GetAccountBalances(accountRepo, txRepo)
+        val getBalances = GetAccountBalances(accountRepo, ledger)
         val getBalancesInBase = GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
         val computeNetWorth = ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
         return HomeViewModel(getBalancesInBase, computeNetWorth, currencyRepo, settingsRepo, moneyFormatter, work, errors)
@@ -178,7 +180,7 @@ class HomeViewModelTest {
         val currencyRepo = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)))
         val rateRepo = FakeRateRepository(emptyList())
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
-        val getBalances = GetAccountBalances(accountRepo, FakeTransactionRepository())
+        val getBalances = GetAccountBalances(accountRepo, AccountLegsLedger())
         val vm = HomeViewModel(
             GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
@@ -241,14 +243,14 @@ class HomeViewModelTest {
 
     @Test
     fun aFailedReadShowsAnError() = runTest {
-        val unreadable = object : TransactionRepository by FakeTransactionRepository() {
-            override fun observeAll(): Flow<List<Transaction>> = flow { throw IllegalStateException("a stored row could not be read") }
+        val unreadable = object : AccountLegsLedger() {
+            override fun observeAccountLegs(): Flow<List<AccountLeg>> = flow { throw IllegalStateException("a stored row could not be read") }
         }
         val errors = RecordingErrorReporter()
         val vm = buildVm(
             accounts = listOf(account("USD", "100")),
             currencies = listOf(Currency("USD", "$", 2)),
-            transactions = unreadable,
+            ledger = unreadable,
             errors = errors,
         )
         backgroundScope.launch { vm.state.collect {} }
@@ -261,11 +263,11 @@ class HomeViewModelTest {
 
     @Test
     fun retryShowsHomeLoadingAgainWhileItReads() = runTest {
-        val flaky = UnreadableUntilRecoveredTransactions(hangOnceRecovered = true)
+        val flaky = UnreadableUntilRecoveredLedger(hangOnceRecovered = true)
         val vm = buildVm(
             accounts = listOf(account("USD", "100")),
             currencies = listOf(Currency("USD", "$", 2)),
-            transactions = flaky,
+            ledger = flaky,
             errors = RecordingErrorReporter(),
         )
         backgroundScope.launch { vm.state.collect {} }
@@ -282,12 +284,12 @@ class HomeViewModelTest {
 
     @Test
     fun retryAfterAFailedReadReadsAgainAndShowsTheWallet() = runTest {
-        val flaky = UnreadableUntilRecoveredTransactions()
+        val flaky = UnreadableUntilRecoveredLedger()
         val errors = RecordingErrorReporter()
         val vm = buildVm(
             accounts = listOf(account("USD", "100")),
             currencies = listOf(Currency("USD", "$", 2)),
-            transactions = flaky,
+            ledger = flaky,
             errors = errors,
         )
         backgroundScope.launch { vm.state.collect {} }
@@ -308,15 +310,15 @@ class HomeViewModelTest {
 
 private const val WORK_THREAD = "work-test"
 
-/** Every read of all transactions fails until [recover] is called, then serves an empty history. */
-private class UnreadableUntilRecoveredTransactions(
+/** Every read of the account legs fails until [recover] is called, then serves an empty history. */
+private class UnreadableUntilRecoveredLedger(
     private val hangOnceRecovered: Boolean = false,
-) : TransactionRepository by FakeTransactionRepository() {
+) : AccountLegsLedger() {
     private var failing = true
 
     fun recover() { failing = false }
 
-    override fun observeAll(): Flow<List<Transaction>> = flow {
+    override fun observeAccountLegs(): Flow<List<AccountLeg>> = flow {
         if (failing) throw IllegalStateException("a stored row could not be read")
         if (hangOnceRecovered) awaitCancellation()
         emit(emptyList())
@@ -331,15 +333,15 @@ private class FakeAccountRepository(initial: List<Account>) : AccountRepository 
     override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
 }
 
-private class FakeTransactionRepository : TransactionRepository {
-    private val items = MutableStateFlow<List<Transaction>>(emptyList())
-    override fun observeAll(): Flow<List<Transaction>> = items
-    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        items.map { all -> all.filter { it.date in range } }
-    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
-    override suspend fun add(transaction: Transaction): Long = 1
-    override suspend fun update(transaction: Transaction) { items.value = items.value.map { if (it.id == transaction.id) transaction else it } }
-    override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
+/** A ledger with no entries. Home reads only account legs; every other read fails so a drifting test does not pass quietly. */
+private open class AccountLegsLedger : LedgerQueries {
+    override fun observeAccountLegs(): Flow<List<AccountLeg>> = flowOf(emptyList())
+    override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = error("Home does not read Tracking")
+    override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = error("not read by these tests")
+    override suspend fun isAccountInUse(accountId: Long): Boolean = error("Home does not check account use")
+    override fun observeCategoryUsage(): Flow<Map<Long, Int>> = error("Home does not read category usage")
+    override suspend fun fillMissingRate(code: String, rate: BigDecimal): Int = error("Home does not write rates")
+    override suspend fun distinctLegRates(): List<LegRate> = error("Home does not read leg rates")
 }
 
 private class FakeCurrencyRepository(initial: List<Currency>) : CurrencyRepository {

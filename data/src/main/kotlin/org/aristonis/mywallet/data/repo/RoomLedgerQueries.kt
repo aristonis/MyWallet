@@ -2,6 +2,7 @@ package org.aristonis.mywallet.data.repo
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.aristonis.mywallet.data.db.AccountLegRow
 import org.aristonis.mywallet.data.db.CategoryLegRow
 import org.aristonis.mywallet.data.db.LedgerQueryDao
 import org.aristonis.mywallet.domain.error.WalletException
@@ -23,7 +24,25 @@ import java.math.BigDecimal
 class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
 
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = dao.observeAccountLegs().map { rows ->
-        rows.map { AccountLeg(it.accountId, Money.of(BigDecimal(it.amount), it.currencyCode)) }
+        rows.map { row ->
+            try {
+                AccountLeg(row.accountId, Money.of(BigDecimal(row.amount), row.currencyCode))
+            } catch (e: IllegalArgumentException) {
+                // Covers NumberFormatException, e.g. "12,50" or a legacy "--5".
+                throw unreadableAccountLeg(row, e)
+            }
+        }
+    }
+
+    /**
+     * Names the entry behind an account leg that does not parse. The balance projection carries no
+     * entry id, to stay inside its covering index, so the id is looked up here, only on this rare path.
+     */
+    private suspend fun unreadableAccountLeg(row: AccountLegRow, cause: IllegalArgumentException): Exception {
+        val owner = dao.findAccountLegOwner(row.accountId, row.amount)
+            // The leg went away between the two reads. The read still fails; Retry reads the table again.
+            ?: return IllegalStateException("an account leg on account ${row.accountId} could not be read", cause)
+        return WalletException.UnreadableRow(owner.id, owner.kind, cause)
     }
 
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> =
@@ -47,7 +66,8 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
 /**
  * A stored leg as Tracking sees it. A leg on no target, a role this build does not know or a value
  * that does not parse is bad stored data, reported as the entry it belongs to. A category row that is
- * gone, or of a kind this build does not know, is passed on as a null kind for Tracking to report.
+ * gone, or of a kind this build does not know, is passed on as a null kind; Tracking still counts the
+ * leg, by its entry's kind.
  */
 private fun CategoryLegRow.toCategoryLeg(): CategoryLeg = try {
     CategoryLeg(

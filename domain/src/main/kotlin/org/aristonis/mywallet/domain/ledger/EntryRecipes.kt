@@ -18,6 +18,12 @@ object EntryRecipes {
 
     /** The recipe for a stored [kind], or null when no recipe reads it. */
     fun forKind(kind: String): EntryRecipe<out Transaction>? = byKind[kind]
+
+    /**
+     * How a category leg in [role] on an entry of stored [kind] counts in Tracking, or null when no
+     * recipe reads the kind or the recipe has no rule for the role.
+     */
+    fun trackingRule(kind: String, role: LegRole): TrackingRule? = forKind(kind)?.trackingRuleByRole?.get(role)
 }
 
 /**

@@ -7,9 +7,11 @@ import java.time.LocalDate
 
 /**
  * The account-leg projection behind every balance. The leg is read from the `(accountId, amount)`
- * index alone, never from the table, so the cost stays flat as history grows; the currency comes
- * from the account, which every leg on it shares, so it does not need a place in that index. A leg
- * whose account row is gone has no balance to land in and is left out, as before the switch.
+ * index alone, never from the table, so the cost stays flat as history grows. The currency comes
+ * from the account, so it does not need a place in that index. That relies on every leg being in
+ * its account's currency, an invariant enforced where legs come in: a save refuses a leg in another
+ * currency, and so does a restore. A leg whose account row is gone has no balance to land in and is
+ * left out, as before the switch.
  */
 const val ACCOUNT_LEGS_SQL =
     "SELECT l.accountId AS accountId, l.amount AS amount, a.currencyCode AS currencyCode " +
@@ -19,6 +21,25 @@ const val ACCOUNT_LEGS_SQL =
 const val DEBT_LEGS_SQL =
     "SELECT l.debtId AS debtId, l.amount AS amount, d.currencyCode AS currencyCode, d.side AS side " +
         "FROM entry_legs AS l JOIN debts AS d ON d.id = l.debtId"
+
+/**
+ * Every category leg of entries dated in `:start`..`:end`, newest entry first (date, then id, both
+ * descending) and each entry's legs by position. Tracking names the currency of the newest leg with
+ * no rate, so this order is part of what it shows.
+ *
+ * The unary `+` on the two `IS NULL` terms keeps SQLite from using a leg index for them. With no
+ * table statistics it would otherwise start from the `debtId` index, where almost every leg is
+ * NULL, and walk the whole history before sorting it. Without that index the date index leads, so a
+ * month costs its own legs, found through `(entryId, position)` already in the order asked for.
+ */
+internal const val CATEGORY_LEGS_SQL =
+    "SELECT e.id AS entryId, e.date AS date, e.kind AS entryKind, l.role AS role, l.categoryId AS categoryId, " +
+        "l.subCategoryId AS subCategoryId, c.kind AS categoryKind, l.amount AS amount, " +
+        "l.currencyCode AS currencyCode, l.rateToBase AS rateToBase " +
+        "FROM entries AS e JOIN entry_legs AS l ON l.entryId = e.id " +
+        "LEFT JOIN categories AS c ON c.id = l.categoryId " +
+        "WHERE e.date BETWEEN :start AND :end AND +l.accountId IS NULL AND +l.debtId IS NULL " +
+        "ORDER BY e.date DESC, e.id DESC, l.position, l.id"
 
 /** Whether any leg is on an account. An EXISTS stops at the first index entry instead of counting them all. */
 const val ACCOUNT_IN_USE_SQL = "SELECT EXISTS (SELECT 1 FROM entry_legs WHERE accountId = :accountId)"
@@ -50,6 +71,9 @@ data class CategoryLegRow(
 /** A stored entry no recipe reads. */
 data class UnknownKindRow(val id: Long, val kind: String)
 
+/** The entry an account leg belongs to, named when that leg cannot be read. */
+data class LegOwnerRow(val id: Long, val kind: String)
+
 /** How many entries have a category leg on [categoryId], as main or sub-category. */
 data class CategoryUsageRow(val categoryId: Long, val entryCount: Int)
 
@@ -69,15 +93,19 @@ interface LedgerQueryDao {
     @Query(DEBT_LEGS_SQL)
     fun observeDebtLegs(): Flow<List<DebtLegRow>>
 
-    @Query(
-        "SELECT e.id AS entryId, e.date AS date, e.kind AS entryKind, l.role AS role, l.categoryId AS categoryId, " +
-            "l.subCategoryId AS subCategoryId, c.kind AS categoryKind, l.amount AS amount, " +
-            "l.currencyCode AS currencyCode, l.rateToBase AS rateToBase " +
-            "FROM entries AS e JOIN entry_legs AS l ON l.entryId = e.id " +
-            "LEFT JOIN categories AS c ON c.id = l.categoryId " +
-            "WHERE e.date BETWEEN :start AND :end AND l.accountId IS NULL AND l.debtId IS NULL",
-    )
+    @Query(CATEGORY_LEGS_SQL)
     fun observeCategoryLegs(start: LocalDate, end: LocalDate): Flow<List<CategoryLegRow>>
+
+    /**
+     * The entry holding a leg on [accountId] whose stored text is exactly [amount], lowest id first.
+     * Only asked after that amount failed to parse, so the balance projection itself never needs to
+     * carry entry ids; the `(accountId, amount)` index answers it.
+     */
+    @Query(
+        "SELECT e.id AS id, e.kind AS kind FROM entry_legs AS l JOIN entries AS e ON e.id = l.entryId " +
+            "WHERE l.accountId = :accountId AND l.amount = :amount ORDER BY e.id LIMIT 1",
+    )
+    suspend fun findAccountLegOwner(accountId: Long, amount: String): LegOwnerRow?
 
     /** The first entry, by id, whose kind is not in [known]; null when there is none. */
     @Query("SELECT id, kind FROM entries WHERE kind NOT IN (:known) ORDER BY id LIMIT 1")

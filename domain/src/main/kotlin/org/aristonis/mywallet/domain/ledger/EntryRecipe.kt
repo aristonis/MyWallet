@@ -23,8 +23,19 @@ interface EntryRecipe<K : Transaction> {
      */
     fun fromLegs(parts: EntryParts): K
 
-    /** How each category leg role of [entry] counts in Tracking. Every category leg needs a rule. */
-    fun trackingRules(entry: K): Map<LegRole, TrackingRule>
+    /**
+     * How a category leg of each role counts in Tracking, declared once for the whole kind. Tracking
+     * reads stored legs without rebuilding their entry, so it places a leg from its entry's kind and
+     * its role alone; a role missing here may never be on a category.
+     */
+    val trackingRuleByRole: Map<LegRole, TrackingRule>
+
+    /**
+     * How each category leg role of [entry] counts in Tracking. Every category leg needs a rule.
+     * Defaults to [trackingRuleByRole]; an override may only leave roles out, never give a role a
+     * different rule, or a saved entry would count one way and read back another.
+     */
+    fun trackingRules(entry: K): Map<LegRole, TrackingRule> = trackingRuleByRole
 
     /**
      * True only for a kind that records a balance that existed before the app. Such an entry changes

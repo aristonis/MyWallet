@@ -9,6 +9,7 @@ import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
+import org.aristonis.mywallet.domain.usecase.fake.asLedger
 import org.aristonis.mywallet.domain.usecase.fake.FakeCategoryRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeTransactionRepository
 import org.junit.Assert.assertEquals
@@ -45,7 +46,7 @@ class RestoreTransactionTest {
         // Acceptance spine: delete drops the income's balance effect, restore returns it.
         val accounts = FakeAccountRepository(listOf(account(1)))
         val transactions = FakeTransactionRepository(listOf(income))
-        val balances = GetAccountBalances(accounts, transactions)
+        val balances = GetAccountBalances(accounts, transactions.asLedger())
         val restore = RestoreTransaction(transactions, categories())
 
         assertEquals(Money.of("100", "USD"), balances().first().single().balance)
@@ -65,7 +66,7 @@ class RestoreTransactionTest {
             rateUsed = BigDecimal.ONE, date = today,
         )
         val transactions = FakeTransactionRepository(listOf(transfer))
-        val balances = GetAccountBalances(accounts, transactions)
+        val balances = GetAccountBalances(accounts, transactions.asLedger())
 
         DeleteTransaction(transactions).invoke(1)
         assertEquals(Money.of("0", "USD"), balances().first().first { it.account.id == 1L }.balance)

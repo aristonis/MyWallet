@@ -6,6 +6,7 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.service.CurrencyConverter
+import org.aristonis.mywallet.domain.service.RateBook
 import org.aristonis.mywallet.ui.format.display
 import java.math.BigDecimal
 import java.math.MathContext
@@ -14,15 +15,16 @@ import java.math.MathContext
  * One exchange rate the form shows: what 1 unit of [currencyCode] is worth in the base currency.
  *
  * [input] is the text in the field. It starts as the saved rate so an ordinary entry needs no typing,
- * and becomes whatever the user types from then on. [isEditable] is false only for an income or
- * expense while saving rates is off: such an entry is never converted when recorded, so a rate typed
- * there would change nothing and would only mislead. [isError] marks typed text that is not a positive
- * rate, so the field says so instead of the previews quietly using the saved rate behind it.
+ * and becomes whatever the user types from then on. Every rate an entry form shows can be typed
+ * over: with "Save rates I enter" off, the typed rate is kept on that one entry and the saved rate is
+ * left as it is. [isEditable] false renders the field read-only, for a screen that only displays a
+ * rate. [isError] marks typed text that is not a positive rate, so the field says so instead of the
+ * previews quietly using the saved rate behind it.
  */
 data class RateField(
     val currencyCode: String,
     val input: String,
-    val isEditable: Boolean,
+    val isEditable: Boolean = true,
     val isError: Boolean = false,
 )
 
@@ -49,9 +51,34 @@ private const val PAIR_RATE_SIGNIFICANT_DIGITS = 6
 private val PAIR_RATE_PRECISION = MathContext(PAIR_RATE_SIGNIFICANT_DIGITS, CurrencyConverter.ROUNDING)
 
 /**
+ * What a form prices: the currency the amount is typed in, the destination of a transfer, the text
+ * in the amount and rate fields, and the saved rates. Add and Edit both hand the quoter this, so the
+ * same inputs give the same rate fields and the same figures on either form.
+ *
+ * @property sourceCurrency The currency the amount is typed in; null until an account is chosen.
+ * @property destCurrency A transfer's destination currency; null for income and expense, or while
+ *   no destination is chosen.
+ * @property keptRates On an edit, the rate the entry already holds for a currency it keeps, so the
+ *   field shows the rate the save will keep rather than today's saved one. A null value means the
+ *   entry has no rate for that currency yet, and the field shows none.
+ */
+internal data class RateQuoteInput(
+    val fx: FxSnapshot?,
+    val sourceCurrency: String?,
+    val destCurrency: String?,
+    val isTransfer: Boolean,
+    val amountInput: String,
+    val rateInputs: Map<String, String>,
+    val keptRates: Map<String, BigDecimal?> = emptyMap(),
+)
+
+/**
  * Works out the rate fields, the base-currency equivalent and the transfer preview from the form's
- * inputs and the saved rates. Kept apart from the view model so the money rules sit in one small place,
- * and so they stay pure: no repository, no coroutine, the same answer for the same inputs.
+ * inputs and the saved rates. Kept apart from the view models so the money rules sit in one small
+ * place, and so they stay pure: no repository, no coroutine, the same answer for the same inputs.
+ *
+ * Every figure is priced through [RateBook], the same rate lookup the save stamps with, so what the
+ * form shows is what the entry stores.
  *
  * A field appears only for a conversion that actually happens: the account's currency for an income
  * or expense, and both currencies of a transfer only when they differ. A same-currency transfer moves
@@ -65,25 +92,50 @@ internal class RateQuoter(
     private val parser: MoneyParser,
     private val formatter: MoneyFormatter,
 ) {
-    fun quote(state: AddTransactionUiState): RateQuote {
-        val fx = state.fx ?: return RateQuote()
-        val source = state.accounts.firstOrNull { it.id == state.selectedAccountId } ?: return RateQuote()
-        val isTransfer = state.type == TransactionType.TRANSFER
-        val destCode = if (isTransfer) state.accounts.firstOrNull { it.id == state.destAccountId }?.currencyCode else null
-        val editable = isTransfer || state.saveTransactionRates
-        val fields = convertedCodes(isTransfer, source.currencyCode, destCode)
+    fun quote(input: RateQuoteInput): RateQuote {
+        val fx = input.fx ?: return RateQuote()
+        val sourceCode = input.sourceCurrency ?: return RateQuote()
+        val destCode = if (input.isTransfer) input.destCurrency else null
+        val shown = shownRates(fx, input.keptRates)
+        val fields = convertedCodes(input.isTransfer, sourceCode, destCode)
             .filterNot { it == fx.baseCurrencyCode }
-            .map { code -> fieldFor(state, fx, code, editable) }
-        val rates = fields.mapNotNull { field -> rateFor(state, fx, field)?.let { field.currencyCode to it } }.toMap()
-        val prices = Prices(fx, rates)
-        val amount = amountOrNull(state.amountInput, source.currencyCode)
+            .map { code -> fieldFor(input, shown, code) }
+        val book = bookFor(input, shown, fields)
+        val prices = Prices(fx, book)
+        val amount = amountOrNull(input.amountInput, sourceCode)
         return RateQuote(
             rateFields = fields,
             baseEquivalent = amount?.let { prices.inBase(it) },
-            pairRate = destCode?.let { prices.pairRate(source.currencyCode, it) },
+            pairRate = destCode?.let { prices.pairRate(sourceCode, it) },
             receivedDisplay = destCode?.let { code -> amount?.let { prices.received(it, code) } },
-            rateRequired = isTransfer && fields.any { it.currencyCode !in rates },
+            rateRequired = input.isTransfer && fields.any { book.rateToBase(it.currencyCode) == null },
         )
+    }
+
+    /**
+     * The rates the user typed into fields this entry shows, parsed strictly, for the save to stamp.
+     *
+     * Left out, so the save decides the rate itself as if nothing were typed:
+     * - a field never typed into;
+     * - a field typed for a currency the entry no longer shows (the account or type changed since),
+     *   so a rate nobody can see never reaches the save;
+     * - a cleared field: an empty box is no rate, and the entry keeps the rate it had or takes the
+     *   saved one, as an untouched field would;
+     * - a value equal to the one the field was prefilled with (the entry's kept rate on an edit, else
+     *   the saved rate). Retyping what was already there changes nothing, so it must not overwrite
+     *   today's saved rate with an old one or fill other entries with it.
+     *
+     * @throws org.aristonis.mywallet.data.format.MoneyParseException when a typed rate does not read
+     *   as a positive rate, so the form names the field instead of saving at a rate nobody typed.
+     */
+    fun typedRates(input: RateQuoteInput, fields: List<RateField>): Map<String, BigDecimal> {
+        val prefill = input.fx?.let { shownRates(it, input.keptRates).ratesToBase }.orEmpty()
+        return fields
+            .mapNotNull { field -> input.rateInputs[field.currencyCode]?.let { field.currencyCode to it } }
+            .filter { (_, text) -> text.isNotBlank() }
+            .map { (code, text) -> code to parser.parseRate(text) }
+            .filterNot { (code, rate) -> prefill[code]?.compareTo(rate) == 0 }
+            .toMap()
     }
 
     /** The currencies this entry converts; a transfer with no destination yet converts nothing. */
@@ -93,17 +145,31 @@ internal class RateQuoter(
         else -> listOf(sourceCode, destCode)
     }
 
-    private fun fieldFor(state: AddTransactionUiState, fx: FxSnapshot, code: String, editable: Boolean): RateField {
-        val typed = if (editable) state.rateInputs[code] else null
-        val saved = fx.ratesToBase[code]?.let { parser.toInputString(it.stripTrailingZeros()) }.orEmpty()
-        // An empty field is a missing rate, not a wrong one: the screen asks for it where it is needed.
-        val isError = typed != null && typed.isNotBlank() && rateOrNull(typed) == null
-        return RateField(code, typed ?: saved, editable, isError)
+    /** The saved rates with an edited entry's own rates laid over them; a kept null removes the rate. */
+    private fun shownRates(fx: FxSnapshot, keptRates: Map<String, BigDecimal?>): FxSnapshot {
+        if (keptRates.isEmpty()) return fx
+        val kept = keptRates.filterValues { it != null }.mapValues { (_, rate) -> checkNotNull(rate) }
+        val none = keptRates.filterValues { it == null }.keys
+        return fx.copy(ratesToBase = fx.ratesToBase - none + kept)
     }
 
-    private fun rateFor(state: AddTransactionUiState, fx: FxSnapshot, field: RateField): BigDecimal? {
-        val typed = if (field.isEditable) state.rateInputs[field.currencyCode] else null
-        return if (typed != null) rateOrNull(typed) else fx.ratesToBase[field.currencyCode]
+    private fun fieldFor(input: RateQuoteInput, shown: FxSnapshot, code: String): RateField {
+        val typed = input.rateInputs[code]
+        val saved = shown.ratesToBase[code]?.let { parser.toInputString(it.stripTrailingZeros()) }.orEmpty()
+        // An empty field is a missing rate, not a wrong one: the screen asks for it where it is needed.
+        val isError = typed != null && typed.isNotBlank() && rateOrNull(typed) == null
+        return RateField(code, typed ?: saved, isError = isError)
+    }
+
+    /**
+     * The rates the previews use: a readable typed rate overrides; a typed field that does not read
+     * as a rate has no rate at all, so nothing is priced at the saved rate hidden behind it.
+     */
+    private fun bookFor(input: RateQuoteInput, shown: FxSnapshot, fields: List<RateField>): RateBook {
+        val typed = fields.filter { it.currencyCode in input.rateInputs }
+        val overrides = typed.mapNotNull { field -> rateOrNull(field.input)?.let { field.currencyCode to it } }.toMap()
+        val unreadable = typed.map { it.currencyCode }.filterNot { it in overrides }
+        return RateBook(shown.copy(ratesToBase = shown.ratesToBase - unreadable.toSet()), overrides)
     }
 
     // A preview is computed on every keystroke, where a half-typed number is normal, not an error.
@@ -115,14 +181,14 @@ internal class RateQuoter(
 
     /**
      * Conversions at the form's rates; each answer is null when a rate it needs is missing. The
-     * received amount uses the same converter as recording a transfer, so the preview is the stored
+     * received amount uses the same converter as saving a transfer, so the preview is the stored
      * figure, not an estimate of it.
      */
-    private inner class Prices(private val fx: FxSnapshot, private val rates: Map<String, BigDecimal>) {
+    private inner class Prices(private val fx: FxSnapshot, private val book: RateBook) {
         private val base = fx.baseCurrencyCode
-        private val converter = CurrencyConverter(base, rates, fx.decimalPlaces)
+        private val converter = book.converter()
 
-        private fun canConvert(code: String) = code == base || code in rates
+        private fun canConvert(code: String) = book.rateToBase(code) != null
 
         fun inBase(amount: Money): String? {
             if (amount.currencyCode == base || !canConvert(amount.currencyCode)) return null
@@ -130,9 +196,9 @@ internal class RateQuoter(
         }
 
         fun pairRate(from: String, to: String): PairRate? {
-            if (from == to || !canConvert(from) || !canConvert(to)) return null
-            val rate = converter.sourceToDestRate(from, to).round(PAIR_RATE_PRECISION).stripTrailingZeros()
-            return PairRate(from, to, parser.toInputString(rate))
+            if (from == to) return null
+            val rate = book.pairRate(from, to) ?: return null
+            return PairRate(from, to, parser.toInputString(rate.round(PAIR_RATE_PRECISION).stripTrailingZeros()))
         }
 
         fun received(amount: Money, to: String): String? {

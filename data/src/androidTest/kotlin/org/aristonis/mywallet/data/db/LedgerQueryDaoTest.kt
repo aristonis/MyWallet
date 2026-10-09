@@ -79,6 +79,21 @@ class LedgerQueryDaoTest {
             }
         }
 
+    /**
+     * The month read must start from the date index, so its cost follows the month, not the whole
+     * history. Without table statistics SQLite would otherwise pick a leg index for `IS NULL` and walk
+     * almost every leg. Assumes the DAO query text is the constant `CATEGORY_LEGS_SQL`.
+     */
+    @Test
+    fun theMonthReadStartsFromTheDateIndexAndWalksOnlyThatMonthsLegs() {
+        val plan = plan(CATEGORY_LEGS_SQL, 20454, 20484)
+
+        assertTrue("query plan was: $plan", plan.lineSequence().first().contains("index_entries_date"))
+        assertFalse("query plan was: $plan", plan.contains("index_entry_legs_debtId_amount"))
+        assertFalse("query plan was: $plan", plan.contains("index_entry_legs_accountId_amount"))
+        assertFalse("query plan was: $plan", plan.contains("USE TEMP B-TREE"))
+    }
+
     @Test
     fun accountLegsAreReadFromACoveringIndex() {
         val plan = plan(ACCOUNT_LEGS_SQL)

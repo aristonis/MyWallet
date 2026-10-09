@@ -10,6 +10,7 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
+import org.aristonis.mywallet.domain.usecase.fake.asLedger
 import org.aristonis.mywallet.domain.usecase.fake.FakeCategoryRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeTransactionRepository
@@ -44,7 +45,7 @@ class UpdateTransactionTest {
     fun editsIncomeAmount_andBalanceReflectsIt() = runTest {
         val income = Transaction.Income(id = 1, accountId = 1, amount = Money.of("100", "USD"), categoryId = 5, date = today)
         val transactions = FakeTransactionRepository(listOf(income))
-        val balances = GetAccountBalances(FakeAccountRepository(listOf(account(1))), transactions)
+        val balances = GetAccountBalances(FakeAccountRepository(listOf(account(1))), transactions.asLedger())
 
         update(listOf(account(1)), transactions).invoke(income.copy(amount = Money.of("30", "USD")))
 
@@ -81,7 +82,7 @@ class UpdateTransactionTest {
         val acct = account(1).copy(openingBalance = Money.of("100", "USD"))
         val expense = Transaction.Expense(id = 1, accountId = 1, amount = Money.of("40", "USD"), categoryId = 6, date = today)
         val transactions = FakeTransactionRepository(listOf(expense))
-        val balances = GetAccountBalances(FakeAccountRepository(listOf(acct)), transactions)
+        val balances = GetAccountBalances(FakeAccountRepository(listOf(acct)), transactions.asLedger())
 
         assertEquals(Money.of("60", "USD"), balances().first().single().balance) // 100 - 40
         update(listOf(acct), transactions).invoke(expense.copy(amount = Money.of("25", "USD")))

@@ -9,6 +9,7 @@ import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.FxRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRepository
@@ -16,24 +17,18 @@ import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
-import org.aristonis.mywallet.domain.usecase.DeleteTransaction
 import org.aristonis.mywallet.domain.usecase.ExportBackup
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
-import org.aristonis.mywallet.domain.usecase.RecordExpense
-import org.aristonis.mywallet.domain.usecase.RecordIncome
-import org.aristonis.mywallet.domain.usecase.RecordTransfer
-import org.aristonis.mywallet.domain.usecase.RecordWithTypedRates
-import org.aristonis.mywallet.domain.port.TransactionRunner
+import org.aristonis.mywallet.domain.usecase.ObserveCategoryUsage
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.usecase.RestoreBackup
-import org.aristonis.mywallet.domain.usecase.RestoreTransaction
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
 import org.aristonis.mywallet.domain.usecase.SetBaseCurrency
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import org.aristonis.mywallet.domain.usecase.SetSaveTransactionRates
 import org.aristonis.mywallet.domain.usecase.SetTheme
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
-import org.aristonis.mywallet.domain.usecase.UpdateTransaction
 import javax.inject.Singleton
 import org.aristonis.mywallet.domain.usecase.RenameCategory
 import org.aristonis.mywallet.domain.usecase.DeleteCategory
@@ -111,8 +106,8 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideGetAccountBalances(
         accounts: AccountRepository,
-        transactions: TransactionRepository,
-    ): GetAccountBalances = GetAccountBalances(accounts, transactions)
+        ledger: LedgerQueries,
+    ): GetAccountBalances = GetAccountBalances(accounts, ledger)
 
     @Provides @Singleton
     fun provideComputeNetWorth(
@@ -128,57 +123,15 @@ object UseCaseModule {
 
     @Provides @Singleton
     fun provideComputeCategoryBreakdown(
-        transactions: TransactionRepository,
+        ledger: LedgerQueries,
         fx: FxRepository,
-    ): ComputeCategoryBreakdown = ComputeCategoryBreakdown(transactions, fx)
+    ): ComputeCategoryBreakdown = ComputeCategoryBreakdown(ledger, fx)
 
     @Provides @Singleton
-    fun provideRecordIncome(
-        accounts: AccountRepository,
-        categories: CategoryRepository,
-        transactions: TransactionRepository,
-    ): RecordIncome = RecordIncome(accounts, categories, transactions)
+    fun provideObserveLedgerHealth(ledger: LedgerQueries): ObserveLedgerHealth = ObserveLedgerHealth(ledger)
 
     @Provides @Singleton
-    fun provideRecordExpense(
-        accounts: AccountRepository,
-        categories: CategoryRepository,
-        transactions: TransactionRepository,
-    ): RecordExpense = RecordExpense(accounts, categories, transactions)
-
-    @Provides @Singleton
-    fun provideRecordTransfer(
-        accounts: AccountRepository,
-        currencies: CurrencyRepository,
-        rates: RateRepository,
-        settings: SettingsRepository,
-        transactions: TransactionRepository,
-    ): RecordTransfer = RecordTransfer(accounts, currencies, rates, settings, transactions)
-
-    @Provides @Singleton
-    fun provideRecordWithTypedRates(
-        runner: TransactionRunner,
-        setExchangeRate: SetExchangeRate,
-    ): RecordWithTypedRates = RecordWithTypedRates(runner, setExchangeRate)
-
-    @Provides @Singleton
-    fun provideUpdateTransaction(
-        accounts: AccountRepository,
-        categories: CategoryRepository,
-        currencies: CurrencyRepository,
-        transactions: TransactionRepository,
-    ): UpdateTransaction = UpdateTransaction(accounts, categories, currencies, transactions)
-
-    @Provides @Singleton
-    fun provideDeleteTransaction(
-        transactions: TransactionRepository,
-    ): DeleteTransaction = DeleteTransaction(transactions)
-
-    @Provides @Singleton
-    fun provideRestoreTransaction(
-        transactions: TransactionRepository,
-        categories: CategoryRepository,
-    ): RestoreTransaction = RestoreTransaction(transactions, categories)
+    fun provideObserveCategoryUsage(ledger: LedgerQueries): ObserveCategoryUsage = ObserveCategoryUsage(ledger)
 
     @Provides @Singleton
     fun provideExportBackup(backups: BackupRepository): ExportBackup = ExportBackup(backups)

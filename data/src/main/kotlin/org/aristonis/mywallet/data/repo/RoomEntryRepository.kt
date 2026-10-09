@@ -3,6 +3,7 @@ package org.aristonis.mywallet.data.repo
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.map
 import org.aristonis.mywallet.data.db.EntryDao
 import org.aristonis.mywallet.data.db.EntryEntity
@@ -33,8 +34,15 @@ class RoomEntryRepository(
 
     override fun observeAll(): Flow<List<Transaction>> = observeBetween(DateRange.ALL_TIME)
 
+    /**
+     * Re-reads the range whenever entries, legs or debts change. This is what Room builds for an
+     * observable query (conflated, so a burst of writes costs one read), around a read made of two
+     * statements in one transaction: [EntryDao.readBetween].
+     */
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
-        dao.observeBetween(range.start, range.endInclusive).map { rows -> rows.toTransactions() }
+        database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {
+            dao.readBetween(range.start, range.endInclusive).toTransactions()
+        }
 
     override suspend fun findById(id: Long): Transaction? = dao.findById(id).toTransactions().singleOrNull()
 
@@ -91,4 +99,9 @@ class RoomEntryRepository(
     override suspend fun add(transaction: Transaction): Long = insert(transaction)
 
     override suspend fun update(transaction: Transaction) = replace(transaction)
+
+    private companion object {
+        /** The tables a range read touches; a change to any of them re-runs it. */
+        val ENTRY_READ_TABLES = arrayOf("entries", "entry_legs", "debts")
+    }
 }

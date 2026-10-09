@@ -60,8 +60,9 @@ import org.aristonis.mywallet.ui.message.text
 /**
  * Add-transaction screen. A type selector (Income / Expense / Transfer) drives which fields show:
  * income/expense pick a category, transfer picks a destination account. [onDone] leaves without
- * saving (Cancel/back). [onSaved] leaves once the transaction is recorded (the VM's `saved` flag) and
- * carries its date, so a list showing only some dates can say when the new entry falls outside them.
+ * saving (Cancel/back). [onSaved] leaves once the transaction is recorded (the VM's `savedOn`) and
+ * carries the date it was stored under, so a list showing only some dates can say when the new entry
+ * falls outside them.
  */
 @Composable
 fun AddTransactionScreen(
@@ -70,10 +71,10 @@ fun AddTransactionScreen(
     viewModel: AddTransactionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(state.saved) {
-        if (state.saved) {
-            // Read before acknowledging: that resets the form, date included, for the next entry.
-            onSaved(state.date)
+    LaunchedEffect(state.savedOn) {
+        // The date the save stored, not the form's: acknowledging resets the form for the next entry.
+        state.savedOn?.let { savedOn ->
+            onSaved(savedOn)
             viewModel.acknowledgeSaved() // reset the retained flag so a re-open doesn't bounce back
         }
     }

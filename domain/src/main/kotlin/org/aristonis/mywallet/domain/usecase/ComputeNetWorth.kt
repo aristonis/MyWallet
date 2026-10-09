@@ -18,7 +18,9 @@ sealed interface NetWorth {
 
 /**
  * Live total net worth in the base currency: sum every non-archived account balance, converted to
- * base. Never reports a silently wrong total — if any account's currency has no rate yet, it emits
+ * base at today's saved rates. Tracking differs: it keeps the rate each entry was recorded with.
+ *
+ * Never reports a silently wrong total. If any account's currency has no rate yet, it emits
  * [NetWorth.MissingRate] for the first such currency so the user can be prompted to set it.
  */
 class ComputeNetWorth(

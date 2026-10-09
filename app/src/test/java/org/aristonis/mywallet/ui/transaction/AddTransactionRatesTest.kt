@@ -18,14 +18,10 @@ import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.usecase.RecordExpense
-import org.aristonis.mywallet.domain.usecase.RecordIncome
-import org.aristonis.mywallet.domain.usecase.RecordTransfer
-import org.aristonis.mywallet.domain.usecase.RecordWithTypedRates
-import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -63,24 +59,24 @@ class AddTransactionRatesTest {
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val categoryRepo = FakeCategoryRepository(listOf(food))
-        val txRepo = FakeTransactionRepository()
         val currencyRepo = FakeCurrencyRepository(currencies)
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base, saveTransactionRates = saveRates))
+        val use = EntryUseCases(accountRepo, categoryRepo, FakeEntryRepository(), currencyRepo, rateRepo, settingsRepo)
         val viewModel = AddTransactionViewModel(
             accounts = accountRepo,
             categories = categoryRepo,
-            recordIncome = RecordIncome(accountRepo, categoryRepo, txRepo),
-            recordExpense = RecordExpense(accountRepo, categoryRepo, txRepo),
-            recordTransfer = RecordTransfer(accountRepo, currencyRepo, rateRepo, settingsRepo, txRepo),
+            saveEntry = use.saveEntry,
             today = TodayProvider { LocalDate.of(2026, 10, 8) },
             moneyParser = MoneyParser(locale),
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(locale),
-            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(currencyRepo, rateRepo)),
         )
         val state get() = viewModel.state.value
+
+        /** Everything the save stored. */
+        val stored get() = use.entries.stored
 
         suspend fun savedRate(code: String) = rateRepo.findByCode(code)?.rateToBase
     }
@@ -145,22 +141,25 @@ class AddTransactionRatesTest {
         f.viewModel.submit()
         advanceUntilIdle()
 
-        assertTrue(f.state.saved)
+        assertNotNull(f.state.savedOn)
         assertEquals(0, BigDecimal("5").compareTo(f.savedRate("USD")))
-        assertEquals(Money.of("2", "USD"), (f.txRepo.added.single() as Transaction.Expense).amount)
+        assertEquals(Money.of("2", "USD"), (f.stored.single() as Transaction.Expense).amount)
     }
 
     @Test
-    fun withSavingOffAPaymentRateIsReadOnly() = runTest {
+    fun withSavingOffAPaymentRateCanBeTypedForThisEntryOnly() = runTest {
         val f = Fixture(saveRates = false)
         advanceUntilIdle()
 
         f.expense(accountId = 1, amount = "2")
         advanceUntilIdle()
 
-        assertEquals(listOf(RateField("USD", "4", isEditable = false)), f.state.rateFields)
+        // a one-off rate is kept on this entry; the saved rate the next entry starts from is untouched
+        assertEquals(listOf(RateField("USD", "4", isEditable = true)), f.state.rateFields)
+        f.viewModel.setRate("USD", "5")
         f.viewModel.submit()
         advanceUntilIdle()
+        assertEquals(0, BigDecimal("5").compareTo((f.stored.single() as Transaction.Expense).rateToBase))
         assertEquals(0, BigDecimal("4").compareTo(f.savedRate("USD")))
     }
 
@@ -181,7 +180,7 @@ class AddTransactionRatesTest {
         f.viewModel.submit()
         advanceUntilIdle()
 
-        assertEquals(Money.of("8", "SYP"), (f.txRepo.added.single() as Transaction.Transfer).destAmount)
+        assertEquals(Money.of("8", "SYP"), (f.stored.single() as Transaction.Transfer).destAmount)
         assertEquals(0, BigDecimal("4").compareTo(f.savedRate("USD")))
     }
 
@@ -195,7 +194,7 @@ class AddTransactionRatesTest {
         f.viewModel.submit()
         advanceUntilIdle()
 
-        assertEquals(Money.of("10", "SYP"), (f.txRepo.added.single() as Transaction.Transfer).destAmount)
+        assertEquals(Money.of("10", "SYP"), (f.stored.single() as Transaction.Transfer).destAmount)
         assertEquals(0, BigDecimal("4").compareTo(f.savedRate("USD")))
     }
 
@@ -225,7 +224,7 @@ class AddTransactionRatesTest {
         assertNull(f.state.pairRate)
         f.viewModel.submit()
         advanceUntilIdle()
-        assertEquals(Money.of("25", "USD"), (f.txRepo.added.single() as Transaction.Transfer).destAmount)
+        assertEquals(Money.of("25", "USD"), (f.stored.single() as Transaction.Transfer).destAmount)
         assertNull(f.savedRate("USD")) // no rate was invented and saved
     }
 
@@ -241,7 +240,7 @@ class AddTransactionRatesTest {
         f.viewModel.submit()
         advanceUntilIdle()
 
-        val stored = (f.txRepo.added.single() as Transaction.Transfer).destAmount
+        val stored = (f.stored.single() as Transaction.Transfer).destAmount
         assertEquals(MoneyFormatter(Locale.US).format(stored, currencies.first { it.code == "EUR" }), preview)
     }
 
@@ -300,7 +299,7 @@ class AddTransactionRatesTest {
         advanceUntilIdle()
 
         assertTrue(f.state.error != null)
-        assertTrue(f.txRepo.added.isEmpty())
+        assertTrue(f.stored.isEmpty())
         assertEquals(0, BigDecimal("4").compareTo(f.savedRate("USD"))) // the saved rate is untouched
     }
 

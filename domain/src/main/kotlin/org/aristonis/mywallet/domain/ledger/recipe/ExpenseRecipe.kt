@@ -21,7 +21,7 @@ object ExpenseRecipe : EntryRecipe<Transaction.Expense> {
     override val kind: String = "EXPENSE"
 
     private val shape = LegShape(required = setOf(LegRole.ACCOUNT, LegRole.MAIN))
-    private val rules = mapOf(LegRole.MAIN to TrackingRule.EXPENSE)
+    override val trackingRuleByRole: Map<LegRole, TrackingRule> = mapOf(LegRole.MAIN to TrackingRule.EXPENSE)
 
     override fun toLegs(entry: Transaction.Expense): EntryParts = EntryParts(
         header = EntryHeader(entry.id, kind, entry.date, entry.note),
@@ -52,8 +52,6 @@ object ExpenseRecipe : EntryRecipe<Transaction.Expense> {
             rateToBase = main.rateToBase,
         )
     }
-
-    override fun trackingRules(entry: Transaction.Expense): Map<LegRole, TrackingRule> = rules
 
     override fun examples(): List<Transaction.Expense> = listOf(
         Transaction.Expense(

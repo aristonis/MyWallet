@@ -1,11 +1,11 @@
 package org.aristonis.mywallet.ui.transaction
 
-import org.aristonis.mywallet.domain.usecase.RecordWithTypedRates
 import org.aristonis.mywallet.data.format.MoneyFormatter
-import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -20,14 +20,16 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
+import org.aristonis.mywallet.domain.ledger.LegTarget
+import org.aristonis.mywallet.domain.ledger.toParts
+import org.aristonis.mywallet.domain.port.AccountLeg
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
-import org.aristonis.mywallet.domain.usecase.RecordExpense
-import org.aristonis.mywallet.domain.usecase.RecordIncome
-import org.aristonis.mywallet.domain.usecase.RecordTransfer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -37,8 +39,8 @@ import java.util.Locale
 
 /**
  * The real bar here is NOT "a row was added" — it is that recording a transaction MOVES the balances
- * the rest of the app reads. So the probe is a real [GetAccountBalances] wired over the SAME fake
- * repositories the view model writes through: record income -> that account's balance rises, etc.
+ * the rest of the app reads. So the probe is a real [GetAccountBalances] reading the account legs of
+ * the SAME fake entry store the view model saves into: record income -> that account's balance rises.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddTransactionViewModelTest {
@@ -65,31 +67,42 @@ class AddTransactionViewModelTest {
         currencies: List<Currency> = emptyList(),
         rates: List<ExchangeRate> = emptyList(),
         base: String = "USD",
-        today: LocalDate = LocalDate.of(2026, 7, 3),
+        today: () -> LocalDate = { LocalDate.of(2026, 7, 3) },
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val categoryRepo = FakeCategoryRepository(categories)
-        val txRepo = FakeTransactionRepository()
         val currencyRepo = FakeCurrencyRepository(currencies)
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
-        val balances = GetAccountBalances(accountRepo, txRepo)
+        val use = EntryUseCases(accountRepo, categoryRepo, FakeEntryRepository(), currencyRepo, rateRepo, settingsRepo)
+        val balances = GetAccountBalances(accountRepo, AccountLegsOf(use.entries))
         val viewModel = AddTransactionViewModel(
             accounts = accountRepo,
             categories = categoryRepo,
-            recordIncome = RecordIncome(accountRepo, categoryRepo, txRepo),
-            recordExpense = RecordExpense(accountRepo, categoryRepo, txRepo),
-            recordTransfer = RecordTransfer(accountRepo, currencyRepo, rateRepo, settingsRepo, txRepo),
-            today = TodayProvider { today },
+            saveEntry = use.saveEntry,
+            today = TodayProvider { today() },
             moneyParser = MoneyParser(Locale.US),
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
-            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(FakeCurrencyRepository(), FakeRateRepository())),
         )
+
+        /** Everything the save stored. */
+        val stored get() = use.entries.stored
 
         suspend fun balanceOf(accountId: Long): Money =
             balances().first().first { it.account.id == accountId }.balance
+    }
+
+    /** The account legs of whatever the entry store holds, for the balance probe; nothing else is read. */
+    private class AccountLegsOf(private val entries: FakeEntryRepository) : LedgerQueries by FakeLedgerQueries() {
+        override fun observeAccountLegs(): Flow<List<AccountLeg>> = entries.observeAll().map { all ->
+            all.flatMap { entry ->
+                entry.toParts().legs.mapNotNull { leg ->
+                    (leg.target as? LegTarget.Account)?.let { AccountLeg(it.id, leg.amount) }
+                }
+            }
+        }
     }
 
     @Test
@@ -105,7 +118,7 @@ class AddTransactionViewModelTest {
         advanceUntilIdle()
 
         assertEquals(Money.of("150", "USD"), f.balanceOf(1))
-        assertTrue(f.viewModel.state.value.saved)
+        assertNotNull(f.viewModel.state.value.savedOn)
     }
 
     @Test
@@ -137,7 +150,7 @@ class AddTransactionViewModelTest {
         advanceUntilIdle()
 
         assertEquals(Money.of("70", "USD"), f.balanceOf(1))
-        assertTrue(f.viewModel.state.value.saved)
+        assertNotNull(f.viewModel.state.value.savedOn)
     }
 
     @Test
@@ -157,7 +170,7 @@ class AddTransactionViewModelTest {
 
         assertEquals(Money.of("60", "USD"), f.balanceOf(1))
         assertEquals(Money.of("40", "USD"), f.balanceOf(2))
-        assertTrue(f.viewModel.state.value.saved)
+        assertNotNull(f.viewModel.state.value.savedOn)
     }
 
     @Test
@@ -179,7 +192,7 @@ class AddTransactionViewModelTest {
 
         assertEquals(Money.of("89", "USD"), f.balanceOf(1))
         assertEquals(Money.of("10.00", "EUR"), f.balanceOf(2))
-        assertTrue(f.viewModel.state.value.saved)
+        assertNotNull(f.viewModel.state.value.savedOn)
     }
 
     @Test
@@ -199,8 +212,8 @@ class AddTransactionViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(f.viewModel.state.value.error)
-        assertFalse(f.viewModel.state.value.saved)
-        assertTrue(f.txRepo.added.isEmpty())
+        assertNull(f.viewModel.state.value.savedOn)
+        assertTrue(f.stored.isEmpty())
         // Balances untouched.
         assertEquals(Money.of("100", "USD"), f.balanceOf(1))
         assertEquals(Money.of("0", "EUR"), f.balanceOf(2))
@@ -219,8 +232,8 @@ class AddTransactionViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(f.viewModel.state.value.error)
-        assertFalse(f.viewModel.state.value.saved)
-        assertTrue(f.txRepo.added.isEmpty())
+        assertNull(f.viewModel.state.value.savedOn)
+        assertTrue(f.stored.isEmpty())
     }
 
     @Test
@@ -236,7 +249,7 @@ class AddTransactionViewModelTest {
         advanceUntilIdle()
 
         assertEquals(UiMessage.AmountNotPositive, f.viewModel.state.value.error)
-        assertTrue(f.txRepo.added.isEmpty())
+        assertTrue(f.stored.isEmpty())
     }
 
     @Test
@@ -252,7 +265,7 @@ class AddTransactionViewModelTest {
         advanceUntilIdle()
 
         assertEquals(UiMessage.NotANumber, f.viewModel.state.value.error)
-        assertTrue(f.txRepo.added.isEmpty())
+        assertTrue(f.stored.isEmpty())
     }
 
     @Test
@@ -285,8 +298,8 @@ class AddTransactionViewModelTest {
 
     @Test
     fun acknowledgeSaved_clearsTheOneShotSignal() = runTest {
-        // The view model is retained across the Home toggle (no nav back-stack), so a stale saved flag
-        // would bounce a re-opened screen straight back. acknowledgeSaved resets it after navigating.
+        // A retained view model with a stale savedOn would bounce a re-opened screen straight back.
+        // acknowledgeSaved resets it after navigating.
         val f = Fixture(accounts = listOf(account(1, "USD", opening = "100")), categories = listOf(food))
         advanceUntilIdle()
 
@@ -296,10 +309,10 @@ class AddTransactionViewModelTest {
         f.viewModel.setAmount("30")
         f.viewModel.submit()
         advanceUntilIdle()
-        assertTrue(f.viewModel.state.value.saved)
+        assertNotNull(f.viewModel.state.value.savedOn)
 
         f.viewModel.acknowledgeSaved()
-        assertFalse(f.viewModel.state.value.saved)
+        assertNull(f.viewModel.state.value.savedOn)
     }
 
     @Test
@@ -307,25 +320,12 @@ class AddTransactionViewModelTest {
         // After a save, the form must clear and — critically — the date must re-read "today" so a
         // backdated entry does not silently carry into the next transaction.
         var todayValue = LocalDate.of(2026, 1, 1)
-        val accountRepo = FakeAccountRepository(listOf(account(1, "USD", opening = "100")))
-        val categoryRepo = FakeCategoryRepository(listOf(food))
-        val txRepo = FakeTransactionRepository()
-        val vm = AddTransactionViewModel(
-            accounts = accountRepo,
-            categories = categoryRepo,
-            recordIncome = RecordIncome(accountRepo, categoryRepo, txRepo),
-            recordExpense = RecordExpense(accountRepo, categoryRepo, txRepo),
-            recordTransfer = RecordTransfer(
-                accountRepo, FakeCurrencyRepository(emptyList()),
-                FakeRateRepository(emptyList()), FakeSettingsRepository(Settings(baseCurrencyCode = "USD")), txRepo,
-            ),
-            today = TodayProvider { todayValue },
-            moneyParser = MoneyParser(Locale.US),
-            fx = FakeFxRepository(FakeCurrencyRepository(), FakeRateRepository(), FakeSettingsRepository()),
-            settings = FakeSettingsRepository(),
-            moneyFormatter = MoneyFormatter(Locale.US),
-            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(FakeCurrencyRepository(), FakeRateRepository())),
-        )
+        val vm = Fixture(
+            accounts = listOf(account(1, "USD", opening = "100")),
+            categories = listOf(food),
+            currencies = listOf(usd),
+            today = { todayValue },
+        ).viewModel
         advanceUntilIdle()
 
         vm.selectType(TransactionType.EXPENSE)
@@ -340,7 +340,7 @@ class AddTransactionViewModelTest {
         vm.acknowledgeSaved()
 
         val s = vm.state.value
-        assertFalse(s.saved)
+        assertNull(s.savedOn)
         assertEquals("", s.amountInput)
         assertEquals("", s.note)
         assertEquals(null, s.selectedCategoryId)
@@ -349,7 +349,7 @@ class AddTransactionViewModelTest {
 
     @Test
     fun date_defaultsToInjectedToday() = runTest {
-        val f = Fixture(accounts = listOf(account(1, "USD")), today = LocalDate.of(2026, 1, 15))
+        val f = Fixture(accounts = listOf(account(1, "USD")), today = { LocalDate.of(2026, 1, 15) })
         advanceUntilIdle()
 
         assertEquals(LocalDate.of(2026, 1, 15), f.viewModel.state.value.date)

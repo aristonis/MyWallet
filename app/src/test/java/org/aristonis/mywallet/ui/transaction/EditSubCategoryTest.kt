@@ -6,15 +6,14 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.usecase.DeleteTransaction
-import org.aristonis.mywallet.domain.usecase.RestoreTransaction
-import org.aristonis.mywallet.domain.usecase.UpdateTransaction
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -24,7 +23,7 @@ import java.time.LocalDate
 import java.util.Locale
 
 /**
- * Editing has been safe only because the form never touched `subCategoryId`: `loaded.copy(...)`
+ * Editing was safe only because the form never touched `subCategoryId`: `loaded.copy(...)`
  * carried it forward untouched. Exposing the field breaks that accidental protection, so the load
  * side has to seed it in the same change that the save side writes it.
  */
@@ -48,7 +47,7 @@ class EditSubCategoryTest {
         categoryId = food.id, subCategoryId = groceries.id, date = today, note = "shop",
     )
 
-    private fun fixture(existing: Transaction = expense): Pair<EditTransactionViewModel, FakeTransactionRepository> {
+    private fun fixture(existing: Transaction = expense): Pair<EditTransactionViewModel, FakeEntryRepository> {
         val accountRepo = FakeAccountRepository(
             listOf(
                 Account(
@@ -62,18 +61,31 @@ class EditSubCategoryTest {
             ),
         )
         val categoryRepo = FakeCategoryRepository(listOf(food, groceries, restaurants))
-        val currencyRepo = FakeCurrencyRepository(emptyList())
-        val txRepo = FakeTransactionRepository(listOf(existing))
-        val vm = EditTransactionViewModel(
+        val entries = FakeEntryRepository(listOf(existing))
+        return editViewModel(accountRepo, categoryRepo, entries) to entries
+    }
+
+    private fun editViewModel(
+        accountRepo: FakeAccountRepository,
+        categoryRepo: FakeCategoryRepository,
+        entries: FakeEntryRepository,
+    ): EditTransactionViewModel {
+        val currencyRepo = FakeCurrencyRepository()
+        val rateRepo = FakeRateRepository()
+        val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
+        val use = EntryUseCases(accountRepo, categoryRepo, entries, currencyRepo, rateRepo, settingsRepo)
+        return EditTransactionViewModel(
             accounts = accountRepo,
             categories = categoryRepo,
-            transactions = txRepo,
-            updateTransaction = UpdateTransaction(accountRepo, categoryRepo, currencyRepo, txRepo),
-            deleteTransaction = DeleteTransaction(txRepo),
-            restoreTransaction = RestoreTransaction(txRepo, categoryRepo),
+            entries = use.entries,
+            saveEntry = use.saveEntry,
+            deleteEntry = use.deleteEntry,
+            restoreEntries = use.restoreEntries,
             moneyParser = MoneyParser(Locale.US),
+            moneyFormatter = MoneyFormatter(Locale.US),
+            fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
+            settings = settingsRepo,
         )
-        return vm to txRepo
     }
 
     @Test
@@ -96,7 +108,7 @@ class EditSubCategoryTest {
         vm.submit()
         dispatcher.scheduler.advanceUntilIdle()
 
-        val saved = txRepo.added.single() as Transaction.Expense
+        val saved = txRepo.stored.single() as Transaction.Expense
         assertEquals("corner shop", saved.note)
         assertEquals(groceries.id, saved.subCategoryId)
         assertEquals(food.id, saved.categoryId)
@@ -111,7 +123,7 @@ class EditSubCategoryTest {
         vm.submit()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(restaurants.id, (txRepo.added.single() as Transaction.Expense).subCategoryId)
+        assertEquals(restaurants.id, (txRepo.stored.single() as Transaction.Expense).subCategoryId)
     }
 
     @Test
@@ -123,7 +135,7 @@ class EditSubCategoryTest {
         vm.submit()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertNull((txRepo.added.single() as Transaction.Expense).subCategoryId)
+        assertNull((txRepo.stored.single() as Transaction.Expense).subCategoryId)
     }
 
     @Test
@@ -139,17 +151,7 @@ class EditSubCategoryTest {
             ),
         )
         val categoryRepo = FakeCategoryRepository(listOf(food, groceries, restaurants, standalone))
-        val currencyRepo = FakeCurrencyRepository(emptyList())
-        val txRepo = FakeTransactionRepository(listOf(expense))
-        val vm = EditTransactionViewModel(
-            accounts = accountRepo,
-            categories = categoryRepo,
-            transactions = txRepo,
-            updateTransaction = UpdateTransaction(accountRepo, categoryRepo, currencyRepo, txRepo),
-            deleteTransaction = DeleteTransaction(txRepo),
-            restoreTransaction = RestoreTransaction(txRepo, categoryRepo),
-            moneyParser = MoneyParser(Locale.US),
-        )
+        val vm = editViewModel(accountRepo, categoryRepo, FakeEntryRepository(listOf(expense)))
         vm.load(expense.id)
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectCategory(standalone.id)

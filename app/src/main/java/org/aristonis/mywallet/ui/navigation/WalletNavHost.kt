@@ -125,9 +125,10 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
                 onSettings = { nav.switchTab(WalletTab.SETTINGS) },
             )
         }
-        // Home shows every date, so a saved entry is always in view and there is nothing to say.
+        // Home shows every date, so a saved entry is always in view; outside the Transactions graph the
+        // hand-back only pops.
         composable(tab.child(Leaf.ADD_TRANSACTION)) {
-            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { nav.popBackStack() })
+            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) })
         }
         composable(tab.child(Leaf.ADD_ACCOUNT)) {
             AddAccountScreen(onDone = { nav.popBackStack() })

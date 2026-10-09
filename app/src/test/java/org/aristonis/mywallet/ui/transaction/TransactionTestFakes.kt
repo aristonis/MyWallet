@@ -28,6 +28,19 @@ import org.aristonis.mywallet.domain.port.TransactionRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.port.AccountLeg
+import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.EntryRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.port.LegRate
+import org.aristonis.mywallet.domain.port.UnreadableRowRef
+import org.aristonis.mywallet.domain.usecase.DeleteEntry
+import org.aristonis.mywallet.domain.usecase.RestoreEntries
+import org.aristonis.mywallet.domain.usecase.SaveEntry
+import org.aristonis.mywallet.domain.usecase.SetExchangeRate
+import java.math.BigDecimal
 
 /**
  * Reactive in-memory ports shared by the two transaction view-model tests (both live in this package,
@@ -124,9 +137,14 @@ internal class FakeCurrencyRepository(initial: List<Currency> = emptyList()) : C
 
 internal class FakeRateRepository(initial: List<ExchangeRate> = emptyList()) : RateRepository {
     private val items = MutableStateFlow(initial)
+
+    /** Every rate written through [upsert], in order; empty when nothing was saved. */
+    val upserts = mutableListOf<ExchangeRate>()
+
     override fun observeAll(): Flow<List<ExchangeRate>> = items
     override suspend fun findByCode(code: String): ExchangeRate? = items.value.firstOrNull { it.currencyCode == code }
     override suspend fun upsert(rate: ExchangeRate) {
+        upserts += rate
         items.value = items.value.filterNot { it.currencyCode == rate.currencyCode } + rate
     }
 }
@@ -167,4 +185,103 @@ internal class DirectTransactionRunner : org.aristonis.mywallet.domain.port.Tran
 /** Keeps a collector on the list's state for the rest of the test, as a visible screen would. */
 internal fun TestScope.watch(viewModel: TransactionsListViewModel) {
     backgroundScope.launch { viewModel.state.collect {} }
+}
+
+/**
+ * In-memory entries with the id rules the real repository has: id 0 gets a fresh id, an id above 0
+ * is a plain insert that refuses a taken id (so an undo can never overwrite another entry).
+ */
+internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepository {
+    private val items = MutableStateFlow(initial)
+    private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1
+
+    /** Everything currently stored, for assertions. */
+    val stored: List<Transaction> get() = items.value
+
+    /** When set, every write (insert, replace, delete) throws it, as a broken database would. */
+    var failWith: Throwable? = null
+
+    /** Inserts that reached the store, counting only those that did not fail. */
+    var inserts = 0
+        private set
+
+    /** Replaces that reached the store, counting only those that did not fail. */
+    var replaces = 0
+        private set
+
+    override fun observeAll(): Flow<List<Transaction>> = items
+    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
+        items.map { all -> all.filter { it.date in range } }
+
+    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
+
+    override suspend fun insert(entry: Transaction): Long {
+        failWith?.let { throw it }
+        inserts++
+        if (entry.id == 0L) {
+            val id = nextId++
+            items.value = items.value + entry.withId(id)
+            return id
+        }
+        if (items.value.any { it.id == entry.id }) throw WalletException.EntryIdTaken(entry.id)
+        items.value = items.value + entry
+        nextId = maxOf(nextId, entry.id + 1)
+        return entry.id
+    }
+
+    override suspend fun replace(entry: Transaction) {
+        failWith?.let { throw it }
+        replaces++
+        items.value = items.value.map { if (it.id == entry.id) entry else it }
+    }
+
+    override suspend fun delete(id: Long) {
+        failWith?.let { throw it }
+        items.value = items.value.filterNot { it.id == id }
+    }
+
+    private fun Transaction.withId(id: Long): Transaction = when (this) {
+        is Transaction.Income -> copy(id = id)
+        is Transaction.Expense -> copy(id = id)
+        is Transaction.Transfer -> copy(id = id)
+    }
+}
+
+/** Ledger projections the form tests never read; only the rate fill is recorded. */
+internal class FakeLedgerQueries : LedgerQueries {
+    /** Every (currency, rate) the save asked to fill into legs that had none. */
+    val filledRates = mutableListOf<Pair<String, BigDecimal>>()
+
+    override fun observeAccountLegs(): Flow<List<AccountLeg>> = flowOf(emptyList())
+    override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = flowOf(emptyList())
+    override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = flowOf(null)
+    override suspend fun isAccountInUse(accountId: Long): Boolean = false
+    override fun observeCategoryUsage(): Flow<Map<Long, Int>> = flowOf(emptyMap())
+    override suspend fun fillMissingRate(code: String, rate: BigDecimal): Int {
+        filledRates += code to rate
+        return 0
+    }
+    override suspend fun distinctLegRates(): List<LegRate> = emptyList()
+}
+
+/**
+ * The real entry use cases wired over the fakes above, so a form test sees exactly what SaveEntry,
+ * DeleteEntry and RestoreEntries do: the checks they make, the rates they stamp, the date they store.
+ */
+internal class EntryUseCases(
+    accounts: AccountRepository,
+    categories: CategoryRepository,
+    val entries: FakeEntryRepository,
+    currencies: CurrencyRepository,
+    rates: RateRepository,
+    settings: SettingsRepository,
+) {
+    private val runner = DirectTransactionRunner()
+    val ledger = FakeLedgerQueries()
+    val saveEntry = SaveEntry(
+        runner, accounts, categories, entries, ledger,
+        FakeFxRepository(currencies, rates, settings), settings, SetExchangeRate(currencies, rates),
+    )
+    val deleteEntry = DeleteEntry(runner, entries)
+    val restoreEntries = RestoreEntries(runner, entries, categories, accounts)
 }

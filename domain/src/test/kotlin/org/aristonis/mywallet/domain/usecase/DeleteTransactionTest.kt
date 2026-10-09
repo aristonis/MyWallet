@@ -6,6 +6,7 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
+import org.aristonis.mywallet.domain.usecase.fake.asLedger
 import org.aristonis.mywallet.domain.usecase.fake.FakeTransactionRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -37,7 +38,7 @@ class DeleteTransactionTest {
         val transactions = FakeTransactionRepository(
             listOf(Transaction.Income(id = 1, accountId = 1, amount = Money.of("100", "USD"), categoryId = 5, date = today)),
         )
-        val balances = GetAccountBalances(accounts, transactions)
+        val balances = GetAccountBalances(accounts, transactions.asLedger())
 
         assertEquals(Money.of("100", "USD"), balances().first().single().balance)
         DeleteTransaction(transactions).invoke(1)
@@ -57,7 +58,7 @@ class DeleteTransactionTest {
                 ),
             ),
         )
-        val balances = GetAccountBalances(accounts, transactions)
+        val balances = GetAccountBalances(accounts, transactions.asLedger())
 
         val before = balances().first()
         assertEquals(Money.of("-40", "USD"), before.first { it.account.id == 1L }.balance)

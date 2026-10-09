@@ -2,22 +2,28 @@ package org.aristonis.mywallet.ui.transaction
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.ledger.LegTarget
+import org.aristonis.mywallet.domain.ledger.toParts
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.usecase.DeleteTransaction
+import org.aristonis.mywallet.domain.port.AccountLeg
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
-import org.aristonis.mywallet.domain.usecase.RestoreTransaction
-import org.aristonis.mywallet.domain.usecase.UpdateTransaction
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,8 +38,8 @@ import java.util.Locale
 
 /**
  * The bar for editing: load must faithfully re-hydrate the form from a stored transaction, a save must
- * hand the domain a transaction carrying the edited values (proved by reading the row back through the
- * SAME fake repository the view model writes through), and a transfer's account legs must stay locked
+ * hand the save an entry carrying the edited values (proved by reading the entry back through the
+ * SAME fake store the view model writes through), and a transfer's account legs must stay locked
  * so an edit can only move amount/date/note. Delete removes the row. The one-shot save/delete signals
  * reset so a re-opened, retained view model never bounces.
  */
@@ -61,20 +67,37 @@ class EditTransactionViewModelTest {
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val categoryRepo = FakeCategoryRepository(categories)
-        val currencyRepo = FakeCurrencyRepository(emptyList())
-        val txRepo = FakeTransactionRepository(existing)
+        val currencyRepo = FakeCurrencyRepository(listOf(Currency("USD", "$", 2)))
+        val rateRepo = FakeRateRepository()
+        val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
+        val use = EntryUseCases(accountRepo, categoryRepo, FakeEntryRepository(existing), currencyRepo, rateRepo, settingsRepo)
+        val txRepo = use.entries
         val viewModel = EditTransactionViewModel(
             accounts = accountRepo,
             categories = categoryRepo,
-            transactions = txRepo,
-            updateTransaction = UpdateTransaction(accountRepo, categoryRepo, currencyRepo, txRepo),
-            deleteTransaction = DeleteTransaction(txRepo),
-            restoreTransaction = RestoreTransaction(txRepo, categoryRepo),
+            entries = use.entries,
+            saveEntry = use.saveEntry,
+            deleteEntry = use.deleteEntry,
+            restoreEntries = use.restoreEntries,
             moneyParser = MoneyParser(locale),
+            moneyFormatter = MoneyFormatter(locale),
+            fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
+            settings = settingsRepo,
         )
 
-        /** A live balance probe over the same fakes the view model writes through. */
-        val balances get() = GetAccountBalances(accountRepo, txRepo)
+        /** A live balance probe over the same fake store the view model writes through. */
+        val balances get() = GetAccountBalances(accountRepo, AccountLegsOf(use.entries))
+    }
+
+    /** The account legs of whatever the entry store holds, for the balance probe; nothing else is read. */
+    private class AccountLegsOf(private val entries: FakeEntryRepository) : LedgerQueries by FakeLedgerQueries() {
+        override fun observeAccountLegs(): Flow<List<AccountLeg>> = entries.observeAll().map { all ->
+            all.flatMap { entry ->
+                entry.toParts().legs.mapNotNull { leg ->
+                    (leg.target as? LegTarget.Account)?.let { AccountLeg(it.id, leg.amount) }
+                }
+            }
+        }
     }
 
     private val income = Transaction.Income(
@@ -124,7 +147,7 @@ class EditTransactionViewModelTest {
     }
 
     @Test
-    fun editIncomeAmount_callsUpdate_withNewAmount_andSetsSaved() = runTest {
+    fun editIncomeAmount_savesTheNewAmount_andReportsTheStoredDate() = runTest {
         val f = incomeFixture()
         f.viewModel.load(5)
         advanceUntilIdle()
@@ -136,7 +159,7 @@ class EditTransactionViewModelTest {
         val stored = f.txRepo.findById(5) as Transaction.Income
         assertEquals(Money.of("75", "USD"), stored.amount)
         assertEquals(salary.id, stored.categoryId) // untouched fields survive the edit
-        assertTrue(f.viewModel.state.value.saved)
+        assertNotNull(f.viewModel.state.value.savedOn)
     }
 
     @Test
@@ -155,7 +178,7 @@ class EditTransactionViewModelTest {
         assertEquals(0, BigDecimal("1").compareTo(stored.rateUsed))
         assertEquals(Money.of("55", "USD"), stored.sourceAmount)
         assertEquals(Money.of("55", "USD"), stored.destAmount) // 1:1 same-currency leg
-        assertTrue(f.viewModel.state.value.saved)
+        assertNotNull(f.viewModel.state.value.savedOn)
         assertTrue(f.viewModel.state.value.accountPickersLocked)
     }
 
@@ -169,12 +192,12 @@ class EditTransactionViewModelTest {
         advanceUntilIdle()
 
         assertNull(f.txRepo.findById(5)) // the row is genuinely gone
-        assertEquals(5L, f.viewModel.state.value.undoableDelete?.id) // held so an Undo can restore it
+        assertEquals(5L, f.viewModel.state.value.undoableDelete?.entries?.single()?.id) // held so an Undo can restore it
         assertFalse(f.viewModel.state.value.deleted) // navigation is deferred until the snackbar resolves
     }
 
     @Test
-    fun undoDelete_reAddsRow_viaRestoreTransaction_andRestoresBalance_thenNavigates() = runTest {
+    fun undoDelete_reAddsRow_viaRestoreEntries_andRestoresBalance_thenNavigates() = runTest {
         val f = incomeFixture()
         f.viewModel.load(5)
         advanceUntilIdle()
@@ -223,8 +246,8 @@ class EditTransactionViewModelTest {
         advanceUntilIdle()
 
         assertNull(f.txRepo.findById(5)) // still gone — no phantom "update" of a missing row
-        assertFalse(f.viewModel.state.value.saved) // and the screen was never told it saved
-        assertEquals(5L, f.viewModel.state.value.undoableDelete?.id) // undo is still available
+        assertNull(f.viewModel.state.value.savedOn) // and the screen was never told it saved
+        assertEquals(5L, f.viewModel.state.value.undoableDelete?.entries?.single()?.id) // undo is still available
     }
 
     @Test
@@ -235,10 +258,10 @@ class EditTransactionViewModelTest {
         f.viewModel.setAmount("75")
         f.viewModel.submit()
         advanceUntilIdle()
-        assertTrue(f.viewModel.state.value.saved)
+        assertNotNull(f.viewModel.state.value.savedOn)
 
         f.viewModel.acknowledgeSaved()
-        assertFalse(f.viewModel.state.value.saved)
+        assertNull(f.viewModel.state.value.savedOn)
     }
 
     @Test
@@ -298,7 +321,7 @@ class EditTransactionViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(f.viewModel.state.value.error)
-        assertFalse(f.viewModel.state.value.saved)
+        assertNull(f.viewModel.state.value.savedOn)
         assertEquals(Money.of("50", "USD"), (f.txRepo.findById(5) as Transaction.Income).amount)
     }
 
@@ -313,7 +336,7 @@ class EditTransactionViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(f.viewModel.state.value.error)
-        assertFalse(f.viewModel.state.value.saved)
+        assertNull(f.viewModel.state.value.savedOn)
         assertEquals(Money.of("50", "USD"), (f.txRepo.findById(5) as Transaction.Income).amount)
     }
 

@@ -30,12 +30,36 @@ internal fun RateSection(
     state: AddTransactionUiState,
     onRateChanged: (currencyCode: String, input: String) -> Unit,
 ) {
-    val baseCode = state.fx?.baseCurrencyCode ?: return
-    if (state.rateFields.isEmpty()) return
+    RateSection(
+        baseCode = state.fx?.baseCurrencyCode,
+        rateFields = state.rateFields,
+        onRateChanged = onRateChanged,
+        transferPreview = if (state.type == TransactionType.TRANSFER) {
+            { TransferPreview(state.pairRate, state.receivedDisplay) }
+        } else {
+            null
+        },
+        rateRequired = state.rateRequired,
+    )
+}
+
+/**
+ * The rate fields of any entry form, and below them the transfer preview when there is one. Each
+ * form passes what its own quote produced, so the add and edit forms render rates the same way.
+ */
+@Composable
+internal fun RateSection(
+    baseCode: String?,
+    rateFields: List<RateField>,
+    onRateChanged: (currencyCode: String, input: String) -> Unit,
+    transferPreview: (@Composable () -> Unit)? = null,
+    rateRequired: Boolean = false,
+) {
+    if (baseCode == null || rateFields.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.rateFields.forEach { field -> RateFieldRow(field, baseCode, onRateChanged) }
-        if (state.type == TransactionType.TRANSFER) TransferPreview(state)
-        if (state.rateRequired) {
+        rateFields.forEach { field -> RateFieldRow(field, baseCode, onRateChanged) }
+        transferPreview?.invoke()
+        if (rateRequired) {
             Text(
                 text = stringResource(R.string.add_transaction_rate_required),
                 color = MaterialTheme.colorScheme.error,
@@ -104,8 +128,8 @@ private fun RateFieldRow(
 
 /** The rate between the two accounts and what arrives, so the user checks the result, not the math. */
 @Composable
-private fun TransferPreview(state: AddTransactionUiState) {
-    state.pairRate?.let { pair ->
+private fun TransferPreview(pairRate: PairRate?, receivedDisplay: String?) {
+    pairRate?.let { pair ->
         Text(
             // Isolated as one run so a right-to-left layout keeps "1 USD = 1.1 EUR" in reading order.
             text = bidiIsolate(stringResource(R.string.add_transaction_pair_rate, pair.from, pair.rate, pair.to)),
@@ -113,7 +137,7 @@ private fun TransferPreview(state: AddTransactionUiState) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    state.receivedDisplay?.let { received ->
+    receivedDisplay?.let { received ->
         Text(
             text = stringResource(R.string.add_transaction_you_receive, bidiIsolate(received)),
             style = MaterialTheme.typography.bodyLarge,

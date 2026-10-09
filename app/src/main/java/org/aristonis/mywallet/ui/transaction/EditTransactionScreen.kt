@@ -51,6 +51,7 @@ import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
+import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.rememberDateFormatter
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
@@ -66,9 +67,10 @@ import org.aristonis.mywallet.ui.message.text
  * account/category/amount/date/note; a transfer's account legs are locked (shown disabled) so only its
  * amount/date/note move. A Delete button confirms then removes the row, then offers a one-tap Undo via a
  * snackbar before leaving. [onDone] leaves on Cancel/back and once the delete settles (undone or let go,
- * via the VM's one-shot flags). [onSaved] leaves once the edit is saved and carries the entry's date,
- * so a list showing only some dates can say when the entry moved outside them. A delete hands back no
- * date: there is no entry left to show.
+ * via the VM's one-shot flags). [onSaved] leaves once the edit is saved and carries the date it was
+ * stored under, so a list showing only some dates can say when the entry moved outside them. A delete
+ * hands back no date: there is no entry left to show. An account in another currency shows its rate
+ * field, as on the add form.
  */
 @Composable
 fun EditTransactionScreen(
@@ -81,11 +83,9 @@ fun EditTransactionScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     // Re-hydrate whenever the target id changes; the view model is retained across the Home toggle.
     LaunchedEffect(transactionId) { viewModel.load(transactionId) }
-    LaunchedEffect(state.saved) {
-        if (state.saved) {
-            // An untouched date field means the entry kept the date it was loaded with.
-            val savedDate = state.date ?: state.loaded?.date
-            if (savedDate != null) onSaved(savedDate) else onDone()
+    LaunchedEffect(state.savedOn) {
+        state.savedOn?.let { savedOn ->
+            onSaved(savedOn)
             viewModel.acknowledgeSaved()
         }
     }
@@ -120,6 +120,7 @@ fun EditTransactionScreen(
         onCategorySelected = viewModel::selectCategory,
         onSubCategorySelected = viewModel::selectSubCategory,
         onAmountChanged = viewModel::setAmount,
+        onRateChanged = viewModel::setRate,
         onDateSelected = viewModel::setDate,
         onNoteChanged = viewModel::setNote,
         onSubmit = viewModel::submit,
@@ -136,6 +137,7 @@ private fun EditTransactionContent(
     onCategorySelected: (Long) -> Unit,
     onSubCategorySelected: (Long?) -> Unit,
     onAmountChanged: (String) -> Unit,
+    onRateChanged: (currencyCode: String, input: String) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onNoteChanged: (String) -> Unit,
     onSubmit: () -> Unit,
@@ -160,8 +162,9 @@ private fun EditTransactionContent(
                     date = state.date ?: loaded.date,
                     onAccountSelected = onAccountSelected,
                     onCategorySelected = onCategorySelected,
-            onSubCategorySelected = onSubCategorySelected,
+                    onSubCategorySelected = onSubCategorySelected,
                     onAmountChanged = onAmountChanged,
+                    onRateChanged = onRateChanged,
                     onDateSelected = onDateSelected,
                     onNoteChanged = onNoteChanged,
                     onSubmit = onSubmit,
@@ -182,6 +185,7 @@ private fun EditTransactionForm(
     onCategorySelected: (Long) -> Unit,
     onSubCategorySelected: (Long?) -> Unit,
     onAmountChanged: (String) -> Unit,
+    onRateChanged: (currencyCode: String, input: String) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onNoteChanged: (String) -> Unit,
     onSubmit: () -> Unit,
@@ -205,6 +209,9 @@ private fun EditTransactionForm(
             value = state.amountInput,
             label = amountLabel(selectedAccount),
             onValueChange = onAmountChanged,
+            supportingText = state.baseEquivalent?.let {
+                stringResource(R.string.add_transaction_base_equivalent, bidiIsolate(it))
+            },
         )
 
         AccountAndCategoryFields(
@@ -213,6 +220,12 @@ private fun EditTransactionForm(
             onAccountSelected = onAccountSelected,
             onCategorySelected = onCategorySelected,
             onSubCategorySelected = onSubCategorySelected,
+        )
+
+        RateSection(
+            baseCode = state.fx?.baseCurrencyCode,
+            rateFields = state.rateFields,
+            onRateChanged = onRateChanged,
         )
 
         DateField(date = date, onDateSelected = onDateSelected)
@@ -412,6 +425,7 @@ private fun EditTransactionPreview() {
             onCategorySelected = {},
             onSubCategorySelected = {},
             onAmountChanged = {},
+            onRateChanged = { _, _ -> },
             onDateSelected = {},
             onNoteChanged = {},
             onSubmit = {},

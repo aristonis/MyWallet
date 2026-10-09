@@ -5,6 +5,8 @@ import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
+import java.util.EnumMap
+import java.util.EnumSet
 
 /**
  * The legs one kind of entry stores, by role.
@@ -25,6 +27,13 @@ internal data class LegShape(
 ) {
     private val allowed: Set<LegRole> = required + optional + repeated + perLine
 
+    // Enum sets of the same roles, for the per-entry checks of [groupOncePerRole]: a bit test each.
+    private val allowedRoles: EnumSet<LegRole> = enumSetOf(allowed)
+    private val requiredRoles: EnumSet<LegRole> = enumSetOf(required)
+
+    /** True when every role this shape allows occurs at most once, so [groupOncePerRole] applies. */
+    private val isOncePerRole: Boolean = repeated.isEmpty() && perLine.isEmpty()
+
     init {
         check(allowed.size == required.size + optional.size + repeated.size + perLine.size) {
             "a role is listed twice in $this"
@@ -35,8 +44,31 @@ internal data class LegShape(
      * Groups [legs] by role, each group sorted by position, and fails with an
      * [IllegalArgumentException] on any leg this shape does not allow. Absent optional, repeated and
      * per-line roles are left out of the map rather than mapped to an empty list.
+     *
+     * Every entry of every read passes through here, so the common case (each role at most once) is
+     * checked in one pass without sorting. Anything that pass does not accept goes through the full
+     * check below, so a damaged entry fails with exactly the same message either way.
      */
-    fun group(legs: List<Leg>): Map<LegRole, List<Leg>> {
+    fun group(legs: List<Leg>): Map<LegRole, List<Leg>> =
+        (if (isOncePerRole) groupOncePerRole(legs) else null) ?: groupAnyShape(legs)
+
+    /**
+     * The legs keyed by role when each is an allowed role at position 0, no role comes twice and
+     * every required role is there; null otherwise, without saying why.
+     */
+    private fun groupOncePerRole(legs: List<Leg>): Map<LegRole, List<Leg>>? {
+        val byRole = EnumMap<LegRole, List<Leg>>(LegRole::class.java)
+        var requiredSeen = 0
+        for (leg in legs) {
+            val role = leg.role
+            if (leg.position != 0 || role !in allowedRoles) return null
+            if (byRole.put(role, listOf(leg)) != null) return null
+            if (role in requiredRoles) requiredSeen++
+        }
+        return if (requiredSeen == requiredRoles.size) byRole else null
+    }
+
+    private fun groupAnyShape(legs: List<Leg>): Map<LegRole, List<Leg>> {
         val byRole = legs.groupBy { it.role }.mapValues { (_, group) -> group.sortedBy { it.position } }
         val unknown = byRole.keys - allowed
         require(unknown.isEmpty()) { "roles $unknown are not part of this kind" }
@@ -57,6 +89,9 @@ internal data class LegShape(
         require(positions == expected) { "$role legs sit at positions $positions, expected $expected" }
     }
 }
+
+private fun enumSetOf(roles: Set<LegRole>): EnumSet<LegRole> =
+    EnumSet.noneOf(LegRole::class.java).apply { addAll(roles) }
 
 /**
  * Checks that [parts] is a [kind] entry whose legs fit [shape], then hands them to [read] keyed by

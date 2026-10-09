@@ -44,6 +44,7 @@ private fun checkRestorable(backup: WalletBackupV2) {
 
     requireSoundCategoryTree(backup.categories)
     requireKeysResolve(backup)
+    requireLegsInTheirTargetsCurrency(backup)
     requireUniqueKeys(backup)
     requireReadableEntries(backup)
 }
@@ -102,6 +103,28 @@ private fun requireKeysResolve(backup: WalletBackupV2) {
         requireIn(it.itemId, itemIds, "deduction item")
     }
     backup.categoryRoles.forEach { requireIn(it.categoryId, categoryIds, "category") }
+}
+
+/**
+ * A balance or a debt's remaining amount is summed in its account's or debt's currency, read from
+ * that row, not from the leg, so a leg in another currency would be added in as if it were the same
+ * money. A save refuses such a leg; a restore must too. A leg on an account that is not in the file
+ * is left alone: it lands in no balance, as before the upgrade.
+ */
+private fun requireLegsInTheirTargetsCurrency(backup: WalletBackupV2) {
+    val accountCurrency = backup.accounts.associate { it.id to it.currencyCode }
+    val debtCurrency = backup.debts.associate { it.id to it.currencyCode }
+    backup.legs.forEach { leg ->
+        leg.accountId?.let { accountId -> requireSameCurrency(leg, accountCurrency[accountId], "account $accountId") }
+        leg.debtId?.let { debtId -> requireSameCurrency(leg, debtCurrency[debtId], "debt $debtId") }
+    }
+}
+
+private fun requireSameCurrency(leg: LegDto, targetCurrency: String?, target: String) {
+    if (targetCurrency == null) return
+    require(leg.currencyCode == targetCurrency) {
+        "the ${leg.role} leg of entry ${leg.entryId} is in ${leg.currencyCode}, but $target holds $targetCurrency"
+    }
 }
 
 /**

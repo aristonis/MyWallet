@@ -10,7 +10,10 @@ import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.PeriodSummary
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.usecase.fake.FakeTransactionRepository
+import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
 import org.aristonis.mywallet.domain.usecase.fake.fakeFx
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -19,6 +22,11 @@ import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
 
+/**
+ * Assumed constructor: `ComputeCategoryBreakdown(ledger: LedgerQueries, fx: FxRepository)`. Tracking
+ * reads category legs for the range and converts each at the rate stored on the leg, so the helper
+ * below stamps the rate a foreign entry was recorded with.
+ */
 class ComputeCategoryBreakdownTest {
 
     private val july = DateRange(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31))
@@ -28,12 +36,24 @@ class ComputeCategoryBreakdownTest {
 
     private val currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2))
 
-    // Base USD. With no rates EUR is known but unrated, which is the "missing rate" condition.
+    private val categoryKinds: Map<Long, CategoryKind> =
+        mapOf(1L to CategoryKind.INCOME) + listOf(7L, 9L, 12L).associateWith { CategoryKind.EXPENSE }
+
+    /** Base USD. A foreign entry is stamped with the rate in [rates] (as when it was saved); none means no stored rate. */
     private fun usecase(transactions: List<Transaction>, rates: List<ExchangeRate> = emptyList()) =
         ComputeCategoryBreakdown(
-            transactions = FakeTransactionRepository(transactions),
+            ledger = FakeLedgerQueries(FakeEntryRepository(transactions.map { stamped(it, rates) }), categoryKinds),
             fx = fakeFx(currencies = currencies, rates = rates, base = "USD"),
         )
+
+    private fun stamped(tx: Transaction, rates: List<ExchangeRate>): Transaction {
+        val stored = { code: String -> rates.firstOrNull { it.currencyCode == code }?.rateToBase }
+        return when (tx) {
+            is Transaction.Income -> tx.copy(rateToBase = stored(tx.amount.currencyCode))
+            is Transaction.Expense -> tx.copy(rateToBase = stored(tx.amount.currencyCode))
+            is Transaction.Transfer -> tx
+        }
+    }
 
     /** Unwrap the happy-path result; fails loudly if the breakdown was MissingRate. */
     private fun CategoryBreakdownResult.breakdown(): CategoryBreakdown =
@@ -211,14 +231,16 @@ class ComputeCategoryBreakdownTest {
     }
 
     @Test
-    fun readsOnlyTheRequestedRangeFromTheRepository() = runTest {
-        val repo = FakeTransactionRepository(listOf(expense(1, usd("3"), category = 7)))
-        val usecase = ComputeCategoryBreakdown(repo, fakeFx(currencies = currencies, base = "USD"))
+    fun readsOnlyTheRequestedRangeFromTheLedger() = runTest {
+        val seen = mutableListOf<DateRange>()
+        val inner = FakeLedgerQueries(FakeEntryRepository(listOf(expense(1, usd("3"), category = 7))), categoryKinds)
+        val recording = object : LedgerQueries by inner {
+            override fun observeCategoryLegs(range: DateRange) = inner.observeCategoryLegs(range).also { seen += range }
+        }
 
-        usecase(july).first()
+        ComputeCategoryBreakdown(recording, fakeFx(currencies = currencies, base = "USD"))(july).first()
 
-        assertEquals(listOf(july), repo.observedRanges)
-        assertEquals(0, repo.observeAllCalls)
+        assertEquals(listOf(july), seen)
     }
 
     @Test

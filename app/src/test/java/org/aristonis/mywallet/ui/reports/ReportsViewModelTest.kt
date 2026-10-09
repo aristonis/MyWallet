@@ -39,7 +39,13 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.port.TransactionRepository
+import org.aristonis.mywallet.domain.ledger.LegTarget
+import org.aristonis.mywallet.domain.ledger.toParts
+import org.aristonis.mywallet.domain.port.AccountLeg
+import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.port.LegRate
+import org.aristonis.mywallet.domain.port.UnreadableRowRef
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -79,7 +85,7 @@ class ReportsViewModelTest {
         rateRepo: RateRepository = FakeRateRepository(emptyList()),
         base: String = "USD",
         savedState: SavedStateHandle = SavedStateHandle(),
-        txRepo: FakeTransactionRepository = FakeTransactionRepository(transactions),
+        ledger: FakeLedger = FakeLedger(transactions),
         work: CoroutineDispatcher = dispatcher,
         errors: RecordingErrorReporter = RecordingErrorReporter(),
         categoryRepo: FakeCategoryRepository = FakeCategoryRepository(categories),
@@ -87,7 +93,7 @@ class ReportsViewModelTest {
         val currencyRepo = FakeCurrencyRepository(currencies)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         return ReportsViewModel(
-            computeCategoryBreakdown = ComputeCategoryBreakdown(txRepo, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
+            computeCategoryBreakdown = ComputeCategoryBreakdown(ledger, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             categories = categoryRepo,
             currencies = currencyRepo,
             moneyFormatter = moneyFormatter,
@@ -222,19 +228,23 @@ class ReportsViewModelTest {
 
     @Test
     fun reportReResolvesLive_whenRateAddedWhileSubscribed() = runTest {
-        // The Option-B guarantee: after the missing rate is set, the report recovers to numbers on the
-        // SAME live subscription — no re-entry. (A UI-level .catch would have terminated the flow here.)
+        // After the missing rate is set, the report recovers to numbers on the SAME live subscription,
+        // no re-entry. (A UI-level .catch would have terminated the flow here.)
         val rateRepo = FakeRateRepository(emptyList())
+        val ledger = FakeLedger(listOf(expense(eur("30"), category = 7, date = LocalDate.of(2026, 7, 5))))
         val vm = buildVm(
-            transactions = listOf(expense(eur("30"), category = 7, date = LocalDate.of(2026, 7, 5))),
+            transactions = emptyList(),
             categories = listOf(Category(id = 7, name = "Food", kind = CategoryKind.EXPENSE)),
             rateRepo = rateRepo,
+            ledger = ledger,
         )
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
         assertEquals(ReportsData.MissingRate("EUR"), vm.state.value.data)
 
+        // Setting a rate also fills it into the legs recorded without one; Tracking reads the leg's rate.
         rateRepo.upsert(ExchangeRate("EUR", BigDecimal("1.10"))) // 1 EUR = 1.10 USD
+        ledger.fillMissingRate("EUR", BigDecimal("1.10"))
         advanceUntilIdle()
 
         val data = ready(vm.state.value)
@@ -399,8 +409,8 @@ class ReportsViewModelTest {
 
     @Test
     fun oneWindowReadsItsTransactionsOnce() = runTest {
-        val repo = FakeTransactionRepository(listOf(expense(usd("5"), category = 2, date = LocalDate.of(2026, 7, 3))))
-        val vm = buildVm(transactions = emptyList(), txRepo = repo)
+        val repo = FakeLedger(listOf(expense(usd("5"), category = 2, date = LocalDate.of(2026, 7, 3))))
+        val vm = buildVm(transactions = emptyList(), ledger = repo)
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
@@ -434,9 +444,9 @@ class ReportsViewModelTest {
 
     @Test
     fun aFailedReadShowsTheErrorAndReportsTheCause() = runTest {
-        val repo = FakeTransactionRepository(emptyList()).apply { unreadableRange = julyRange }
+        val repo = FakeLedger(emptyList()).apply { unreadableRange = julyRange }
         val errors = RecordingErrorReporter()
-        val vm = buildVm(transactions = emptyList(), txRepo = repo, errors = errors)
+        val vm = buildVm(transactions = emptyList(), ledger = repo, errors = errors)
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
@@ -447,10 +457,10 @@ class ReportsViewModelTest {
 
     @Test
     fun retryAfterAFailedReadReadsAgainAndShowsTheReport() = runTest {
-        val repo = FakeTransactionRepository(
+        val repo = FakeLedger(
             listOf(expense(usd("5"), category = 2, date = LocalDate.of(2026, 7, 3))),
         ).apply { failedReadsLeft = 1 }
-        val vm = buildVm(transactions = emptyList(), txRepo = repo)
+        val vm = buildVm(transactions = emptyList(), ledger = repo)
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
         assertTrue(vm.state.value.loadFailed)
@@ -464,8 +474,8 @@ class ReportsViewModelTest {
 
     @Test
     fun retryShowsTheReportLoadingAgainWhileItReads() = runTest {
-        val repo = FakeTransactionRepository(emptyList()).apply { failedReadsLeft = 1; hangsAfterFailures = true }
-        val vm = buildVm(transactions = emptyList(), txRepo = repo)
+        val repo = FakeLedger(emptyList()).apply { failedReadsLeft = 1; hangsAfterFailures = true }
+        val vm = buildVm(transactions = emptyList(), ledger = repo)
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
         assertTrue(vm.state.value.loadFailed)
@@ -491,10 +501,10 @@ class ReportsViewModelTest {
 
     @Test
     fun aFailureInOneWindowDoesNotStopALaterWindowFromLoading() = runTest {
-        val repo = FakeTransactionRepository(
+        val repo = FakeLedger(
             listOf(expense(usd("8"), category = 2, date = LocalDate.of(2026, 8, 3))),
         ).apply { unreadableRange = julyRange }
-        val vm = buildVm(transactions = emptyList(), txRepo = repo)
+        val vm = buildVm(transactions = emptyList(), ledger = repo)
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
         assertTrue(vm.state.value.loadFailed)
@@ -511,10 +521,15 @@ private const val WORK_THREAD = "work-test"
 
 // --- Minimal in-memory ports (domain fakes live in :domain's test source set). ---
 
-private class FakeTransactionRepository(initial: List<Transaction>) : TransactionRepository {
+/**
+ * The category legs of [initial] entries, as the ledger projects them: each leg on its category,
+ * counted on the side of its entry's kind (these tests have no deductions or fees), with the rate
+ * the entry was recorded with.
+ */
+private class FakeLedger(initial: List<Transaction>) : LedgerQueries {
     private val items = MutableStateFlow(initial)
-    override fun observeAll(): Flow<List<Transaction>> = items
-    override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
+
+    override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> =
         flow<List<Transaction>> {
             if (range == unreadableRange) throw IllegalStateException("a stored row could not be read")
             if (failedReadsLeft > 0) {
@@ -523,7 +538,8 @@ private class FakeTransactionRepository(initial: List<Transaction>) : Transactio
             }
             if (hangsAfterFailures) awaitCancellation()
             emitAll(items)
-        }.map { all -> all.filter { it.date in range } }.onStart { readsOpened++ }
+        }.map { all -> all.filter { it.date in range }.sortedWith(NEWEST_FIRST).flatMap(::categoryLegsOf) }
+            .onStart { readsOpened++ }
 
     /** Once the failing reads are used up, reads never answer: the state a retry is in while it reads. */
     var hangsAfterFailures = false
@@ -538,10 +554,49 @@ private class FakeTransactionRepository(initial: List<Transaction>) : Transactio
     var readsOpened = 0
         private set
 
-    override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
-    override suspend fun add(transaction: Transaction): Long = 1
-    override suspend fun update(transaction: Transaction) { items.value = items.value.map { if (it.id == transaction.id) transaction else it } }
-    override suspend fun delete(id: Long) { items.value = items.value.filterNot { it.id == id } }
+    /** Stamps [rate] on every entry in [code] recorded without one, as filling the legs does. */
+    override suspend fun fillMissingRate(code: String, rate: BigDecimal): Int {
+        var changed = 0
+        items.value = items.value.map { tx ->
+            when {
+                tx is Transaction.Income && tx.rateToBase == null && tx.amount.currencyCode == code ->
+                    tx.copy(rateToBase = rate).also { changed++ }
+                tx is Transaction.Expense && tx.rateToBase == null && tx.amount.currencyCode == code ->
+                    tx.copy(rateToBase = rate).also { changed++ }
+                else -> tx
+            }
+        }
+        return changed
+    }
+
+    // Reports read Tracking only; failing here keeps a drifting test from passing quietly.
+    override fun observeAccountLegs(): Flow<List<AccountLeg>> = error("reports do not read balances")
+    override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = error("not read by these tests")
+    override suspend fun isAccountInUse(accountId: Long): Boolean = error("reports do not check account use")
+    override fun observeCategoryUsage(): Flow<Map<Long, Int>> = error("reports do not read category usage")
+    override suspend fun distinctLegRates(): List<LegRate> = error("reports do not read leg rates")
+
+    private fun categoryLegsOf(tx: Transaction): List<CategoryLeg> {
+        val kind = when (tx) {
+            is Transaction.Income -> CategoryKind.INCOME
+            is Transaction.Expense -> CategoryKind.EXPENSE
+            is Transaction.Transfer -> return emptyList()
+        }
+        val parts = tx.toParts()
+        return parts.legs.mapNotNull { leg ->
+            val target = leg.target as? LegTarget.Category ?: return@mapNotNull null
+            CategoryLeg(
+                entryId = tx.id, date = tx.date, categoryId = target.id, subCategoryId = target.subId,
+                entryKind = parts.header.kind, categoryKind = kind, role = leg.role,
+                amount = leg.amount, rateToBase = leg.rateToBase,
+            )
+        }
+    }
+
+    private companion object {
+        val NEWEST_FIRST: Comparator<Transaction> =
+            compareByDescending<Transaction> { it.date }.thenByDescending { it.id }
+    }
 }
 
 private class FakeCategoryRepository(initial: List<Category>) : CategoryRepository {

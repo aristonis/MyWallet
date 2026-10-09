@@ -1,8 +1,6 @@
 package org.aristonis.mywallet.ui.transaction
 
-import org.aristonis.mywallet.domain.usecase.RecordWithTypedRates
 import org.aristonis.mywallet.data.format.MoneyFormatter
-import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -14,9 +12,7 @@ import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.usecase.RecordExpense
-import org.aristonis.mywallet.domain.usecase.RecordIncome
-import org.aristonis.mywallet.domain.usecase.RecordTransfer
+import org.aristonis.mywallet.domain.model.Settings
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -66,33 +62,30 @@ class SubCategorySelectionTest {
     private fun categories() =
         FakeCategoryRepository(listOf(food, groceries, restaurants, transport, salary))
 
-    private fun addViewModel(txs: FakeTransactionRepository): AddTransactionViewModel {
+    private fun addViewModel(
+        entries: FakeEntryRepository,
+        categoryRepo: FakeCategoryRepository = categories(),
+    ): AddTransactionViewModel {
         val accountRepo = accounts()
-        val categoryRepo = categories()
+        val currencyRepo = FakeCurrencyRepository()
+        val rateRepo = FakeRateRepository()
+        val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
+        val use = EntryUseCases(accountRepo, categoryRepo, entries, currencyRepo, rateRepo, settingsRepo)
         return AddTransactionViewModel(
             accounts = accountRepo,
             categories = categoryRepo,
-            recordIncome = RecordIncome(accountRepo, categoryRepo, txs),
-            recordExpense = RecordExpense(accountRepo, categoryRepo, txs),
-            recordTransfer = RecordTransfer(
-                accountRepo,
-                FakeCurrencyRepository(),
-                FakeRateRepository(),
-                FakeSettingsRepository(),
-                txs,
-            ),
+            saveEntry = use.saveEntry,
             today = TodayProvider { today },
             moneyParser = MoneyParser(Locale.US),
-            fx = FakeFxRepository(FakeCurrencyRepository(), FakeRateRepository(), FakeSettingsRepository()),
-            settings = FakeSettingsRepository(),
+            fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
+            settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
-            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(FakeCurrencyRepository(), FakeRateRepository())),
         )
     }
 
     @Test
     fun offersOnlyTheChildrenOfTheChosenCategory() = runTest(dispatcher) {
-        val vm = addViewModel(FakeTransactionRepository())
+        val vm = addViewModel(FakeEntryRepository())
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectCategory(food.id)
 
@@ -101,7 +94,7 @@ class SubCategorySelectionTest {
 
     @Test
     fun offersNothingForACategoryWithNoChildren() = runTest(dispatcher) {
-        val vm = addViewModel(FakeTransactionRepository())
+        val vm = addViewModel(FakeEntryRepository())
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectCategory(transport.id)
 
@@ -112,7 +105,7 @@ class SubCategorySelectionTest {
     fun changingTheCategoryClearsAnAlreadyChosenSubCategory() = runTest(dispatcher) {
         // Otherwise the previous category's child rides along and the domain guard rejects the save,
         // leaving a Save button that refuses with nothing on screen explaining why.
-        val vm = addViewModel(FakeTransactionRepository())
+        val vm = addViewModel(FakeEntryRepository())
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectCategory(food.id)
         vm.selectSubCategory(groceries.id)
@@ -123,7 +116,7 @@ class SubCategorySelectionTest {
 
     @Test
     fun changingTheTypeClearsTheSubCategory() = runTest(dispatcher) {
-        val vm = addViewModel(FakeTransactionRepository())
+        val vm = addViewModel(FakeEntryRepository())
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectCategory(food.id)
         vm.selectSubCategory(groceries.id)
@@ -134,7 +127,7 @@ class SubCategorySelectionTest {
 
     @Test
     fun recordsTheChosenSubCategory() = runTest(dispatcher) {
-        val txs = FakeTransactionRepository()
+        val txs = FakeEntryRepository()
         val vm = addViewModel(txs)
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectType(TransactionType.EXPENSE)
@@ -146,7 +139,7 @@ class SubCategorySelectionTest {
         vm.submit()
         dispatcher.scheduler.advanceUntilIdle()
 
-        val saved = txs.added.single() as Transaction.Expense
+        val saved = txs.stored.single() as Transaction.Expense
         assertEquals(food.id, saved.categoryId)
         assertEquals(groceries.id, saved.subCategoryId)
     }
@@ -154,7 +147,7 @@ class SubCategorySelectionTest {
     @Test
     fun savingClearsTheSubCategoryForTheNextEntry() = runTest(dispatcher) {
         // A retained view model would otherwise carry the last entry's child into the next one.
-        val txs = FakeTransactionRepository()
+        val txs = FakeEntryRepository()
         val vm = addViewModel(txs)
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectType(TransactionType.EXPENSE)
@@ -174,30 +167,10 @@ class SubCategorySelectionTest {
     fun anIncomeCategoryNeverOffersAnExpenseChild() = runTest(dispatcher) {
         // Restored data can hold a child whose kind differs from its parent's; offering it would put
         // a choice on screen that the domain then refuses.
-        val accountRepo = accounts()
         val crossKind = FakeCategoryRepository(
             listOf(salary, Category(id = 21, name = "Odd", kind = CategoryKind.EXPENSE, parentId = 20)),
         )
-        val txs = FakeTransactionRepository()
-        val vm = AddTransactionViewModel(
-            accounts = accountRepo,
-            categories = crossKind,
-            recordIncome = RecordIncome(accountRepo, crossKind, txs),
-            recordExpense = RecordExpense(accountRepo, crossKind, txs),
-            recordTransfer = RecordTransfer(
-                accountRepo,
-                FakeCurrencyRepository(),
-                FakeRateRepository(),
-                FakeSettingsRepository(),
-                txs,
-            ),
-            today = TodayProvider { today },
-            moneyParser = MoneyParser(Locale.US),
-            fx = FakeFxRepository(FakeCurrencyRepository(), FakeRateRepository(), FakeSettingsRepository()),
-            settings = FakeSettingsRepository(),
-            moneyFormatter = MoneyFormatter(Locale.US),
-            recordWithTypedRates = RecordWithTypedRates(DirectTransactionRunner(), SetExchangeRate(FakeCurrencyRepository(), FakeRateRepository())),
-        )
+        val vm = addViewModel(FakeEntryRepository(), crossKind)
         dispatcher.scheduler.advanceUntilIdle()
         vm.selectType(TransactionType.INCOME)
         vm.selectCategory(salary.id)

@@ -228,6 +228,18 @@ class BackupDecodeValidatedTest {
     }
 
     @Test
+    fun anAccountLegInAnotherCurrencyThanItsAccountIsInvalid() {
+        // the whole entry moves to EUR, so it is still a balanced entry; only its account holds USD
+        assertInvalid(
+            sample.copy(
+                legs = sample.legs.map {
+                    if (it.entryId == BackupV2Samples.INCOME_ENTRY) it.copy(currencyCode = "EUR", rateToBase = it.rateToBase?.let { "1.086956" }) else it
+                },
+            ),
+        )
+    }
+
+    @Test
     fun aCategoryOnALegThatIsNotCountedIsStillInvalid() {
         assertInvalid(
             sample.copy(

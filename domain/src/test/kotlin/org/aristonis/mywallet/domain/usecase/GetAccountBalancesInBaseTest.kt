@@ -12,12 +12,14 @@ import org.aristonis.mywallet.domain.usecase.fake.fakeFx
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
-import org.aristonis.mywallet.domain.usecase.fake.FakeTransactionRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.math.BigDecimal
 
+/** Same constructor as before; balances now come from account legs through `GetAccountBalances(accounts, ledger)`. */
 class GetAccountBalancesInBaseTest {
 
     private fun account(id: Long, currency: String, opening: String) =
@@ -29,7 +31,7 @@ class GetAccountBalancesInBaseTest {
         rates: List<ExchangeRate> = emptyList(),
         base: String = "USD",
     ): GetAccountBalancesInBase {
-        val getBalances = GetAccountBalances(FakeAccountRepository(accounts), FakeTransactionRepository())
+        val getBalances = GetAccountBalances(FakeAccountRepository(accounts), FakeLedgerQueries(FakeEntryRepository()))
         return GetAccountBalancesInBase(
             getAccountBalances = getBalances,
             fx = fakeFx(currencies, rates, base),

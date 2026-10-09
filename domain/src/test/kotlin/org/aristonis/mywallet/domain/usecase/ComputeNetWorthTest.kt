@@ -14,11 +14,13 @@ import org.aristonis.mywallet.domain.usecase.fake.fakeFx
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
-import org.aristonis.mywallet.domain.usecase.fake.FakeTransactionRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.math.BigDecimal
 
+/** Same constructor as before; balances now come from account legs through `GetAccountBalances(accounts, ledger)`. */
 class ComputeNetWorthTest {
 
     private fun acct(id: Long, currency: String, opening: String) =
@@ -31,7 +33,7 @@ class ComputeNetWorthTest {
         base: String = "USD",
         transactions: List<Transaction> = emptyList(),
     ): ComputeNetWorth {
-        val getBalances = GetAccountBalances(FakeAccountRepository(accounts), FakeTransactionRepository(transactions))
+        val getBalances = GetAccountBalances(FakeAccountRepository(accounts), FakeLedgerQueries(FakeEntryRepository(transactions)))
         return ComputeNetWorth(
             getAccountBalances = getBalances,
             fx = fakeFx(currencies, rates, base),
@@ -78,7 +80,7 @@ class ComputeNetWorthTest {
         val fx = fakeFx(currencies = currencies, rates = emptyList(), base = "USD")
         val getBalances = GetAccountBalances(
             FakeAccountRepository(listOf(acct(1, "USD", "100"), acct(2, "EUR", "50"))),
-            FakeTransactionRepository(),
+            FakeLedgerQueries(FakeEntryRepository()),
         )
         val nw = ComputeNetWorth(getAccountBalances = getBalances, fx = fx)
 

@@ -44,10 +44,17 @@ interface EntryRepository {
  */
 interface LedgerQueries {
 
-    /** Every account leg (ACCOUNT, SOURCE, DEST), for summing balances per account. */
+    /**
+     * Every account leg (ACCOUNT, SOURCE, DEST), for summing balances per account. An amount that
+     * does not parse fails the flow with
+     * [org.aristonis.mywallet.domain.error.WalletException.UnreadableRow] naming its entry.
+     */
     fun observeAccountLegs(): Flow<List<AccountLeg>>
 
-    /** Every category leg of entries dated inside the inclusive [range], for Tracking. */
+    /**
+     * Every category leg of entries dated inside the inclusive [range], for Tracking: newest entry
+     * first (date desc, then id desc), and each entry's legs in position order.
+     */
     fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>>
 
     /**
@@ -81,13 +88,13 @@ interface LedgerQueries {
 data class AccountLeg(val accountId: Long, val amount: Money)
 
 /**
- * One category leg with what Tracking needs to place and convert it. Tracking places a leg by its
- * category's kind, not the entry's: one entry can hold legs on both sides (an income with deduction
- * expenses).
+ * One category leg with what Tracking needs to place and convert it. Tracking places a leg by the
+ * rule its entry kind gives for its role, not by its category's kind: an old income may sit on an
+ * expense category, and one entry can hold legs on both sides (an income with deduction expenses).
  *
- * @property entryKind The entry's stored kind.
- * @property categoryKind The kind of the category the leg is on; null when the category row is gone,
- *   which Tracking reads as an unreadable leg.
+ * @property entryKind The entry's stored kind; with [role], it decides the leg's side.
+ * @property categoryKind The kind of the category the leg is on; null when the category row is gone.
+ *   Tracking does not use it.
  * @property rateToBase The rate the leg was recorded with; null means none is stored yet.
  */
 data class CategoryLeg(

@@ -10,6 +10,7 @@ import org.aristonis.mywallet.data.db.WalletDatabase
 import org.aristonis.mywallet.data.repo.RoomAccountRepository
 import org.aristonis.mywallet.data.repo.RoomFxRepository
 import org.aristonis.mywallet.data.repo.RoomEntryRepository
+import org.aristonis.mywallet.data.repo.RoomLedgerQueries
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
@@ -36,10 +37,11 @@ internal suspend fun captureDataReadyTimings(context: Context, asset: String, ru
     try {
         val transactions = RoomEntryRepository(db, db.entryDao())
         val fx = RoomFxRepository(db)
-        val balances = GetAccountBalances(RoomAccountRepository(db.accountDao()), transactions)
+        val ledger = RoomLedgerQueries(db.ledgerQueryDao())
+        val balances = GetAccountBalances(RoomAccountRepository(db.accountDao()), ledger)
         val inBase = GetAccountBalancesInBase(balances, fx)
         val netWorth = ComputeNetWorth(balances, fx)
-        val breakdown = ComputeCategoryBreakdown(transactions, fx)
+        val breakdown = ComputeCategoryBreakdown(ledger, fx)
         val dates = transactions.observeAll().first().map { it.date }
         check(dates.isNotEmpty()) { "seed asset $asset holds no transactions" }
         val lastMonth = YearMonth.from(dates.max())
