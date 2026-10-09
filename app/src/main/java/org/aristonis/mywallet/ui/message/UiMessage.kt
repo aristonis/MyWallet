@@ -43,6 +43,7 @@ sealed interface UiMessage {
     data class DuplicateCategoryName(val name: String) : UiMessage
     data object CategoryDepthExceeded : UiMessage
     data object CategoryKindMismatch : UiMessage
+    data object CategoryWrongKind : UiMessage
     data object CategoryStructureInvalid : UiMessage
     data object CategoryNotTopLevel : UiMessage
     data object SystemCategoryProtected : UiMessage
@@ -58,6 +59,7 @@ sealed interface UiMessage {
     // -- Transactions -----------------------------------------------------------------------------
 
     data object TransactionNotFound : UiMessage
+    data object EntryAlreadyRestored : UiMessage
     data object TransferCurrencyPairChanged : UiMessage
     data object TransactionRestoreFailed : UiMessage
 

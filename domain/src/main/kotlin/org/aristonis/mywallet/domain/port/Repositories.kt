@@ -10,6 +10,7 @@ import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Ports = the interfaces the domain core depends on. `:data` (Room) implements them; the domain
@@ -109,6 +110,12 @@ interface BaseCurrencyRepository {
 
 interface FxRepository {
     fun observeFx(): Flow<FxSnapshot>
+
+    /**
+     * The snapshot as it is now, read once. A write that needs rates reads them through this, because
+     * collecting a live stream inside a database transaction can wait on that same transaction.
+     */
+    suspend fun currentFx(): FxSnapshot = observeFx().first()
 }
 
 interface SettingsRepository {

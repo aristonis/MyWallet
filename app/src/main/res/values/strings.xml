@@ -314,6 +314,7 @@
     <string name="msg_duplicate_category_name">A category named \"%1$s\" already exists here. Pick another name.</string>
     <string name="msg_category_depth_exceeded">Categories go two levels deep, so a sub-category can\'t have its own.</string>
     <string name="msg_category_kind_mismatch">That sub-category doesn\'t belong to this category.</string>
+    <string name="msg_category_wrong_kind">That category doesn\'t fit this kind of entry.</string>
     <string name="msg_category_structure_invalid">This category can\'t be used because its structure is broken.</string>
     <string name="msg_category_not_top_level">Pick a top-level category, then its sub-category if you want one.</string>
     <string name="msg_system_category_protected">Uncategorized is managed by the app and can\'t be renamed or deleted.</string>
@@ -325,6 +326,7 @@
     <string name="msg_amount_rounds_to_zero">That amount is too small to convert to %1$s. Enter a larger one.</string>
 
     <string name="msg_transaction_not_found">That transaction no longer exists.</string>
+    <string name="msg_entry_already_restored">That entry is already back.</string>
     <string name="msg_data_unreadable">Some of your data could not be read.</string>
     <string name="msg_transfer_currency_pair_changed">A transfer\'s currencies can\'t change. Delete it and add it again.</string>
     <string name="msg_transaction_restore_failed">Couldn\'t bring the transaction back.</string>

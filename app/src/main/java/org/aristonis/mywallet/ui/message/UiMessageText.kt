@@ -32,6 +32,7 @@ fun UiMessage.text(): String = when (this) {
     is UiMessage.DuplicateCategoryName -> stringResource(R.string.msg_duplicate_category_name, name)
     UiMessage.CategoryDepthExceeded -> stringResource(R.string.msg_category_depth_exceeded)
     UiMessage.CategoryKindMismatch -> stringResource(R.string.msg_category_kind_mismatch)
+    UiMessage.CategoryWrongKind -> stringResource(R.string.msg_category_wrong_kind)
     UiMessage.CategoryStructureInvalid -> stringResource(R.string.msg_category_structure_invalid)
     UiMessage.CategoryNotTopLevel -> stringResource(R.string.msg_category_not_top_level)
     UiMessage.SystemCategoryProtected -> stringResource(R.string.msg_system_category_protected)
@@ -44,6 +45,7 @@ fun UiMessage.text(): String = when (this) {
     is UiMessage.AmountRoundsToZero -> stringResource(R.string.msg_amount_rounds_to_zero, currencyCode)
 
     UiMessage.TransactionNotFound -> stringResource(R.string.msg_transaction_not_found)
+    UiMessage.EntryAlreadyRestored -> stringResource(R.string.msg_entry_already_restored)
     UiMessage.DataUnreadable -> stringResource(R.string.msg_data_unreadable)
     UiMessage.TransferCurrencyPairChanged -> stringResource(R.string.msg_transfer_currency_pair_changed)
     UiMessage.TransactionRestoreFailed -> stringResource(R.string.msg_transaction_restore_failed)

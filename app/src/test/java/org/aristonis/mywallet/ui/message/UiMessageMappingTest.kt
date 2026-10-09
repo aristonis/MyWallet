@@ -65,6 +65,18 @@ class UiMessageMappingTest {
     }
 
     @Test
+    fun `a category of the wrong kind for the entry has its own message without the id`() {
+        assertEquals(UiMessage.CategoryWrongKind, WalletException.CategoryWrongKind(6).toUiMessage())
+        assertEquals(WalletException.CategoryWrongKind(1).toUiMessage(), WalletException.CategoryWrongKind(9).toUiMessage())
+    }
+
+    @Test
+    fun `an undo onto an id that is taken again has its own message without the id`() {
+        assertEquals(UiMessage.EntryAlreadyRestored, WalletException.EntryIdTaken(6).toUiMessage())
+        assertEquals(WalletException.EntryIdTaken(1).toUiMessage(), WalletException.EntryIdTaken(9).toUiMessage())
+    }
+
+    @Test
     fun `an internal row id never reaches the message`() {
         assertEquals(
             WalletException.AccountNotFound(11).toUiMessage(),

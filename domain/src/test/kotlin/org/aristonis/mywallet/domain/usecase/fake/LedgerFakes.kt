@@ -58,7 +58,7 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
     override suspend fun insert(entry: Transaction): Long {
         val id = if (entry.id == 0L) nextId else entry.id
         // Mirrors the plain INSERT: a taken id aborts rather than overwriting another entry.
-        check(store.value.none { it.header.id == id }) { "entry id $id is already taken" }
+        if (store.value.any { it.header.id == id }) throw WalletException.EntryIdTaken(id)
         val parts = entry.toParts()
         store.value = store.value + parts.copy(header = parts.header.copy(id = id))
         nextId = maxOf(nextId, id + 1)

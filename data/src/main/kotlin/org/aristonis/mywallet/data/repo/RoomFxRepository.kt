@@ -39,6 +39,9 @@ class RoomFxRepository(private val database: WalletDatabase) : FxRepository {
             .mapLatest { readSnapshot() }
             .distinctUntilChanged()
 
+    /** One read in one transaction; inside a caller's transaction it joins that one. */
+    override suspend fun currentFx(): FxSnapshot = readSnapshot()
+
     /**
      * Returns null-safe defaults before onboarding has written settings: there is no base currency
      * yet, so there is nothing to convert and every consumer is already showing its empty state.

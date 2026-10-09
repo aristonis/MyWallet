@@ -20,6 +20,7 @@ fun WalletException.toUiMessage(): UiMessage = when (this) {
     is WalletException.DuplicateCategoryName -> UiMessage.DuplicateCategoryName(name)
     is WalletException.CategoryDepthExceeded -> UiMessage.CategoryDepthExceeded
     is WalletException.CategoryKindMismatch -> UiMessage.CategoryKindMismatch
+    is WalletException.CategoryWrongKind -> UiMessage.CategoryWrongKind
     is WalletException.CategoryStructureInvalid -> UiMessage.CategoryStructureInvalid
     is WalletException.CategoryNotTopLevel -> UiMessage.CategoryNotTopLevel
     is WalletException.SystemCategoryProtected -> UiMessage.SystemCategoryProtected
@@ -28,6 +29,7 @@ fun WalletException.toUiMessage(): UiMessage = when (this) {
     is WalletException.RateUnderflow -> UiMessage.RateUnderflow(code)
     is WalletException.MissingRate -> UiMessage.MissingRate(code)
     is WalletException.TransactionNotFound -> UiMessage.TransactionNotFound
+    is WalletException.EntryIdTaken -> UiMessage.EntryAlreadyRestored
     is WalletException.UnreadableRow -> UiMessage.DataUnreadable
     is WalletException.TransferCurrencyPairChanged -> UiMessage.TransferCurrencyPairChanged
     is WalletException.AmountRoundsToZero -> UiMessage.AmountRoundsToZero(currencyCode)

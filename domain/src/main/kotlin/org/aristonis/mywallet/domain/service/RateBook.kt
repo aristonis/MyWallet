@@ -80,10 +80,12 @@ class RateBook(
      * Returns new legs for an edited entry, rated against the legs it had before the edit ([old]).
      *
      * This is the one place the edit-time rate rule lives, so no caller can carry an old currency's
-     * rate onto a leg that is now in another currency. A category leg keeps its rate only when the
-     * old entry had a leg with the same role and position, in the same currency, and no rate was
-     * typed for that currency on this edit. Otherwise it gets [rateToBase] for its currency: base 1,
-     * then typed, then saved, else null. Account and debt legs come back unchanged.
+     * rate onto a leg that is now in another currency. A category leg keeps the rate STORED on the
+     * old leg (not whatever rate the caller sent) only when the old entry had a leg with the same
+     * role and position, in the same currency, and no rate was typed for that currency on this edit.
+     * Otherwise it gets [rateToBase] for its currency: base 1, then typed, then saved, else null.
+     * With [old] empty, as for a new entry, every category leg is rated afresh and any rate the
+     * caller sent is ignored. Account and debt legs come back unchanged.
      */
     fun restamp(legs: List<Leg>, old: List<Leg>): List<Leg> {
         val oldBySlot = old.associateBy { it.role to it.position }
@@ -96,7 +98,8 @@ class RateBook(
         val keepsOldRate = oldLeg != null &&
             oldLeg.amount.currencyCode == currency &&
             currency !in overrides
-        return if (keepsOldRate) leg else leg.copy(rateToBase = rateToBase(currency))
+        if (keepsOldRate) return leg.copy(rateToBase = oldLeg?.rateToBase)
+        return leg.copy(rateToBase = rateToBase(currency))
     }
 
     private fun stampLeg(leg: Leg): Leg {

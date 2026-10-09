@@ -40,6 +40,13 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
         WalletException("Category $parentId and the sub-category paired with it don't match: wrong kind, or not its child")
 
     /**
+     * A leg's category is of the other kind than the leg counts as: an income category on an
+     * expense, say. Saved anyway, the money would count on the wrong side of Tracking.
+     */
+    class CategoryWrongKind(val categoryId: Long) :
+        WalletException("Category $categoryId is of the wrong kind for this entry")
+
+    /**
      * The stored category tree is not shaped the way every reader assumes — a row parented under
      * itself, or an app-owned bucket filed under a category being deleted. Only reachable from data
      * that arrived from outside, so it names the row rather than pretending the operation succeeded.
@@ -81,6 +88,13 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     /** The transaction being edited no longer exists (e.g. it was deleted since the editor opened). */
     class TransactionNotFound(val id: Long) :
         WalletException("Transaction $id not found")
+
+    /**
+     * An entry was put back at an id another entry already holds, e.g. the same undo ran twice.
+     * Nothing was written: an undo never overwrites.
+     */
+    class EntryIdTaken(val id: Long) :
+        WalletException("Entry id $id is already taken")
 
     /** A transfer edit tried to change its currency pair; its stored rate would no longer apply. */
     class TransferCurrencyPairChanged(val id: Long) :
