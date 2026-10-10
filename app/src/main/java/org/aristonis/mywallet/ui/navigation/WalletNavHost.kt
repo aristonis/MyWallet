@@ -23,6 +23,8 @@ import org.aristonis.mywallet.ui.account.EditAccountScreen
 import org.aristonis.mywallet.ui.account.ManageAccountsScreen
 import org.aristonis.mywallet.ui.category.ManageCategoriesScreen
 import org.aristonis.mywallet.ui.currency.ChangeBaseCurrencyScreen
+import org.aristonis.mywallet.ui.debt.DebtsScreen
+import org.aristonis.mywallet.ui.debt.DebtDetailScreen
 import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen
@@ -123,6 +125,7 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
                 onManageAccounts = { nav.navigate(tab.child(Leaf.MANAGE_ACCOUNTS)) },
                 onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
                 onSettings = { nav.switchTab(WalletTab.SETTINGS) },
+                onDebts = { nav.navigate(tab.child(Leaf.DEBTS)) },
             )
         }
         // Home shows every date, so a saved entry is always in view; outside the Transactions graph the
@@ -145,6 +148,27 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
         }
         composable(tab.child(Leaf.RATES)) {
             ManageRatesScreen(onDone = { nav.popBackStack() })
+        }
+        composable(tab.child(Leaf.DEBTS)) {
+            DebtsScreen(
+                onDone = { nav.popBackStack() },
+                onOpenDebt = { id -> nav.navigate(tab.child(Leaf.DEBT_DETAIL, id)) },
+                onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
+            )
+        }
+        editorRoute(tab, Leaf.DEBT_DETAIL) { id ->
+            DebtDetailScreen(
+                debtId = id,
+                onDone = { nav.popBackStack() },
+                onEditEntry = { entryId -> nav.navigate(tab.child(Leaf.EDIT_TRANSACTION, entryId)) },
+            )
+        }
+        editorRoute(tab, Leaf.EDIT_TRANSACTION) { id ->
+            EditTransactionScreen(
+                transactionId = id,
+                onDone = { nav.popBackStack() },
+                onSaved = { date -> nav.returnSavedDate(date) },
+            )
         }
     }
 }

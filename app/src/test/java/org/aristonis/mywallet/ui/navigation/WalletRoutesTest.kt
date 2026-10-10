@@ -125,4 +125,29 @@ class WalletRoutesTest {
         val leaves = Leaf.all + Leaf.withId
         Leaf.forms.forEach { form -> assertTrue("$form is not a leaf", form in leaves) }
     }
+
+    @Test
+    fun `debts and a debt detail remain on the Home stack with its navigation bar`() {
+        val tab = WalletTab.HOME
+
+        assertEquals("home/debts", tab.child(Leaf.DEBTS))
+        assertEquals("home/debtDetail/{$ARG_ID}", tab.childPattern(Leaf.DEBT_DETAIL))
+        assertTrue(Leaf.DEBTS in Leaf.all)
+        assertTrue(Leaf.DEBT_DETAIL in Leaf.withId)
+        assertEquals(tab, tabOf(tab.child(Leaf.DEBTS)))
+        assertEquals(tab, tabOf(tab.child(Leaf.DEBT_DETAIL, 7)))
+        assertTrue(showsNavigationBar(tab.child(Leaf.DEBTS)))
+        assertTrue(showsNavigationBar(tab.childPattern(Leaf.DEBT_DETAIL)))
+    }
+
+    @Test
+    fun `a large debt id reaches detail without truncation`() {
+        val id = 4_294_967_296L
+        val pattern = WalletTab.HOME.childPattern(Leaf.DEBT_DETAIL)
+        val route = WalletTab.HOME.child(Leaf.DEBT_DETAIL, id)
+
+        assertEquals("home/debtDetail/4294967296", route)
+        assertEquals(route, pattern.replace("{$ARG_ID}", id.toString()))
+        assertTrue(!showsNavigationBar(WalletTab.HOME.child(Leaf.EDIT_TRANSACTION, id)))
+    }
 }

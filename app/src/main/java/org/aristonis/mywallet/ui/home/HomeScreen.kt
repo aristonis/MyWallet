@@ -54,6 +54,7 @@ fun HomeScreen(
     onManageAccounts: () -> Unit,
     onManageRates: () -> Unit,
     onSettings: () -> Unit,
+    onDebts: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -64,6 +65,7 @@ fun HomeScreen(
         onManageAccounts = onManageAccounts,
         onManageRates = onManageRates,
         onSettings = onSettings,
+        onDebts = onDebts,
         onRetry = viewModel::retry,
     )
 }
@@ -77,11 +79,13 @@ internal fun HomeContent(
     onManageAccounts: () -> Unit,
     onManageRates: () -> Unit,
     onSettings: () -> Unit,
+    onDebts: () -> Unit,
     onRetry: () -> Unit,
 ) {
     Scaffold(
         topBar = {
             WalletTopAppBar(title = stringResource(R.string.home_title)) {
+                TextButton(onClick = onDebts) { Text(stringResource(R.string.debts_title)) }
                 IconButton(onClick = onSettings) {
                     Icon(
                         imageVector = WalletIcons.Settings,
@@ -249,6 +253,7 @@ private fun HomePreview() {
             onManageAccounts = {},
             onManageRates = {},
             onSettings = {},
+            onDebts = {},
             state = HomeUiState(
                 netWorth = NetWorthState.Amount("1,275.00 USD"),
                 accounts = listOf(

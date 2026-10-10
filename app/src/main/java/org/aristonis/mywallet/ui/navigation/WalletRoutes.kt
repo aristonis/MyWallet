@@ -53,12 +53,14 @@ object Leaf {
     const val CATEGORIES = "categories"
     const val BASE_CURRENCY = "baseCurrency"
     const val ABOUT = "about"
+    const val DEBTS = "debts"
+    const val DEBT_DETAIL = "debtDetail"
 
     /** Every supporting screen a tab can push that needs no argument. [ROOT] is the tab itself. */
-    val all = listOf(ADD_TRANSACTION, ADD_ACCOUNT, MANAGE_ACCOUNTS, RATES, CATEGORIES, BASE_CURRENCY, ABOUT)
+    val all = listOf(ADD_TRANSACTION, ADD_ACCOUNT, MANAGE_ACCOUNTS, RATES, CATEGORIES, BASE_CURRENCY, ABOUT, DEBTS)
 
     /** Every leaf that edits one row. */
-    val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT)
+    val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL)
 
     /**
      * Leaves that end in one committing action. These give up the navigation bar so nothing sits

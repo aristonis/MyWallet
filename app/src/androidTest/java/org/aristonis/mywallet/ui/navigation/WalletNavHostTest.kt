@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.ui.navigation
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,18 +39,24 @@ class WalletNavHostTest {
     /** A destination that says which one it is, and can push the supporting screens under its tab. */
     @Composable
     private fun Stub(name: String, pushes: List<Pair<String, String>> = emptyList()) {
-        Text(name)
-        pushes.forEach { (label, route) ->
-            Button(onClick = { nav.navigate(route) }) { Text(label) }
+        Column {
+            Text(name)
+            pushes.forEach { (label, route) ->
+                Button(onClick = { nav.navigate(route) }) { Text(label) }
+            }
         }
     }
 
-    private fun NavGraphBuilder.stubTab(tab: WalletTab, extras: NavGraphBuilder.() -> Unit = {}) {
+    private fun NavGraphBuilder.stubTab(
+        tab: WalletTab,
+        rootPushes: List<Pair<String, String>> = emptyList(),
+        extras: NavGraphBuilder.() -> Unit = {},
+    ) {
         navigation(startDestination = tab.rootRoute, route = tab.route) {
             composable(tab.rootRoute) {
                 Stub(
                     name = "${tab.route} root",
-                    pushes = listOf("open rates from ${tab.route}" to tab.child(Leaf.RATES)),
+                    pushes = listOf("open rates from ${tab.route}" to tab.child(Leaf.RATES)) + rootPushes,
                 )
             }
             composable(tab.child(Leaf.RATES)) { Stub("${tab.route} rates") }
@@ -63,7 +70,20 @@ class WalletNavHostTest {
             MyWalletTheme(dynamicColor = false) {
                 nav = rememberNavController()
                 WalletNavHost(navController = nav) { _ ->
-                    stubTab(WalletTab.HOME)
+                    stubTab(
+                        WalletTab.HOME,
+                        rootPushes = listOf("open debts" to WalletTab.HOME.child(Leaf.DEBTS)),
+                    ) {
+                        composable(WalletTab.HOME.child(Leaf.DEBTS)) {
+                            Stub("home debts", listOf("open debt" to WalletTab.HOME.child(Leaf.DEBT_DETAIL, 4_294_967_296L)))
+                        }
+                        editorRoute(WalletTab.HOME, Leaf.DEBT_DETAIL) { id ->
+                            Stub("debt $id", listOf("open debt history entry" to WalletTab.HOME.child(Leaf.EDIT_TRANSACTION, 7)))
+                        }
+                        editorRoute(WalletTab.HOME, Leaf.EDIT_TRANSACTION) { id ->
+                            Stub("editing debt history entry $id")
+                        }
+                    }
                     stubTab(WalletTab.TRANSACTIONS) {
                         editorRoute(WalletTab.TRANSACTIONS, Leaf.EDIT_TRANSACTION) { id ->
                             Stub("editing transaction $id")
@@ -203,5 +223,42 @@ class WalletNavHostTest {
         pressBack()
 
         compose.onNodeWithText("transactions root").assertIsDisplayed()
+    }
+
+    @Test
+    fun debtHistoryEditorReturnsToDetailThenListThenHome() {
+        start()
+
+        compose.onNodeWithText("open debts").performClick()
+        compose.onNodeWithText("home debts").assertIsDisplayed()
+        compose.onNodeWithText("Tracking").assertIsDisplayed()
+        compose.onNodeWithText("open debt").performClick()
+        compose.onNodeWithText("debt 4294967296").assertIsDisplayed()
+        compose.onNodeWithText("open debt history entry").performClick()
+        compose.onNodeWithText("editing debt history entry 7").assertIsDisplayed()
+        compose.onNodeWithText("Tracking").assertDoesNotExist()
+
+        pressBack()
+        compose.onNodeWithText("debt 4294967296").assertIsDisplayed()
+        compose.onNodeWithText("Home").assertIsSelected()
+        pressBack()
+        compose.onNodeWithText("home debts").assertIsDisplayed()
+        pressBack()
+        compose.onNodeWithText("home root").assertIsDisplayed()
+    }
+
+    @Test
+    fun switchingTabsRestoresTheOpenDebtDetail() {
+        start()
+        compose.onNodeWithText("open debts").performClick()
+        compose.onNodeWithText("open debt").performClick()
+
+        compose.onNodeWithText("Tracking").performClick()
+        compose.onNodeWithText("tracking root").assertIsDisplayed()
+        compose.onNodeWithText("Home").performClick()
+
+        compose.onNodeWithText("debt 4294967296").assertIsDisplayed()
+        pressBack()
+        compose.onNodeWithText("home debts").assertIsDisplayed()
     }
 }

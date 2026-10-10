@@ -97,6 +97,7 @@ class BoundedListLayoutTest {
                 onManageAccounts = {},
                 onManageRates = {},
                 onSettings = {},
+                onDebts = {},
                 onRetry = {},
             )
         }
@@ -136,6 +137,7 @@ class BoundedListLayoutTest {
                 onManageAccounts = {},
                 onManageRates = {},
                 onSettings = {},
+                onDebts = {},
                 onRetry = {},
             )
         }

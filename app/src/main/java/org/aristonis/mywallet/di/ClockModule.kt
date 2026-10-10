@@ -4,7 +4,9 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import org.aristonis.mywallet.ui.debt.TodaySource
 import java.time.LocalDate
+import javax.inject.Singleton
 
 /**
  * The "what day is it?" seam. A function type (not a stored value) because the answer must be read
@@ -21,4 +23,7 @@ object ClockModule {
 
     @Provides
     fun provideTodayProvider(): TodayProvider = TodayProvider { LocalDate.now() }
+
+    @Provides @Singleton
+    fun provideTodaySource(): TodaySource = TodaySource()
 }
