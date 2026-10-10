@@ -301,6 +301,7 @@
     <string name="msg_not_a_number">Enter a plain number, without grouping separators.</string>
 
     <string name="msg_account_required">Choose an account.</string>
+    <string name="msg_currency_required">Choose a currency.</string>
     <string name="msg_category_required">Choose a category.</string>
     <string name="msg_destination_account_required">Choose an account to transfer to.</string>
     <string name="msg_name_required">Enter a name.</string>

@@ -19,6 +19,8 @@ internal abstract class CategoryFormRule(
     final override val type: TransactionType,
     private val categoryKind: CategoryKind,
 ) : EntryFormRule {
+    final override val requiresCategory = true
+    final override val countsInTracking = true
 
     final override fun categoriesOffered(all: List<Category>): List<Category> =
         all.filter { it.kind == categoryKind && !it.isSubCategory }
@@ -33,7 +35,7 @@ internal abstract class CategoryFormRule(
         date: LocalDate,
         note: String,
         loaded: Transaction?,
-    ): Transaction {
+    ): BuiltEntry {
         // Account, then amount, then category: the order the screens always reported a refusal in.
         val account = requireAccount(inputs, accounts)
         val fields = CategoryEntryFields(
@@ -44,7 +46,7 @@ internal abstract class CategoryFormRule(
             date = date,
             note = noteOrNull(note),
         )
-        return if (loaded == null) newEntry(fields) else edited(loaded, fields)
+        return BuiltEntry(if (loaded == null) newEntry(fields) else edited(loaded, fields))
     }
 
     /** A new entry of this type from [fields], with no stored rate yet: the save decides it. */
@@ -79,6 +81,8 @@ internal data class CategoryEntryFields(
 
 internal object IncomeFormRule : CategoryFormRule(TransactionType.INCOME, CategoryKind.INCOME) {
 
+    override val kind = "INCOME"
+    override fun keptRates(entry: Transaction): Map<String, BigDecimal?> = (entry as Transaction.Income).let { mapOf(it.amount.currencyCode to it.rateToBase) }
     override fun newEntry(fields: CategoryEntryFields): Transaction = Transaction.Income(
         accountId = fields.accountId, amount = fields.amount, categoryId = fields.categoryId,
         subCategoryId = fields.subCategoryId, date = fields.date, note = fields.note,
@@ -100,6 +104,8 @@ internal object IncomeFormRule : CategoryFormRule(TransactionType.INCOME, Catego
 
 internal object ExpenseFormRule : CategoryFormRule(TransactionType.EXPENSE, CategoryKind.EXPENSE) {
 
+    override val kind = "EXPENSE"
+    override fun keptRates(entry: Transaction): Map<String, BigDecimal?> = (entry as Transaction.Expense).let { mapOf(it.amount.currencyCode to it.rateToBase) }
     override fun newEntry(fields: CategoryEntryFields): Transaction = Transaction.Expense(
         accountId = fields.accountId, amount = fields.amount, categoryId = fields.categoryId,
         subCategoryId = fields.subCategoryId, date = fields.date, note = fields.note,
@@ -128,6 +134,17 @@ internal object ExpenseFormRule : CategoryFormRule(TransactionType.EXPENSE, Cate
 internal object TransferFormRule : EntryFormRule {
 
     override val type: TransactionType = TransactionType.TRANSFER
+    override val kind = "TRANSFER"
+
+    override fun quoteLegs(inputs: EntryFormInputs, accounts: List<Account>, loaded: Transaction?): List<QuoteLeg> =
+        if (loaded == null) super.quoteLegs(inputs, accounts, loaded) else emptyList()
+
+    override fun quotePair(inputs: EntryFormInputs, accounts: List<Account>, loaded: Transaction?): QuotePair? {
+        if (loaded != null) return null
+        val from = currency(inputs, accounts) ?: return null
+        val to = accounts.firstOrNull { it.id == inputs.destAccountId }?.currencyCode ?: from
+        return QuotePair(from, to)
+    }
 
     override fun categoriesOffered(all: List<Category>): List<Category> = emptyList()
 
@@ -142,18 +159,18 @@ internal object TransferFormRule : EntryFormRule {
         date: LocalDate,
         note: String,
         loaded: Transaction?,
-    ): Transaction {
+    ): BuiltEntry {
         if (loaded != null) {
             if (loaded !is Transaction.Transfer) wrongType(this, loaded)
             // Currency comes from the locked source leg, so the domain's pair guard always passes.
             val sourceAmount = moneyParser.parseAmount(inputs.amountInput, loaded.sourceAmount.currencyCode)
-            return loaded.copy(sourceAmount = sourceAmount, date = date, note = noteOrNull(note))
+            return BuiltEntry(loaded.copy(sourceAmount = sourceAmount, date = date, note = noteOrNull(note)))
         }
         val source = requireAccount(inputs, accounts)
         val amount = moneyParser.parseAmount(inputs.amountInput, source.currencyCode)
         val dest = accounts.firstOrNull { it.id == inputs.destAccountId }
             ?: throw MissingSelectionException(UiMessage.DestinationAccountRequired)
-        return Transaction.Transfer(
+        return BuiltEntry(Transaction.Transfer(
             sourceAccountId = source.id,
             destAccountId = dest.id,
             sourceAmount = amount,
@@ -161,7 +178,7 @@ internal object TransferFormRule : EntryFormRule {
             rateUsed = BigDecimal.ONE,
             date = date,
             note = noteOrNull(note),
-        )
+        ))
     }
 
     override fun load(entry: Transaction, moneyParser: MoneyParser): EntryFormInputs {

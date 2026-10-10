@@ -337,9 +337,14 @@ internal class EntryUseCases(
 }
 
 internal class FakeDebtRepository(initial: List<Debt> = emptyList()) : DebtRepository {
+    var suggestionsFor: (suspend (String) -> List<String>)? = null
+    var findFor: (suspend (Long) -> Debt?)? = null
     private val items = MutableStateFlow(initial)
     override fun observeAll(): Flow<List<Debt>> = items
-    override suspend fun findById(id: Long): Debt? = items.value.firstOrNull { it.id == id }
+    override suspend fun findById(id: Long): Debt? {
+        findFor?.let { return it(id) }
+        return items.value.firstOrNull { it.id == id }
+    }
     override suspend fun getOrCreate(counterparty: String, side: DebtSide, currencyCode: String): Debt {
         val key = NameKey.of(counterparty)
         return items.value.firstOrNull { it.key == key && it.side == side && it.currencyCode == currencyCode }
@@ -353,5 +358,9 @@ internal class FakeDebtRepository(initial: List<Debt> = emptyList()) : DebtRepos
     override suspend fun rename(id: Long, counterparty: String) {
         items.value = items.value.map { if (it.id == id) it.copy(counterparty = counterparty) else it }
     }
-    override suspend fun counterpartyNames(prefix: String): List<String> = items.value.map { it.counterparty }
+    override suspend fun counterpartyNames(prefix: String): List<String> {
+        suggestionsFor?.let { return it(prefix) }
+        val key = if (prefix.isBlank()) "" else NameKey.of(prefix).value
+        return items.value.filter { it.key.value.startsWith(key) }.distinctBy { it.key }.map { it.counterparty }
+    }
 }

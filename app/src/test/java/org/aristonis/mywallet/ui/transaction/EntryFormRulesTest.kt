@@ -96,7 +96,7 @@ class EntryFormRulesTest {
     fun addBuildsAnIncomeInTheSelectedAccountsCurrency() {
         val inputs = EntryFormInputs(accountId = 2, categoryId = 1, subCategoryId = 2, amountInput = "50")
 
-        val built = rule(TransactionType.INCOME).build(inputs, accounts, parser, day, "  June pay ")
+        val built = rule(TransactionType.INCOME).build(inputs, accounts, parser, day, "  June pay ").entry
 
         assertEquals(
             Transaction.Income(
@@ -111,7 +111,7 @@ class EntryFormRulesTest {
     fun addBuildsAnExpenseAndTurnsABlankNoteIntoNull() {
         val inputs = EntryFormInputs(accountId = 1, categoryId = 3, amountInput = "12.50")
 
-        val built = rule(TransactionType.EXPENSE).build(inputs, accounts, parser, day, "   ")
+        val built = rule(TransactionType.EXPENSE).build(inputs, accounts, parser, day, "   ").entry
 
         assertEquals(
             Transaction.Expense(accountId = 1, amount = Money.of("12.50", "USD"), categoryId = 3, date = day, note = null),
@@ -124,7 +124,7 @@ class EntryFormRulesTest {
     fun addBuildsATransferWithAPlaceholderDestinationAmountAtRateOne() {
         val inputs = EntryFormInputs(accountId = 1, destAccountId = 2, amountInput = "100")
 
-        val built = rule(TransactionType.TRANSFER).build(inputs, accounts, parser, day, "")
+        val built = rule(TransactionType.TRANSFER).build(inputs, accounts, parser, day, "").entry
 
         assertEquals(
             Transaction.Transfer(
@@ -160,7 +160,7 @@ class EntryFormRulesTest {
         )
         val inputs = EntryFormInputs(accountId = 2, categoryId = 1, subCategoryId = null, amountInput = "70")
 
-        val built = rule(TransactionType.INCOME).build(inputs, accounts, parser, day, " new ", loaded)
+        val built = rule(TransactionType.INCOME).build(inputs, accounts, parser, day, " new ", loaded).entry
 
         assertEquals(
             loaded.copy(accountId = 2, amount = Money.of("70", "EUR"), subCategoryId = null, date = day, note = "new"),
@@ -176,7 +176,7 @@ class EntryFormRulesTest {
         )
         val inputs = EntryFormInputs(accountId = 1, categoryId = 5, subCategoryId = null, amountInput = "6")
 
-        val built = rule(TransactionType.EXPENSE).build(inputs, accounts, parser, day, "", loaded)
+        val built = rule(TransactionType.EXPENSE).build(inputs, accounts, parser, day, "", loaded).entry
 
         assertEquals(loaded.copy(amount = Money.of("6", "USD"), categoryId = 5, date = day), built)
     }
@@ -190,7 +190,7 @@ class EntryFormRulesTest {
         // The accounts typed into the inputs must be ignored: a transfer's pair is locked.
         val inputs = EntryFormInputs(accountId = 2, destAccountId = 1, amountInput = "60")
 
-        val built = rule(TransactionType.TRANSFER).build(inputs, accounts, parser, day, "moved", loaded)
+        val built = rule(TransactionType.TRANSFER).build(inputs, accounts, parser, day, "moved", loaded).entry
 
         assertEquals(loaded.copy(sourceAmount = Money.of("60", "USD"), date = day, note = "moved"), built)
     }
@@ -258,10 +258,12 @@ class EntryFormRulesTest {
     }
 
     @Test
-    fun aDebtKindHasNoFormRuleYet() {
-        val borrow = Transaction.Borrow(accountId = 1, debtId = 1, amount = Money.of("5", "USD"), date = day)
-        val owed = Transaction.OwedBefore(debtId = 1, side = DebtSide.I_OWE, amount = Money.of("5", "USD"), date = day)
-        assertNull(EntryFormRules.forEntry(borrow))
-        assertNull(EntryFormRules.forEntry(owed))
+    fun repaymentAndWriteOffStillHaveNoEditableFormRule() {
+        val repayment = Transaction.Repayment(accountId = 1, debtId = 1, side = DebtSide.I_OWE,
+            accountAmount = Money.of("5", "USD"), principal = Money.of("5", "USD"), date = day)
+        val writeOff = Transaction.WriteOff(debtId = 1, side = DebtSide.I_OWE,
+            amount = Money.of("5", "USD"), categoryId = 1, date = day)
+        assertNull(EntryFormRules.forEntry(repayment))
+        assertNull(EntryFormRules.forEntry(writeOff))
     }
 }

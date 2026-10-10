@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.Money
@@ -116,6 +117,10 @@ fun EditTransactionScreen(
         state = state,
         snackbarHostState = snackbarHostState,
         onAccountSelected = viewModel::selectAccount,
+        onCounterpartyChanged = viewModel::setCounterparty,
+        onSuggestionSelected = viewModel::selectCounterpartySuggestion,
+        onCurrencySelected = viewModel::selectCurrency,
+        onDebtSideSelected = viewModel::selectDebtSide,
         onCategorySelected = viewModel::selectCategory,
         onSubCategorySelected = viewModel::selectSubCategory,
         onAmountChanged = viewModel::setAmount,
@@ -142,6 +147,10 @@ private fun EditTransactionContent(
     onSubmit: () -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
+    onCounterpartyChanged: (String) -> Unit = {},
+    onSuggestionSelected: (String) -> Unit = {},
+    onCurrencySelected: (String) -> Unit = {},
+    onDebtSideSelected: (DebtSide) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -162,6 +171,10 @@ private fun EditTransactionContent(
                     type = type,
                     date = state.date ?: loaded.date,
                     onAccountSelected = onAccountSelected,
+                    onCounterpartyChanged = onCounterpartyChanged,
+                    onSuggestionSelected = onSuggestionSelected,
+                    onCurrencySelected = onCurrencySelected,
+                    onDebtSideSelected = onDebtSideSelected,
                     onCategorySelected = onCategorySelected,
                     onSubCategorySelected = onSubCategorySelected,
                     onAmountChanged = onAmountChanged,
@@ -192,6 +205,10 @@ private fun EditTransactionForm(
     onSubmit: () -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
+    onCounterpartyChanged: (String) -> Unit = {},
+    onSuggestionSelected: (String) -> Unit = {},
+    onCurrencySelected: (String) -> Unit = {},
+    onDebtSideSelected: (DebtSide) -> Unit = {},
 ) {
     var confirmingDelete by remember { mutableStateOf(false) }
 
@@ -205,10 +222,13 @@ private fun EditTransactionForm(
         // The kind is a fact of the row, not a choice — show it, never let it be re-picked.
         Text(typeLabel(type), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
 
+        val rule = EntryFormRules.forType(type)
+        DebtKindFields(type, state.formInputs(), state.fx?.currencies.orEmpty(), state.counterpartySuggestions,
+            onCounterpartyChanged, onSuggestionSelected, onCurrencySelected, onDebtSideSelected)
         val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
         AmountField(
             value = state.amountInput,
-            label = amountLabel(selectedAccount),
+            label = formAmountLabel(rule.currency(state.formInputs(), state.accounts)),
             onValueChange = onAmountChanged,
             supportingText = state.baseEquivalent?.let {
                 stringResource(R.string.add_transaction_base_equivalent, bidiIsolate(it))
@@ -306,14 +326,16 @@ private fun AccountAndCategoryFields(
         return
     }
 
+    val rule = EntryFormRules.forType(type)
     val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
-    LabeledDropdown(
+    if (rule.requiresAccount) LabeledDropdown(
         label = stringResource(R.string.field_account),
         selectedText = selectedAccount?.let { accountLabel(it) } ?: stringResource(R.string.value_select_prompt),
         items = state.accounts,
         itemLabel = { accountLabel(it) },
         onSelect = { onAccountSelected(it.id) },
     )
+    if (!rule.requiresCategory) return
     val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
     LabeledDropdown(
         label = stringResource(R.string.field_category),

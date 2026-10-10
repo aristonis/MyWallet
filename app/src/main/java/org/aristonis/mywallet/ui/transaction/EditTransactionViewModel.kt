@@ -17,6 +17,9 @@ import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.FxSnapshot
@@ -49,6 +52,11 @@ data class EditTransactionUiState(
     val selectedSubCategoryId: Long? = null,
     val destAccountId: Long? = null,
     val amountInput: String = "",
+    val counterparty: String = "",
+    val currencyCode: String? = null,
+    val debtSide: DebtSide = DebtSide.I_OWE,
+    val debtId: Long? = null,
+    val counterpartySuggestions: List<String> = emptyList(),
     val date: LocalDate? = null,
     val note: String = "",
     val isSubmitting: Boolean = false,
@@ -111,6 +119,7 @@ data class EditTransactionUiState(
         subCategoryId = selectedSubCategoryId,
         destAccountId = destAccountId,
         amountInput = amountInput,
+        counterparty = counterparty, currencyCode = currencyCode, debtSide = debtSide, debtId = debtId,
     )
 }
 
@@ -139,11 +148,17 @@ class EditTransactionViewModel @Inject constructor(
     private val moneyParser: MoneyParser,
     moneyFormatter: MoneyFormatter,
     fx: FxRepository,
+    private val debts: DebtRepository,
+    suggestCounterparties: SuggestCounterparties,
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
     private val _state = MutableStateFlow(EditTransactionUiState())
     val state: StateFlow<EditTransactionUiState> = _state.asStateFlow()
+    private val suggestions = CounterpartySuggestions(viewModelScope, suggestCounterparties,
+        onResult = { names -> _state.update { it.copy(counterpartySuggestions = names) } },
+        onFailure = { e -> _state.update { it.copy(error = e.toUiMessage()) } })
+
 
     private var loadJob: Job? = null
 
@@ -174,12 +189,14 @@ class EditTransactionViewModel @Inject constructor(
      */
     fun load(id: Long) {
         loadJob?.cancel()
+        suggestions.invalidate()
         // Reset identity + one-shot state before the async fetch, so a reused (retained) view model
         // never renders — or lets a Save/Delete hit — the previously loaded entry while findById runs.
         mutate {
             it.copy(
                 loaded = null, type = null, isSubmitting = false, error = null,
                 savedOn = null, deleted = false, undoableDelete = null, rateInputs = emptyMap(), readOnly = false,
+                counterparty = "", currencyCode = null, debtId = null, counterpartySuggestions = emptyList(),
             )
         }
         loadJob = viewModelScope.launch {
@@ -196,10 +213,30 @@ class EditTransactionViewModel @Inject constructor(
                 mutate { it.copy(error = UiMessage.TransactionNotFound) }
                 return@launch
             }
-            mutate { it.populatedFrom(existing) }
+            try {
+                val debtId = EntryFormRules.forEntry(existing)?.load(existing, moneyParser)?.debtId
+                val debt = debtId?.let { debts.findById(it) ?: throw WalletException.DebtNotFound(it) }
+                ensureActive()
+                mutate { current -> current.populatedFrom(existing).copy(counterparty = debt?.counterparty.orEmpty(),
+                    debtSide = debt?.side ?: current.debtSide) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                ensureActive()
+                mutate { it.copy(error = e.toUiMessage()) }
+            }
         }
     }
 
+    fun setCounterparty(value: String) {
+        mutate { it.copy(counterparty = value, counterpartySuggestions = emptyList(), error = null) }
+        suggestions.request(value)
+    }
+    fun selectCounterpartySuggestion(value: String) {
+        suggestions.invalidate()
+        mutate { it.copy(counterparty = value, counterpartySuggestions = emptyList(), error = null) }
+    }
+    fun selectCurrency(code: String) = mutate { it.copy(currencyCode = code) }
+    fun selectDebtSide(side: DebtSide) = mutate { it.copy(debtSide = side) }
     fun selectAccount(id: Long) = mutate { it.copy(selectedAccountId = id) }
 
     // Changing the category drops the child with it: it belongs to the old parent, so the domain
@@ -277,8 +314,10 @@ class EditTransactionViewModel @Inject constructor(
         _state.update { it.copy(isSubmitting = true, error = null) }
         viewModelScope.launch {
             try {
+                val built = buildEdited(snapshot, loaded)
                 val saved = saveEntry(
-                    entry = buildEdited(snapshot, loaded),
+                    entry = built.entry,
+                    debt = built.debt,
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )
                 _state.update { it.copy(isSubmitting = false, savedOn = saved.date) }
@@ -343,6 +382,7 @@ class EditTransactionViewModel @Inject constructor(
         selectedSubCategoryId = inputs.subCategoryId,
         destAccountId = inputs.destAccountId,
         amountInput = inputs.amountInput,
+        currencyCode = inputs.currencyCode, debtId = inputs.debtId, debtSide = inputs.debtSide,
         date = tx.date,
         note = tx.note ?: "",
         isSubmitting = false,
@@ -360,7 +400,7 @@ class EditTransactionViewModel @Inject constructor(
      * re-derives the destination leg). The rate an income or expense carries here is ignored: the save
      * decides it.
      */
-    private fun buildEdited(snapshot: EditTransactionUiState, loaded: Transaction): Transaction {
+    private fun buildEdited(snapshot: EditTransactionUiState, loaded: Transaction): BuiltEntry {
         val rule = checkNotNull(snapshot.type?.let(EntryFormRules::forType)) { "an editable entry has a type" }
         return rule.build(
             inputs = snapshot.formInputs(),

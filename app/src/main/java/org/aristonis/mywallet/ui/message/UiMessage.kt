@@ -28,6 +28,7 @@ sealed interface UiMessage {
     // -- Incomplete form --------------------------------------------------------------------------
 
     data object AccountRequired : UiMessage
+    data object CurrencyRequired : UiMessage
     data object CategoryRequired : UiMessage
     data object DestinationAccountRequired : UiMessage
     data object NameRequired : UiMessage

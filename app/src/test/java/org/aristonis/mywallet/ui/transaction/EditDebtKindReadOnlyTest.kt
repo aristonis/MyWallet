@@ -89,12 +89,14 @@ class EditDebtKindReadOnlyTest {
             moneyParser = MoneyParser(Locale.US),
             moneyFormatter = MoneyFormatter(Locale.US),
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
+            suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
+            debts = use.debts,
         )
     }
 
     @Test
     fun eachDebtKindOpensReadOnlyWithoutAnError() = runTest {
-        debtKinds.forEach { entry ->
+        debtKinds.filter { it is Transaction.Repayment || it is Transaction.WriteOff }.forEach { entry ->
             val f = Fixture(debtKinds + income)
             advanceUntilIdle()
 
@@ -114,7 +116,7 @@ class EditDebtKindReadOnlyTest {
 
     @Test
     fun submittingAReadOnlyEntryWritesNothing() = runTest {
-        debtKinds.forEach { entry ->
+        debtKinds.filter { it is Transaction.Repayment || it is Transaction.WriteOff }.forEach { entry ->
             val f = Fixture(debtKinds + income)
             advanceUntilIdle()
             f.viewModel.load(entry.id)
@@ -233,7 +235,7 @@ class EditDebtKindReadOnlyTest {
     fun reopeningAnIncomeAfterADebtKindLiftsTheReadOnlyFlag() = runTest {
         val f = Fixture(debtKinds + income)
         advanceUntilIdle()
-        f.viewModel.load(debtKinds.first().id)
+        f.viewModel.load(debtKinds.last().id)
         advanceUntilIdle()
 
         f.viewModel.load(income.id)

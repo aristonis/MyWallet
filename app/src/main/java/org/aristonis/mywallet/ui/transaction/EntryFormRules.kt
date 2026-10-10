@@ -3,7 +3,11 @@ package org.aristonis.mywallet.ui.transaction
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.DebtRef
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.ledger.recipe
+import java.math.BigDecimal
 import org.aristonis.mywallet.ui.message.MissingSelectionException
 import org.aristonis.mywallet.ui.message.UiMessage
 import java.time.LocalDate
@@ -15,7 +19,13 @@ data class EntryFormInputs(
     val subCategoryId: Long? = null,
     val destAccountId: Long? = null,
     val amountInput: String = "",
+    val counterparty: String = "",
+    val currencyCode: String? = null,
+    val debtSide: DebtSide = DebtSide.I_OWE,
+    val debtId: Long? = null,
 )
+
+data class BuiltEntry(val entry: Transaction, val debt: DebtRef? = null)
 
 /**
  * How the form treats one entry type. The add and the edit form both go through it, so what a type
@@ -23,6 +33,22 @@ data class EntryFormInputs(
  */
 interface EntryFormRule {
     val type: TransactionType
+    val kind: String
+    val requiresAccount: Boolean get() = true
+    val requiresCategory: Boolean get() = false
+    val requiresCounterparty: Boolean get() = false
+    val requiresCurrency: Boolean get() = false
+    val showsDebtSide: Boolean get() = false
+    val countsInTracking: Boolean get() = false
+
+    fun currency(inputs: EntryFormInputs, accounts: List<Account>): String? =
+        if (requiresAccount) accounts.firstOrNull { it.id == inputs.accountId }?.currencyCode else inputs.currencyCode
+
+    fun quoteLegs(inputs: EntryFormInputs, accounts: List<Account>, loaded: Transaction? = null): List<QuoteLeg> =
+        currency(inputs, accounts)?.let { listOf(QuoteLeg(it, inputs.amountInput, countsInTracking)) }.orEmpty()
+
+    fun quotePair(inputs: EntryFormInputs, accounts: List<Account>, loaded: Transaction? = null): QuotePair? = null
+    fun keptRates(entry: Transaction): Map<String, BigDecimal?> = emptyMap()
 
     /** The categories the picker lists for this type, top-level only; sub-categories hang off them. */
     fun categoriesOffered(all: List<Category>): List<Category>
@@ -48,7 +74,7 @@ interface EntryFormRule {
         date: LocalDate,
         note: String,
         loaded: Transaction? = null,
-    ): Transaction
+    ): BuiltEntry
 
     /**
      * The inputs that show [entry] on the form.
@@ -61,27 +87,13 @@ interface EntryFormRule {
 /** Every rule, by entry type or by stored entry. */
 object EntryFormRules {
 
-    /** The rule for [type]; every type the form records has one. */
-    fun forType(type: TransactionType): EntryFormRule = when (type) {
-        TransactionType.INCOME -> IncomeFormRule
-        TransactionType.EXPENSE -> ExpenseFormRule
-        TransactionType.TRANSFER -> TransferFormRule
-    }
+    val all: List<EntryFormRule> = listOf(IncomeFormRule, ExpenseFormRule, TransferFormRule,
+        BorrowFormRule, LendFormRule, OwedBeforeFormRule, CreditPurchaseFormRule, EarnedUnpaidFormRule)
+    private val byType = all.associateBy { it.type }
+    private val byKind = all.associateBy { it.kind }
+    fun forType(type: TransactionType): EntryFormRule = checkNotNull(byType[type])
+    fun forEntry(entry: Transaction): EntryFormRule? = byKind[entry.recipe().kind]
 
-    /** The rule that edits [entry], or null for a kind the form cannot edit yet (the debt kinds). */
-    fun forEntry(entry: Transaction): EntryFormRule? = when (entry) {
-        is Transaction.Income -> IncomeFormRule
-        is Transaction.Expense -> ExpenseFormRule
-        is Transaction.Transfer -> TransferFormRule
-        is Transaction.Borrow,
-        is Transaction.Lend,
-        is Transaction.OwedBefore,
-        is Transaction.CreditPurchase,
-        is Transaction.EarnedUnpaid,
-        is Transaction.Repayment,
-        is Transaction.WriteOff,
-        -> null
-    }
 }
 
 /** A note typed as blanks is no note at all. */
@@ -89,7 +101,7 @@ internal fun noteOrNull(note: String): String? = note.trim().ifEmpty { null }
 
 /** The chosen account, or a refusal that names it as missing. */
 internal fun requireAccount(inputs: EntryFormInputs, accounts: List<Account>): Account =
-    accounts.firstOrNull { it.id == inputs.accountId } ?: throw MissingSelectionException(UiMessage.AccountRequired)
+    accounts.firstOrNull { it.id == inputs.accountId && !it.archived } ?: throw MissingSelectionException(UiMessage.AccountRequired)
 
 /** Refuses an entry of another type than [rule]'s: a bug in the caller, never something the user typed. */
 internal fun wrongType(rule: EntryFormRule, loaded: Transaction): Nothing =

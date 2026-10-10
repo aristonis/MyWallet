@@ -17,6 +17,8 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
+import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.FxSnapshot
@@ -28,8 +30,8 @@ import org.aristonis.mywallet.domain.usecase.SaveEntry
 import java.time.LocalDate
 import javax.inject.Inject
 
-/** Which of the three ledger actions the form is recording. */
-enum class TransactionType { INCOME, EXPENSE, TRANSFER }
+/** The entry kind the form is recording. */
+enum class TransactionType { INCOME, EXPENSE, TRANSFER, BORROW, LEND, OWED_BEFORE, CREDIT_PURCHASE, EARNED_UNPAID }
 
 /** Immutable snapshot the add-transaction screen renders from. */
 data class AddTransactionUiState(
@@ -41,6 +43,11 @@ data class AddTransactionUiState(
     val selectedSubCategoryId: Long? = null,
     val destAccountId: Long? = null,
     val amountInput: String = "",
+    val counterparty: String = "",
+    val currencyCode: String? = null,
+    val debtSide: DebtSide = DebtSide.I_OWE,
+    val debtId: Long? = null,
+    val counterpartySuggestions: List<String> = emptyList(),
     val date: LocalDate,
     val note: String = "",
     val isSubmitting: Boolean = false,
@@ -95,6 +102,7 @@ data class AddTransactionUiState(
         subCategoryId = selectedSubCategoryId,
         destAccountId = destAccountId,
         amountInput = amountInput,
+        counterparty = counterparty, currencyCode = currencyCode, debtSide = debtSide, debtId = debtId,
     )
 }
 
@@ -122,11 +130,16 @@ class AddTransactionViewModel @Inject constructor(
     // takes typing either way. Kept so the injected shape stays the one callers build.
     @Suppress("UNUSED_PARAMETER") settings: SettingsRepository,
     moneyFormatter: MoneyFormatter,
+    suggestCounterparties: SuggestCounterparties,
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
     private val _state = MutableStateFlow(AddTransactionUiState(date = today.today()))
     val state: StateFlow<AddTransactionUiState> = _state.asStateFlow()
+    private val suggestions = CounterpartySuggestions(viewModelScope, suggestCounterparties,
+        onResult = { names -> _state.update { it.copy(counterpartySuggestions = names) } },
+        onFailure = { e -> _state.update { it.copy(error = e.toUiMessage()) } })
+
 
     init {
         combine(accounts.observeAll(), categories.observeAll()) { accountList, categoryList ->
@@ -145,7 +158,7 @@ class AddTransactionViewModel @Inject constructor(
                 }
             }
             .launchIn(viewModelScope)
-        fx.observeFx().onEach { snapshot -> mutate { it.copy(fx = snapshot) } }.launchIn(viewModelScope)
+        fx.observeFx().onEach { snapshot -> mutate { it.copy(fx = snapshot, currencyCode = it.currencyCode ?: snapshot.baseCurrencyCode) } }.launchIn(viewModelScope)
     }
 
     /**
@@ -171,6 +184,16 @@ class AddTransactionViewModel @Inject constructor(
         it.copy(type = type, selectedCategoryId = null, selectedSubCategoryId = null, error = null)
     }
 
+    fun setCounterparty(value: String) {
+        mutate { it.copy(counterparty = value, counterpartySuggestions = emptyList(), error = null) }
+        suggestions.request(value)
+    }
+    fun selectCounterpartySuggestion(value: String) {
+        suggestions.invalidate()
+        mutate { it.copy(counterparty = value, counterpartySuggestions = emptyList(), error = null) }
+    }
+    fun selectCurrency(code: String) = mutate { it.copy(currencyCode = code) }
+    fun selectDebtSide(side: DebtSide) = mutate { it.copy(debtSide = side) }
     fun selectAccount(id: Long) = mutate { it.copy(selectedAccountId = id) }
 
     // Changing the category drops the child with it: the previous category's child would otherwise
@@ -222,12 +245,11 @@ class AddTransactionViewModel @Inject constructor(
     fun submit() {
         val snapshot = _state.value
         if (snapshot.isSubmitting || snapshot.savedOn != null) return
-        if (snapshot.accounts.none { it.id == snapshot.selectedAccountId }) return
         _state.update { it.copy(isSubmitting = true, error = null) }
         viewModelScope.launch {
             try {
                 // A missing category or destination is thrown by the rule, before anything is written.
-                val entry = EntryFormRules.forType(snapshot.type).build(
+                val built = EntryFormRules.forType(snapshot.type).build(
                     inputs = snapshot.formInputs(),
                     accounts = snapshot.accounts,
                     moneyParser = moneyParser,
@@ -235,7 +257,8 @@ class AddTransactionViewModel @Inject constructor(
                     note = snapshot.note,
                 )
                 val saved = saveEntry(
-                    entry = entry,
+                    entry = built.entry,
+                    debt = built.debt,
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )
                 _state.update { it.copy(isSubmitting = false, savedOn = saved.date) }
@@ -252,13 +275,8 @@ class AddTransactionViewModel @Inject constructor(
 
 /** What the rate previews are priced from; the edit form builds the same input from its own state. */
 internal fun AddTransactionUiState.quoteInput(): RateQuoteInput {
-    val isTransfer = type == TransactionType.TRANSFER
-    return RateQuoteInput(
-        fx = fx,
-        sourceCurrency = accounts.firstOrNull { it.id == selectedAccountId }?.currencyCode,
-        destCurrency = if (isTransfer) accounts.firstOrNull { it.id == destAccountId }?.currencyCode else null,
-        isTransfer = isTransfer,
-        amountInput = amountInput,
-        rateInputs = rateInputs,
-    )
+    val rule = EntryFormRules.forType(type)
+    val inputs = formInputs()
+    return RateQuoteInput(fx = fx, legs = rule.quoteLegs(inputs, accounts), rateInputs = rateInputs,
+        pair = rule.quotePair(inputs, accounts))
 }

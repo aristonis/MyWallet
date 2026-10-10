@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.Money
@@ -82,6 +84,10 @@ fun AddTransactionScreen(
     AddTransactionContent(
         state = state,
         onTypeSelected = viewModel::selectType,
+        onCounterpartyChanged = viewModel::setCounterparty,
+        onSuggestionSelected = viewModel::selectCounterpartySuggestion,
+        onCurrencySelected = viewModel::selectCurrency,
+        onDebtSideSelected = viewModel::selectDebtSide,
         onAccountSelected = viewModel::selectAccount,
         onCategorySelected = viewModel::selectCategory,
         onSubCategorySelected = viewModel::selectSubCategory,
@@ -96,7 +102,7 @@ fun AddTransactionScreen(
 }
 
 @Composable
-private fun AddTransactionContent(
+internal fun AddTransactionContent(
     state: AddTransactionUiState,
     onTypeSelected: (TransactionType) -> Unit,
     onAccountSelected: (Long) -> Unit,
@@ -109,7 +115,12 @@ private fun AddTransactionContent(
     onNoteChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
+    onCounterpartyChanged: (String) -> Unit = {},
+    onSuggestionSelected: (String) -> Unit = {},
+    onCurrencySelected: (String) -> Unit = {},
+    onDebtSideSelected: (DebtSide) -> Unit = {},
 ) {
+    var showingMore by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             WalletTopAppBar(title = stringResource(R.string.add_transaction_title), onBack = onCancel)
@@ -124,17 +135,26 @@ private fun AddTransactionContent(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             TransactionTypeSelector(selected = state.type, onSelect = onTypeSelected)
+            TextButton(onClick = { showingMore = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.kind_more))
+            }
+            if (state.type !in standardTransactionTypes) {
+                Text(typeLabel(state.type), style = MaterialTheme.typography.titleMedium)
+            }
+            DebtKindFields(state.type, state.formInputs(), state.fx?.currencies.orEmpty(), state.counterpartySuggestions,
+                onCounterpartyChanged, onSuggestionSelected, onCurrencySelected, onDebtSideSelected)
 
+            val rule = EntryFormRules.forType(state.type)
             val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
             AmountField(
                 value = state.amountInput,
-                label = amountLabel(selectedAccount),
+                label = formAmountLabel(rule.currency(state.formInputs(), state.accounts)),
                 onValueChange = onAmountChanged,
                 supportingText = state.baseEquivalent?.let {
                     stringResource(R.string.add_transaction_base_equivalent, bidiIsolate(it))
                 },
             )
-            LabeledDropdown(
+            if (rule.requiresAccount) LabeledDropdown(
                 label = stringResource(
                     if (state.type == TransactionType.TRANSFER) R.string.field_from_account else R.string.field_account,
                 ),
@@ -157,7 +177,7 @@ private fun AddTransactionContent(
                         onSelect = { onDestAccountSelected(it.id) },
                     )
                 }
-                else -> {
+                else -> if (rule.requiresCategory) {
                     val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
                     LabeledDropdown(
                         label = stringResource(R.string.field_category),
@@ -217,6 +237,7 @@ private fun AddTransactionContent(
             }
         }
     }
+    if (showingMore) MoreKindsSheet(onTypeSelected, onDismiss = { showingMore = false })
 }
 
 /** A labelled button showing the chosen date; tapping it opens the Material date picker. */
@@ -264,8 +285,17 @@ internal fun typeLabel(type: TransactionType): String = stringResource(
         TransactionType.INCOME -> R.string.transaction_type_income
         TransactionType.EXPENSE -> R.string.transaction_type_expense
         TransactionType.TRANSFER -> R.string.transaction_type_transfer
+        TransactionType.BORROW -> R.string.transaction_type_borrow
+        TransactionType.LEND -> R.string.transaction_type_lend
+        TransactionType.OWED_BEFORE -> R.string.transaction_type_owed_before
+        TransactionType.CREDIT_PURCHASE -> R.string.transaction_type_credit_purchase
+        TransactionType.EARNED_UNPAID -> R.string.transaction_type_earned_unpaid
     },
 )
+
+@Composable
+internal fun formAmountLabel(currencyCode: String?): String = currencyCode
+    ?.let { stringResource(R.string.field_amount_in_currency, it) } ?: stringResource(R.string.field_amount)
 
 /** The account currency belongs in the amount label: it is what the typed number will be recorded in. */
 @Composable
@@ -317,11 +347,11 @@ internal fun TransactionTypeSelector(
     onSelect: (TransactionType) -> Unit,
 ) {
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        TransactionType.entries.forEachIndexed { index, type ->
+        standardTransactionTypes.forEachIndexed { index, type ->
             SegmentedButton(
                 selected = selected == type,
                 onClick = { onSelect(type) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = TransactionType.entries.size),
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = standardTransactionTypes.size),
             ) {
                 Text(typeLabel(type), maxLines = 1)
             }

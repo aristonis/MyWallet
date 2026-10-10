@@ -85,6 +85,7 @@ class AddTransactionViewModelTest {
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
+            suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
         )
 
         /** Everything the save stored. */

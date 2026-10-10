@@ -23,6 +23,7 @@ fun UiMessage.text(): String = when (this) {
     UiMessage.NotANumber -> stringResource(R.string.msg_not_a_number)
 
     UiMessage.AccountRequired -> stringResource(R.string.msg_account_required)
+    UiMessage.CurrencyRequired -> stringResource(R.string.msg_currency_required)
     UiMessage.CategoryRequired -> stringResource(R.string.msg_category_required)
     UiMessage.DestinationAccountRequired -> stringResource(R.string.msg_destination_account_required)
     UiMessage.NameRequired -> stringResource(R.string.msg_name_required)

@@ -50,26 +50,16 @@ internal data class RateQuote(
 private const val PAIR_RATE_SIGNIFICANT_DIGITS = 6
 private val PAIR_RATE_PRECISION = MathContext(PAIR_RATE_SIGNIFICANT_DIGITS, CurrencyConverter.ROUNDING)
 
-/**
- * What a form prices: the currency the amount is typed in, the destination of a transfer, the text
- * in the amount and rate fields, and the saved rates. Add and Edit both hand the quoter this, so the
- * same inputs give the same rate fields and the same figures on either form.
- *
- * @property sourceCurrency The currency the amount is typed in; null until an account is chosen.
- * @property destCurrency A transfer's destination currency; null for income and expense, or while
- *   no destination is chosen.
- * @property keptRates On an edit, the rate the entry already holds for a currency it keeps, so the
- *   field shows the rate the save will keep rather than today's saved one. A null value means the
- *   entry has no rate for that currency yet, and the field shows none.
- */
+/** A money leg and whether it contributes to income or expense tracking. */
+data class QuoteLeg(val currencyCode: String, val amountInput: String, val countsInTracking: Boolean)
+data class QuotePair(val from: String, val to: String)
+
 internal data class RateQuoteInput(
     val fx: FxSnapshot?,
-    val sourceCurrency: String?,
-    val destCurrency: String?,
-    val isTransfer: Boolean,
-    val amountInput: String,
+    val legs: List<QuoteLeg>,
     val rateInputs: Map<String, String>,
     val keptRates: Map<String, BigDecimal?> = emptyMap(),
+    val pair: QuotePair? = null,
 )
 
 /**
@@ -94,21 +84,22 @@ internal class RateQuoter(
 ) {
     fun quote(input: RateQuoteInput): RateQuote {
         val fx = input.fx ?: return RateQuote()
-        val sourceCode = input.sourceCurrency ?: return RateQuote()
-        val destCode = if (input.isTransfer) input.destCurrency else null
+        val pair = input.pair
+        val tracking = input.legs.filter { it.countsInTracking }
+        val codes = tracking.map { it.currencyCode } +
+            if (pair != null && pair.from != pair.to) listOf(pair.from, pair.to) else emptyList()
         val shown = shownRates(fx, input.keptRates)
-        val fields = convertedCodes(input.isTransfer, sourceCode, destCode)
-            .filterNot { it == fx.baseCurrencyCode }
-            .map { code -> fieldFor(input, shown, code) }
+        val fields = codes.distinct().filterNot { it == fx.baseCurrencyCode }.map { fieldFor(input, shown, it) }
         val book = bookFor(input, shown, fields)
         val prices = Prices(fx, book)
-        val amount = amountOrNull(input.amountInput, sourceCode)
+        val pricedLeg = tracking.firstOrNull() ?: if (pair != null) input.legs.firstOrNull() else null
+        val amount = pricedLeg?.let { amountOrNull(it.amountInput, it.currencyCode) }
         return RateQuote(
             rateFields = fields,
             baseEquivalent = amount?.let { prices.inBase(it) },
-            pairRate = destCode?.let { prices.pairRate(sourceCode, it) },
-            receivedDisplay = destCode?.let { code -> amount?.let { prices.received(it, code) } },
-            rateRequired = input.isTransfer && fields.any { book.rateToBase(it.currencyCode) == null },
+            pairRate = pair?.let { prices.pairRate(it.from, it.to) },
+            receivedDisplay = pair?.let { p -> amount?.let { prices.received(it, p.to) } },
+            rateRequired = pair != null && fields.any { book.rateToBase(it.currencyCode) == null },
         )
     }
 
@@ -136,13 +127,6 @@ internal class RateQuoter(
             .map { (code, text) -> code to parser.parseRate(text) }
             .filterNot { (code, rate) -> prefill[code]?.compareTo(rate) == 0 }
             .toMap()
-    }
-
-    /** The currencies this entry converts; a transfer with no destination yet converts nothing. */
-    private fun convertedCodes(isTransfer: Boolean, sourceCode: String, destCode: String?): List<String> = when {
-        !isTransfer -> listOf(sourceCode)
-        destCode == null || destCode == sourceCode -> emptyList()
-        else -> listOf(sourceCode, destCode)
     }
 
     /** The saved rates with an edited entry's own rates laid over them; a kept null removes the rate. */

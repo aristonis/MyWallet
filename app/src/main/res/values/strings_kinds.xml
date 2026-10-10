@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kind_more">More</string>
+    <string name="kind_more_title">More transaction kinds</string>
+    <string name="kind_counterparty">Person or business</string>
+    <string name="kind_debt_side">Who owes?</string>
+    <string name="kind_i_owe">I owe</string>
+    <string name="kind_owed_to_me">Owed to me</string>
+</resources>

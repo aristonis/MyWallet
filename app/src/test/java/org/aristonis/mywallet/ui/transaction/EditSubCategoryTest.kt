@@ -85,6 +85,8 @@ class EditSubCategoryTest {
             moneyParser = MoneyParser(Locale.US),
             moneyFormatter = MoneyFormatter(Locale.US),
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
+            suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
+            debts = use.debts,
         )
     }
 

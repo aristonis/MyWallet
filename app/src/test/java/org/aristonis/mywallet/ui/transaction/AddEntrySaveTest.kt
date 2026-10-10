@@ -73,6 +73,7 @@ class AddEntrySaveTest {
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
+            suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
         )
         val state get() = viewModel.state.value
 
