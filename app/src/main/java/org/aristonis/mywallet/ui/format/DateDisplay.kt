@@ -3,7 +3,7 @@ package org.aristonis.mywallet.ui.format
 import android.text.format.DateFormat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLocale
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
@@ -68,7 +68,7 @@ fun rememberDateFormatter(): (LocalDate) -> String {
 }
 
 @Composable
-internal fun currentLocale(): Locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
+internal fun currentLocale(): Locale = LocalLocale.current.platformLocale
 
 internal fun formatterFor(skeleton: String, locale: Locale): DateTimeFormatter =
     DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale)
