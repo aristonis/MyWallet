@@ -55,4 +55,10 @@ internal class FakeManageCategoryRepository(initial: List<Category> = emptyList(
         items.value = items.value.filterNot { it.id in doomed }
         return affectedRows
     }
+
+    override suspend fun bucketFor(kind: CategoryKind): Long {
+        val key = Category.uncategorizedKeyFor(kind)
+        items.value.firstOrNull { it.systemKey == key }?.let { return it.id }
+        return upsert(Category(name = key, kind = kind, systemKey = key))
+    }
 }

@@ -49,6 +49,13 @@ interface CategoryRepository {
      * doing the get-or-create out here would strand an orphan bucket when the rest rolled back.
      */
     suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int
+
+    /**
+     * The id of the app-owned Uncategorized bucket of [kind], created on first need. Idempotent
+     * within the enclosing transaction: a second call finds the row the first inserted. It writes,
+     * so call it only inside the transaction runner.
+     */
+    suspend fun bucketFor(kind: CategoryKind): Long
 }
 
 interface CurrencyRepository {

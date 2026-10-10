@@ -73,6 +73,9 @@ internal class FakeCategoryRepository(initial: List<Category> = emptyList()) : C
 
     override suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int =
         error("the transaction screens do not delete categories")
+
+    override suspend fun bucketFor(kind: CategoryKind): Long =
+        error("the transaction screens do not create buckets")
 }
 
 internal class FakeCurrencyRepository(initial: List<Currency> = emptyList()) : CurrencyRepository {

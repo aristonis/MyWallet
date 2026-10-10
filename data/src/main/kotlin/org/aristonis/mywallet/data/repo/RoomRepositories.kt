@@ -64,6 +64,12 @@ class RoomCategoryRepository(private val dao: CategoryDao) : CategoryRepository 
             // that kind, since the bucket could then never be created.
             fallbackName = fallbackKey,
         )
+
+    override suspend fun bucketFor(kind: CategoryKind): Long {
+        // The key doubles as the stored name, for the same reason as in deleteAndReassign.
+        val key = Category.uncategorizedKeyFor(kind)
+        return dao.resolveOrCreateBucket(kind.name, key, key)
+    }
 }
 
 class RoomCurrencyRepository(private val dao: CurrencyDao) : CurrencyRepository {

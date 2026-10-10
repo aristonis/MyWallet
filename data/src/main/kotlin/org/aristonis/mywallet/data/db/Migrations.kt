@@ -182,7 +182,7 @@ private const val ADD_PRE_MADE_CATEGORIES =
         "('Fees', 'EXPENSE', 0), ('Lost debt', 'EXPENSE', 0), ('Debt forgiven', 'INCOME', 0)"
 
 /** Each role with the kind and name of the top-level category it files under. */
-private val PRE_MADE_ROLES = listOf(
+internal val PRE_MADE_ROLES = listOf(
     Triple("INTEREST_IN", "INCOME", "Interest"),
     Triple("INTEREST_OUT", "EXPENSE", "Interest"),
     Triple("FEES", "EXPENSE", "Fees"),

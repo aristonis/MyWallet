@@ -19,6 +19,7 @@ import org.aristonis.mywallet.data.db.WalletDatabase
 import org.aristonis.mywallet.data.backup.RoomBackupRepository
 import org.aristonis.mywallet.data.repo.RoomAccountRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRepository
+import org.aristonis.mywallet.data.repo.RoomCategoryRoleRepository
 import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
 import org.aristonis.mywallet.data.repo.RoomRateRepository
 import org.aristonis.mywallet.data.repo.RoomSettingsRepository
@@ -27,6 +28,7 @@ import org.aristonis.mywallet.data.repo.RoomLedgerQueries
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
@@ -58,6 +60,9 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideCategoryRepository(dao: CategoryDao): CategoryRepository = RoomCategoryRepository(dao)
+
+    @Provides @Singleton
+    fun provideCategoryRoleRepository(dao: CategoryRoleDao): CategoryRoleRepository = RoomCategoryRoleRepository(dao)
 
     @Provides @Singleton
     fun provideCurrencyRepository(dao: CurrencyDao): CurrencyRepository = RoomCurrencyRepository(dao)

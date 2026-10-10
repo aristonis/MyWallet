@@ -617,6 +617,9 @@ private class FakeCategoryRepository(initial: List<Category>) : CategoryReposito
 
     override suspend fun deleteAndReassign(categoryId: Long, kind: CategoryKind, fallbackKey: String): Int =
         error("reports do not delete categories")
+
+    override suspend fun bucketFor(kind: CategoryKind): Long =
+        error("reports do not create buckets")
 }
 
 private class FakeCurrencyRepository(initial: List<Currency>) : CurrencyRepository {
