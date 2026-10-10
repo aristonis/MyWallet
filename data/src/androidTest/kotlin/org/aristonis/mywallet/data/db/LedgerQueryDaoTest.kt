@@ -6,9 +6,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.data.repo.RoomLedgerQueries
+import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.DateRange
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountLeg
+import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -254,5 +257,67 @@ class LedgerQueryDaoTest {
         assertEquals(setOf(1L, 2L), legs.map { it.entryId }.toSet())
         assertEquals(BigDecimal("1.08"), legs.single { it.entryId == 1L }.rateToBase)
         assertNull(legs.single { it.entryId == 2L }.rateToBase)
+    }
+
+    private fun debt(id: Long, side: String, currency: String) {
+        sql.execSQL(
+            "INSERT INTO debts (id, counterparty, counterpartyKey, side, currencyCode) VALUES (?, ?, ?, ?, ?)",
+            arrayOf<Any?>(id, "Person $id", "person $id", side, currency),
+        )
+    }
+
+    private fun debtLegOn(entryId: Long, debtId: Long, amount: String, currency: String) {
+        sql.execSQL(
+            "INSERT INTO entry_legs (entryId, role, position, debtId, amount, currencyCode) VALUES (?, 'DEBT', 0, ?, ?, ?)",
+            arrayOf<Any?>(entryId, debtId, amount, currency),
+        )
+    }
+
+    @Test
+    fun debtLegsAreReadWithTheDebtsSideAndCurrency() = runTest {
+        debt(1, "I_OWE", "USD")
+        debt(2, "OWED_TO_ME", "EUR")
+        entry(1, kind = "OWED_BEFORE")
+        debtLegOn(1, 1, "900.00", "USD")
+        entry(2, kind = "REPAYMENT")
+        debtLegOn(2, 2, "-20.50", "EUR")
+
+        val legs = queries.observeDebtLegs().first()
+
+        assertEquals(
+            setOf(
+                DebtLeg(1, DebtSide.I_OWE, Money.of("900.00", "USD")),
+                DebtLeg(2, DebtSide.OWED_TO_ME, Money.of("-20.50", "EUR")),
+            ),
+            legs.toSet(),
+        )
+    }
+
+    @Test
+    fun aDebtLegAmountThatDoesNotParseIsUnreadableAndNamesItsEntry() = runTest {
+        debt(1, "I_OWE", "USD")
+        entry(1, kind = "OWED_BEFORE")
+        debtLegOn(1, 1, "100.00", "USD")
+        entry(2, kind = "OWED_BEFORE")
+        debtLegOn(2, 1, "12,50", "USD")
+
+        val failure = runCatching { queries.observeDebtLegs().first() }.exceptionOrNull()
+
+        assertTrue("expected UnreadableRow, got $failure", failure is WalletException.UnreadableRow)
+        assertEquals(2L, (failure as WalletException.UnreadableRow).id)
+        assertEquals("OWED_BEFORE", failure.kind)
+    }
+
+    @Test
+    fun aDebtWithAnUnknownSideIsUnreadableAndNamesTheLegsEntry() = runTest {
+        debt(1, "SIDEWAYS", "USD")
+        entry(5, kind = "OWED_BEFORE")
+        debtLegOn(5, 1, "100.00", "USD")
+
+        val failure = runCatching { queries.observeDebtLegs().first() }.exceptionOrNull()
+
+        assertTrue("expected UnreadableRow, got $failure", failure is WalletException.UnreadableRow)
+        assertEquals(5L, (failure as WalletException.UnreadableRow).id)
+        assertEquals("OWED_BEFORE", failure.kind)
     }
 }

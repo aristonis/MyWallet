@@ -38,6 +38,7 @@ import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.ledger.LegTarget
@@ -580,6 +581,7 @@ private class FakeLedger(initial: List<Transaction>) : LedgerQueries {
     override suspend fun isAccountInUse(accountId: Long): Boolean = error("reports do not check account use")
     override fun observeAccountsInUse(): Flow<Set<Long>> = error("reports do not check account use")
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = error("reports do not read category usage")
+    override fun observeDebtLegs(): Flow<List<DebtLeg>> = flowOf(emptyList())
     override suspend fun distinctLegRates(): List<LegRate> = error("reports do not read leg rates")
 
     private fun categoryLegsOf(tx: Transaction): List<CategoryLeg> {

@@ -142,6 +142,13 @@ interface LedgerQueryDao {
     )
     suspend fun findAccountLegOwner(accountId: Long, amount: String): LegOwnerRow?
 
+    /** The entry holding a leg on [debtId] whose stored text is exactly [amount], lowest id first. */
+    @Query(
+        "SELECT e.id AS id, e.kind AS kind FROM entry_legs AS l JOIN entries AS e ON e.id = l.entryId " +
+            "WHERE l.debtId = :debtId AND l.amount = :amount ORDER BY e.id LIMIT 1",
+    )
+    suspend fun findDebtLegOwner(debtId: Long, amount: String): LegOwnerRow?
+
     /** The first entry, by id, whose kind is not in [known]; null when there is none. */
     @Query("SELECT id, kind FROM entries WHERE kind NOT IN (:known) ORDER BY id LIMIT 1")
     fun observeFirstUnknownKind(known: List<String>): Flow<UnknownKindRow?>

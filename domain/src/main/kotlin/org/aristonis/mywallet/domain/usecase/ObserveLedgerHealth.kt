@@ -15,6 +15,10 @@ import org.aristonis.mywallet.domain.port.LedgerQueries
  * Emits Unit while every entry's kind has a recipe, and fails with [WalletException.UnreadableRow]
  * naming the first entry, by id, whose kind has none. A row the upgrade could not convert is stored
  * under a kind no recipe registers, so it is reported here too.
+ *
+ * A debt whose remaining is below zero is not checked here. It can be repaired by editing or deleting
+ * the entry that overpaid it, and a failure here would lock every screen that reads health and leave
+ * no way to reach that entry. The Home summary and the debts screen report it instead.
  */
 class ObserveLedgerHealth(private val ledger: LedgerQueries) {
 

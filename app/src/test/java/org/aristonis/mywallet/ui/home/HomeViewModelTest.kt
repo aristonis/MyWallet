@@ -33,6 +33,7 @@ import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.port.LegRate
@@ -345,6 +346,7 @@ private class FakeAccountRepository(initial: List<Account>) : AccountRepository 
  */
 private open class AccountLegsLedger : LedgerQueries {
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = flowOf(emptyList())
+    override fun observeDebtLegs(): Flow<List<DebtLeg>> = flowOf(emptyList())
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = error("Home does not read Tracking")
     override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = flowOf(null)
     override suspend fun isAccountInUse(accountId: Long): Boolean = error("Home does not check account use")

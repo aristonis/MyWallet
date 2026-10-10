@@ -22,6 +22,7 @@ import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.FxRepository
@@ -268,6 +269,7 @@ internal class FakeLedgerQueries : LedgerQueries {
         filledRates += code to rate
         return 0
     }
+    override fun observeDebtLegs(): Flow<List<DebtLeg>> = flowOf(emptyList())
     override suspend fun distinctLegRates(): List<LegRate> = emptyList()
 }
 

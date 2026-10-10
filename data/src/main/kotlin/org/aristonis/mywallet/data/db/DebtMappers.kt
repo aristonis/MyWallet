@@ -9,9 +9,6 @@ import org.aristonis.mywallet.domain.model.DebtSide
  * and its key side by side; the key is what the unique index and every lookup compare.
  */
 
-/** What [WalletException.UnreadableRow] names as the kind of a debt row it could not read. */
-private const val DEBT_ROW_KIND = "DEBT"
-
 /**
  * The stored debt as the domain sees it.
  *
@@ -34,15 +31,15 @@ fun DebtEntity.toDomain(): Debt {
             note = note,
         )
     } catch (e: WalletException.NameBlank) {
-        throw WalletException.UnreadableRow(id, DEBT_ROW_KIND, e)
+        throw WalletException.UnreadableRow(id, WalletException.UnreadableRow.DEBT_KIND, e)
     } catch (e: IllegalArgumentException) {
         // An unknown side name, or a blank currency code.
-        throw WalletException.UnreadableRow(id, DEBT_ROW_KIND, e)
+        throw WalletException.UnreadableRow(id, WalletException.UnreadableRow.DEBT_KIND, e)
     }
     if (debt.key.value != counterpartyKey) {
         throw WalletException.UnreadableRow(
             id,
-            DEBT_ROW_KIND,
+            WalletException.UnreadableRow.DEBT_KIND,
             IllegalArgumentException("debt $id stores a key that is not the key of its name"),
         )
     }

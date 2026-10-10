@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.onStart
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.LegRate
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
@@ -47,7 +48,11 @@ internal open class HealthLedger : LedgerQueries {
     var usageReads = 0
         private set
 
+    /** The debt legs the ledger holds; empty unless a test sets them. */
+    val debtLegs = MutableStateFlow<List<DebtLeg>>(emptyList())
+
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = flowOf(emptyList())
+    override fun observeDebtLegs(): Flow<List<DebtLeg>> = debtLegs
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = flowOf(emptyList())
     override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> =
         unknownKind.onStart {

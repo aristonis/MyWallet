@@ -5,6 +5,10 @@ import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
+import org.aristonis.mywallet.domain.ledger.Leg
+import org.aristonis.mywallet.domain.ledger.LegRole
+import org.aristonis.mywallet.domain.ledger.LegTarget
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
@@ -15,8 +19,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 /**
- * Assumed API: `ObserveLedgerHealth(ledger: LedgerQueries)` with `operator fun invoke(): Flow<Unit>`.
- * It emits Unit while every stored entry has a recipe and throws `WalletException.UnreadableRow(id, kind)`
+ * `ObserveLedgerHealth` emits Unit while every stored entry has a recipe and throws `WalletException.UnreadableRow(id, kind)`
  * (the first unknown kind, by id) out of the flow otherwise. The known kinds are the registered recipes,
  * so the stored kind LEGACY_UNREADABLE is never known.
  */
@@ -79,5 +82,22 @@ class ObserveLedgerHealthTest {
         entries.seedRaw(bare(3, "LEGACY_UNREADABLE"))
 
         assertTrue(failureOf(health) is WalletException.UnreadableRow)
+    }
+
+    /**
+     * A debt below zero is a break the owner can repair by editing the entry that overpaid it, so it
+     * must not lock the screens that lead to that entry. Home reports it on its own.
+     */
+    @Test
+    fun aDebtBelowZeroLeavesHealthUntouched() = runTest {
+        val entries = FakeEntryRepository()
+        entries.seedRaw(
+            EntryParts(
+                EntryHeader(4, "OWED_BEFORE", day, null),
+                listOf(Leg(LegRole.DEBT, 0, LegTarget.Debt(1, DebtSide.I_OWE), Money.of("-5", "USD"))),
+            ),
+        )
+
+        assertEquals(Unit, healthOf(entries)().first())
     }
 }

@@ -127,11 +127,16 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
         WalletException("Another debt on this side and currency is already named $counterparty")
 
     /**
-     * A stored entry whose kind, legs or values cannot be turned back into an entry. It is the only
-     * error the read side throws for bad stored data, so screens can name the row instead of crashing.
+     * A stored row (an entry, or a debt reported under [DEBT_KIND]) that cannot be read back. It is the
+     * only error the read side throws for bad stored data, so screens can name the row instead of crashing.
      */
     class UnreadableRow(val id: Long, val kind: String, cause: Throwable? = null) :
-        WalletException("Entry $id of kind $kind could not be read", cause)
+        WalletException("Row $id of kind $kind could not be read", cause) {
+        companion object {
+            /** The kind a debt row is reported under, since a debt has no entry kind of its own. */
+            const val DEBT_KIND = "DEBT"
+        }
+    }
 
     /** A backup file could not be read — malformed, truncated, or missing required fields. */
     class BackupInvalid(cause: Throwable? = null) :

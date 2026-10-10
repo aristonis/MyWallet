@@ -5,13 +5,16 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.aristonis.mywallet.data.db.AccountLegRow
 import org.aristonis.mywallet.data.db.CategoryLegRow
+import org.aristonis.mywallet.data.db.DebtLegRow
 import org.aristonis.mywallet.data.db.LedgerQueryDao
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.model.DateRange
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.LegRate
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
@@ -45,6 +48,25 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
         return WalletException.UnreadableRow(owner.id, owner.kind, cause)
     }
 
+    override fun observeDebtLegs(): Flow<List<DebtLeg>> = dao.observeDebtLegs().map { rows ->
+        rows.map { row ->
+            try {
+                val side = requireNotNull(DEBT_SIDE_BY_NAME[row.side]) { "unknown debt side ${row.side}" }
+                DebtLeg(row.debtId, side, Money.of(BigDecimal(row.amount), row.currencyCode))
+            } catch (e: IllegalArgumentException) {
+                // Covers NumberFormatException as well as the side check above.
+                throw unreadableDebtLeg(row, e)
+            }
+        }
+    }
+
+    /** Names the entry behind a debt leg that cannot be read, looked up only on this rare path. */
+    private suspend fun unreadableDebtLeg(row: DebtLegRow, cause: IllegalArgumentException): Exception {
+        val owner = dao.findDebtLegOwner(row.debtId, row.amount)
+            ?: return IllegalStateException("a debt leg on debt ${row.debtId} could not be read", cause)
+        return WalletException.UnreadableRow(owner.id, owner.kind, cause)
+    }
+
     /** All time takes the legs-led read; any narrower range starts from the date index. */
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> {
         val rows = if (range == DateRange.ALL_TIME) {
@@ -72,6 +94,8 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
     override suspend fun distinctLegRates(): List<LegRate> =
         dao.distinctLegRates().map { LegRate(it.currencyCode, it.rateToBase?.let(::BigDecimal)) }
 }
+
+private val DEBT_SIDE_BY_NAME: Map<String, DebtSide> = DebtSide.entries.associateBy { it.name }
 
 private val LEG_ROLE_BY_NAME: Map<String, LegRole> = LegRole.entries.associateBy { it.name }
 

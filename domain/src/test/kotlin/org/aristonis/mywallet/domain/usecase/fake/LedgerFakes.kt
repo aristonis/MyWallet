@@ -16,6 +16,7 @@ import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.EntryKey
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
@@ -110,6 +111,14 @@ class FakeLedgerQueries(private val entries: FakeEntryRepository) : LedgerQuerie
         rows.flatMap { row ->
             row.legs.mapNotNull { leg ->
                 (leg.target as? LegTarget.Account)?.let { AccountLeg(it.id, leg.amount) }
+            }
+        }
+    }
+
+    override fun observeDebtLegs(): Flow<List<DebtLeg>> = entries.rows.map { rows ->
+        rows.flatMap { row ->
+            row.legs.mapNotNull { leg ->
+                (leg.target as? LegTarget.Debt)?.let { DebtLeg(it.id, it.side, leg.amount) }
             }
         }
     }

@@ -3,6 +3,7 @@ package org.aristonis.mywallet.domain.port
 import kotlinx.coroutines.flow.Flow
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.model.DateRange
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import java.math.BigDecimal
@@ -62,6 +63,14 @@ interface LedgerQueries {
     fun observeAccountLegs(): Flow<List<AccountLeg>>
 
     /**
+     * Every debt leg, for summing what remains on each debt: the leg's signed amount is in the debt's
+     * currency and [DebtLeg.side] is the debt row's own. An amount that does not parse, or a side
+     * that is not a [DebtSide], fails the flow with
+     * [org.aristonis.mywallet.domain.error.WalletException.UnreadableRow] naming its entry.
+     */
+    fun observeDebtLegs(): Flow<List<DebtLeg>>
+
+    /**
      * Every category leg of entries dated inside the inclusive [range], for Tracking, in no
      * particular order: Tracking sums them and finds the newest leg it needs from each leg's date
      * and entry id, so the read never pays for a sort.
@@ -104,6 +113,9 @@ interface LedgerQueries {
 
 /** One account leg's signed amount, in the account's own currency. */
 data class AccountLeg(val accountId: Long, val amount: Money)
+
+/** One debt leg's signed amount, in the debt's own currency, with the debt's side. */
+data class DebtLeg(val debtId: Long, val side: DebtSide, val amount: Money)
 
 /**
  * One category leg with what Tracking needs to place and convert it. Tracking places a leg by the
