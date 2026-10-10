@@ -52,6 +52,7 @@ internal open class HealthLedger : LedgerQueries {
     val debtLegs = MutableStateFlow<List<DebtLeg>>(emptyList())
 
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = flowOf(emptyList())
+    override suspend fun debtLegs(debtIds: Set<Long>): List<DebtLeg> = emptyList()
     override fun observeDebtLegs(): Flow<List<DebtLeg>> = debtLegs
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = flowOf(emptyList())
     override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> =

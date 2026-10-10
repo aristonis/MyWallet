@@ -346,6 +346,7 @@ private class FakeAccountRepository(initial: List<Account>) : AccountRepository 
  */
 private open class AccountLegsLedger : LedgerQueries {
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = flowOf(emptyList())
+    override suspend fun debtLegs(debtIds: Set<Long>): List<DebtLeg> = emptyList()
     override fun observeDebtLegs(): Flow<List<DebtLeg>> = flowOf(emptyList())
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> = error("Home does not read Tracking")
     override fun observeUnknownKind(known: Set<String>): Flow<UnreadableRowRef?> = flowOf(null)

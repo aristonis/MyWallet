@@ -106,4 +106,17 @@ class SaveEntryTransferEditTest {
         assertEquals(3L, saved.sourceAccountId)
         assertEquals(Money.of("9.00", "EUR"), saved.destAmount)
     }
+    @Test
+    fun anEditCannotReplaceTheStoredTransferRateWithAnIncomingRate() = runTest {
+        val original = usdToEur()
+        val rig = rigWith(original)
+
+        rig.saveEntry(original.copy(rateUsed = BigDecimal("1.20")), typedRates = emptyMap())
+
+        val saved = rig.storedTransfer()
+        assertEquals(original.sourceAmount, saved.sourceAmount)
+        assertEquals(Money.of("9.00", "EUR"), saved.destAmount)
+        assertEquals(0, original.rateUsed.compareTo(saved.rateUsed))
+    }
+
 }

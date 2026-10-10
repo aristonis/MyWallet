@@ -110,6 +110,11 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class NameBlank :
         WalletException("A name is required")
 
+    class DebtNotFound(val id: Long) : WalletException("Debt $id not found")
+
+    /** A debt leg points to a row on the opposite side of what that entry records. */
+    class DebtSideMismatch(val id: Long) : WalletException("Debt $id is on the wrong side for this entry")
+
     /**
      * A payment or edit would leave the debt with [counterparty] below zero. Paying more than was owed
      * would make the debt negative, which means the other side now owes, so the change is refused and

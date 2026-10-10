@@ -3,12 +3,14 @@ package org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.EntryRecipe
+import org.aristonis.mywallet.domain.ledger.EntrySaveContext
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.error.WalletException
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -20,6 +22,14 @@ import java.time.LocalDate
 object TransferRecipe : EntryRecipe<Transaction.Transfer> {
 
     override val kind: String = "TRANSFER"
+
+    override suspend fun prepareForSave(entry: Transaction.Transfer, context: EntrySaveContext): Transaction.Transfer {
+        val destCurrency = context.accounts.findById(entry.destAccountId)?.currencyCode
+            ?: throw WalletException.AccountNotFound(entry.destAccountId)
+        val old = context.old
+        return if (old == null) entry.pricedAsNew(destCurrency, context.book)
+        else entry.pricedAsEditOf(old, destCurrency, context.snapshot)
+    }
 
     private val shape = LegShape(required = setOf(LegRole.SOURCE, LegRole.DEST))
 

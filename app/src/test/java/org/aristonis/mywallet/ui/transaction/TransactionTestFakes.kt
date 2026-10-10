@@ -41,6 +41,16 @@ import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
+import org.aristonis.mywallet.domain.model.Debt
+import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.NameKey
+import org.aristonis.mywallet.domain.model.CategoryRole
+import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
+import org.aristonis.mywallet.domain.service.RoleCategories
+import org.aristonis.mywallet.domain.ledger.LegTarget
+import org.aristonis.mywallet.domain.ledger.toParts
+import java.time.LocalDate
 import java.math.BigDecimal
 
 /**
@@ -147,9 +157,11 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
 
     /** Everything currently stored, for assertions. */
     val stored: List<Transaction> get() = items.value
+    fun restoreSnapshot(snapshot: List<Transaction>) { items.value = snapshot }
 
     /** When set, every write (insert, replace, delete) throws it, as a broken database would. */
     var failWith: Throwable? = null
+    var beforeInsert: suspend () -> Unit = {}
 
     /** Inserts that reached the store, counting only those that did not fail. */
     var inserts = 0
@@ -168,6 +180,10 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
     /** Reads of the whole range at once (observeAll, or observeBetween over all time) that were started. */
     var wholeHistoryReads = 0
         private set
+
+    override fun observeOnDebt(debtId: Long): Flow<List<Transaction>> = items.map { all ->
+        all.filter { entry -> entry.toParts().legs.any { (it.target as? LegTarget.Debt)?.id == debtId } }
+    }
 
     override fun observeAll(): Flow<List<Transaction>> = items.onStart { wholeHistoryReads++ }
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =
@@ -213,6 +229,7 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
     override suspend fun findById(id: Long): Transaction? = items.value.firstOrNull { it.id == id }
 
     override suspend fun insert(entry: Transaction): Long {
+        beforeInsert()
         failWith?.let { throw it }
         inserts++
         if (entry.id == 0L) {
@@ -255,7 +272,7 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
  * Ledger projections the form tests never read; only the rate fill is recorded. The save keeps typed
  * rates through SetExchangeRate, which is wired to this same ledger, so its fills land here.
  */
-internal class FakeLedgerQueries : LedgerQueries {
+internal class FakeLedgerQueries(private val entries: FakeEntryRepository? = null) : LedgerQueries {
     /** Every (currency, rate) the save asked to fill into legs that had none. */
     val filledRates = mutableListOf<Pair<String, BigDecimal>>()
 
@@ -270,6 +287,11 @@ internal class FakeLedgerQueries : LedgerQueries {
         return 0
     }
     override fun observeDebtLegs(): Flow<List<DebtLeg>> = flowOf(emptyList())
+    override suspend fun debtLegs(debtIds: Set<Long>): List<DebtLeg> = entries?.stored.orEmpty().flatMap { entry ->
+        entry.toParts().legs.mapNotNull { leg ->
+            (leg.target as? LegTarget.Debt)?.takeIf { it.id in debtIds }?.let { DebtLeg(it.id, it.side, leg.amount) }
+        }
+    }
     override suspend fun distinctLegRates(): List<LegRate> = emptyList()
 }
 
@@ -284,13 +306,45 @@ internal class EntryUseCases(
     currencies: CurrencyRepository,
     rates: RateRepository,
     settings: SettingsRepository,
+    val debts: FakeDebtRepository = FakeDebtRepository(),
 ) {
-    private val runner = DirectTransactionRunner()
-    val ledger = FakeLedgerQueries()
+    private val runner = object : org.aristonis.mywallet.domain.port.TransactionRunner {
+        override suspend fun <T> inTransaction(block: suspend () -> T): T {
+            val before = entries.stored
+            try { return block() } catch (failure: Throwable) {
+                entries.restoreSnapshot(before)
+                throw failure
+            }
+        }
+    }
+    val ledger = FakeLedgerQueries(entries)
     val saveEntry = SaveEntry(
         runner, accounts, categories, entries,
         FakeFxRepository(currencies, rates, settings), settings, SetExchangeRate(currencies, rates, ledger, runner, settings),
+        debts, ledger, RoleCategories(object : CategoryRoleRepository {
+            override suspend fun categoryFor(role: CategoryRole): Long? = null
+        }, categories),
     )
-    val deleteEntry = DeleteEntry(runner, entries)
-    val restoreEntries = RestoreEntries(runner, entries, categories, accounts)
+    val deleteEntry = DeleteEntry(runner, entries, debts, ledger)
+    val restoreEntries = RestoreEntries(runner, entries, categories, accounts, debts, ledger)
+}
+
+internal class FakeDebtRepository(initial: List<Debt> = emptyList()) : DebtRepository {
+    private val items = MutableStateFlow(initial)
+    override fun observeAll(): Flow<List<Debt>> = items
+    override suspend fun findById(id: Long): Debt? = items.value.firstOrNull { it.id == id }
+    override suspend fun getOrCreate(counterparty: String, side: DebtSide, currencyCode: String): Debt {
+        val key = NameKey.of(counterparty)
+        return items.value.firstOrNull { it.key == key && it.side == side && it.currencyCode == currencyCode }
+            ?: Debt((items.value.maxOfOrNull { it.id } ?: 0) + 1, counterparty, side, currencyCode).also {
+                items.value = items.value + it
+            }
+    }
+    override suspend fun updateDetails(id: Long, dueDate: LocalDate?, note: String?) {
+        items.value = items.value.map { if (it.id == id) it.copy(dueDate = dueDate, note = note) else it }
+    }
+    override suspend fun rename(id: Long, counterparty: String) {
+        items.value = items.value.map { if (it.id == id) it.copy(counterparty = counterparty) else it }
+    }
+    override suspend fun counterpartyNames(prefix: String): List<String> = items.value.map { it.counterparty }
 }

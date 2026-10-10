@@ -4,6 +4,9 @@ import kotlinx.coroutines.flow.first
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.model.Debt
+import org.aristonis.mywallet.domain.model.CategoryRole
+import org.aristonis.mywallet.domain.service.RoleCategories
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
@@ -67,13 +70,21 @@ class FaultyLedgerQueries(
 class RollbackOnFailureRunner(
     private val entries: FakeEntryRepository,
     private val rates: FakeRateRepository? = null,
+    private val debts: FakeDebtRepository? = null,
+    private val categories: FakeCategoryRepository? = null,
 ) : TransactionRunner {
 
     var runs = 0
         private set
+    var isRunning = false
+        private set
 
     override suspend fun <T> inTransaction(block: suspend () -> T): T {
         runs++
+        val previouslyRunning = isRunning
+        isRunning = true
+        val debtsBefore = debts?.stored.orEmpty()
+        val categoriesBefore = categories?.stored.orEmpty()
         val rowsBefore = entries.rows.value
         val ratesBefore = rates?.observeAll()?.first().orEmpty()
         try {
@@ -82,8 +93,12 @@ class RollbackOnFailureRunner(
             val keptIds = rowsBefore.map { it.header.id }.toSet()
             entries.rows.value.map { it.header.id }.filterNot { it in keptIds }.forEach { entries.delete(it) }
             rowsBefore.forEach { entries.seedRaw(it) }
-            ratesBefore.forEach { rates?.upsert(it) }
+            rates?.restoreSnapshot(ratesBefore)
+            debts?.restoreSnapshot(debtsBefore)
+            categories?.restoreSnapshot(categoriesBefore)
             throw t
+        } finally {
+            isRunning = previouslyRunning
         }
     }
 }
@@ -179,16 +194,20 @@ class SaveEntryRig(
     faultAfterWrite: Boolean = false,
     faultAfterFill: Boolean = false,
     atomic: Boolean = false,
+    initialDebts: List<Debt> = emptyList(),
+    roleBindings: Map<CategoryRole, Long> = emptyMap(),
 ) {
+    val debts = FakeDebtRepository(initialDebts)
+    val roles = FakeCategoryRoleRepository(roleBindings)
     val entries = FakeEntryRepository(initialEntries)
     val categoryRepository = FakeCategoryRepository(categories)
     private val initialRates = savedRates.map { (code, rate) -> ExchangeRate(code, BigDecimal(rate)) }
     val rates = FakeRateRepository(initialRates)
     val runner: TransactionRunner =
-        if (atomic) RollbackOnFailureRunner(entries, rates) else DirectTransactionRunner()
+        if (atomic) RollbackOnFailureRunner(entries, rates, debts, categoryRepository) else DirectTransactionRunner()
 
     private val entryPort: EntryRepository = FaultyEntryRepository(entries, faultAfterWrite)
-    private val accountRepository = FakeAccountRepository(accounts)
+    val accountRepository = FakeAccountRepository(accounts)
     private val currencyRepository = FakeCurrencyRepository(EntryWorld.currencies)
     private val settingsRepository = FakeSettingsRepository(Settings(baseCurrencyCode = base, saveTransactionRates = saveRates))
 
@@ -206,14 +225,19 @@ class SaveEntryRig(
         fx = fakeFx(EntryWorld.currencies, initialRates, base),
         settings = settingsRepository,
         setExchangeRate = SetExchangeRate(currencyRepository, rates, ledger, runner, settingsRepository),
+        debts = debts,
+        ledger = ledger,
+        roleCategories = RoleCategories(roles, categoryRepository),
     )
 
-    val deleteEntry = DeleteEntry(runner = runner, entries = entryPort)
+    val deleteEntry = DeleteEntry(runner = runner, entries = entryPort, debts = debts, ledger = ledger)
 
     val restoreEntries = RestoreEntries(
         runner = runner,
         entries = entryPort,
         categories = categoryRepository,
         accounts = accountRepository,
+        debts = debts,
+        ledger = ledger,
     )
 }

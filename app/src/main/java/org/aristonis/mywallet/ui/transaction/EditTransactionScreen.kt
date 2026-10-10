@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -154,7 +153,7 @@ private fun EditTransactionContent(
         val type = state.type
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             if (loaded != null && state.readOnly) {
-                ReadOnlyEntry(state = state, loaded = loaded)
+                ReadOnlyEntry(state = state, loaded = loaded, onDelete = onDelete)
             } else if (loaded == null || type == null) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
@@ -264,7 +263,7 @@ private fun EditTransactionForm(
 
         TextButton(
             onClick = { confirmingDelete = true },
-            enabled = !state.isSubmitting && state.undoableDelete == null,
+            enabled = state.canDelete,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
@@ -272,19 +271,13 @@ private fun EditTransactionForm(
     }
 
     if (confirmingDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmingDelete = false },
-            title = { Text(stringResource(R.string.delete_transaction_title)) },
-            text = { Text(stringResource(R.string.delete_transaction_body)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmingDelete = false
-                    onDelete()
-                }) { Text(stringResource(R.string.action_delete)) }
+        DeleteTransactionConfirmation(
+            canDelete = state.canDelete,
+            onConfirm = {
+                confirmingDelete = false
+                onDelete()
             },
-            dismissButton = {
-                TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.action_cancel)) }
-            },
+            onDismiss = { confirmingDelete = false },
         )
     }
 }

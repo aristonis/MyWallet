@@ -64,7 +64,7 @@ class AddTransactionViewModelTest {
     private class Fixture(
         accounts: List<Account>,
         categories: List<Category> = emptyList(),
-        currencies: List<Currency> = emptyList(),
+        currencies: List<Currency> = listOf(Currency("USD", "$", 2)),
         rates: List<ExchangeRate> = emptyList(),
         base: String = "USD",
         today: () -> LocalDate = { LocalDate.of(2026, 7, 3) },

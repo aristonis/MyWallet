@@ -48,7 +48,13 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
         return WalletException.UnreadableRow(owner.id, owner.kind, cause)
     }
 
-    override fun observeDebtLegs(): Flow<List<DebtLeg>> = dao.observeDebtLegs().map { rows ->
+    override fun observeDebtLegs(): Flow<List<DebtLeg>> = dao.observeDebtLegs().map { rows -> readDebtLegs(rows) }
+
+    /** Guard reads never collect a Flow inside the write transaction or inspect unrelated debts. */
+    override suspend fun debtLegs(debtIds: Set<Long>): List<DebtLeg> =
+        if (debtIds.isEmpty()) emptyList() else readDebtLegs(dao.debtLegs(debtIds.toList()))
+
+    private suspend fun readDebtLegs(rows: List<DebtLegRow>): List<DebtLeg> =
         rows.map { row ->
             try {
                 val side = requireNotNull(DEBT_SIDE_BY_NAME[row.side]) { "unknown debt side ${row.side}" }
@@ -58,7 +64,6 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
                 throw unreadableDebtLeg(row, e)
             }
         }
-    }
 
     /** Names the entry behind a debt leg that cannot be read, looked up only on this rare path. */
     private suspend fun unreadableDebtLeg(row: DebtLegRow, cause: IllegalArgumentException): Exception {

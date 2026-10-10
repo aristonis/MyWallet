@@ -3,6 +3,7 @@ package org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.EntryRecipe
+import org.aristonis.mywallet.domain.ledger.EntrySaveContext
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
@@ -20,6 +21,9 @@ import java.time.LocalDate
 object EarnedUnpaidRecipe : EntryRecipe<Transaction.EarnedUnpaid> {
 
     override val kind: String = "EARNED_UNPAID"
+
+    override suspend fun prepareForSave(entry: Transaction.EarnedUnpaid, context: EntrySaveContext): Transaction.EarnedUnpaid =
+        entry.copy(debtId = context.debtId(entry.debtId, DebtSide.OWED_TO_ME, entry.amount.currencyCode))
 
     private val shape = LegShape(required = setOf(LegRole.DEBT, LegRole.MAIN))
     override val trackingRuleByRole: Map<LegRole, TrackingRule> = mapOf(LegRole.MAIN to TrackingRule.INCOME)

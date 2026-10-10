@@ -31,6 +31,12 @@ class RoomEntryRepository(
 
     override fun observeAll(): Flow<List<Transaction>> = observeBetween(DateRange.ALL_TIME)
 
+    /** Filters through the debt index while reconstructing complete entries in one read transaction. */
+    override fun observeOnDebt(debtId: Long): Flow<List<Transaction>> =
+        database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {
+            dao.readOnDebt(debtId).toTransactions()
+        }
+
     /**
      * Re-reads the range whenever entries, legs or debts change. This is what Room builds for an
      * observable query (conflated, so a burst of writes costs one read), around a read made of two

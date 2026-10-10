@@ -48,6 +48,11 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
         store.value = store.value.map { row -> row.copy(legs = row.legs.map(transform)) }
     }
 
+    override fun observeOnDebt(debtId: Long): Flow<List<Transaction>> = store.map { rows ->
+        rows.filter { row -> row.legs.any { (it.target as? LegTarget.Debt)?.id == debtId } }
+            .sortedWith(NEWEST_FIRST).map(::read)
+    }
+
     override fun observeAll(): Flow<List<Transaction>> = observeBetween(DateRange.ALL_TIME)
 
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> = store.map { rows ->
@@ -106,6 +111,12 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
  * in use-case tests read the same legs the recipes wrote.
  */
 class FakeLedgerQueries(private val entries: FakeEntryRepository) : LedgerQueries {
+
+    override suspend fun debtLegs(debtIds: Set<Long>): List<DebtLeg> = entries.rows.value.flatMap { row ->
+        row.legs.mapNotNull { leg ->
+            (leg.target as? LegTarget.Debt)?.takeIf { it.id in debtIds }?.let { DebtLeg(it.id, it.side, leg.amount) }
+        }
+    }
 
     override fun observeAccountLegs(): Flow<List<AccountLeg>> = entries.rows.map { rows ->
         rows.flatMap { row ->

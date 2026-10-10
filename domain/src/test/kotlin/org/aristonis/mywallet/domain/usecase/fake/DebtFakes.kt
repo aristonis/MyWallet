@@ -3,6 +3,7 @@ package org.aristonis.mywallet.domain.usecase.fake
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.aristonis.mywallet.domain.model.Debt
+import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.NameKey
 import org.aristonis.mywallet.domain.port.DebtRepository
@@ -16,14 +17,19 @@ class FakeDebtRepository(initial: List<Debt> = emptyList()) : DebtRepository {
     private val items = MutableStateFlow(initial)
     private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1
 
+    var beforeGetOrCreate: () -> Unit = {}
+
     /** Everything currently stored, for assertions. */
     val stored: List<Debt> get() = items.value
+
+    fun restoreSnapshot(snapshot: List<Debt>) { items.value = snapshot }
 
     override fun observeAll(): Flow<List<Debt>> = items
 
     override suspend fun findById(id: Long): Debt? = items.value.firstOrNull { it.id == id }
 
     override suspend fun getOrCreate(counterparty: String, side: DebtSide, currencyCode: String): Debt {
+        beforeGetOrCreate()
         val key = NameKey.of(counterparty)
         val existing = items.value.firstOrNull {
             it.key == key && it.side == side && it.currencyCode == currencyCode
@@ -39,6 +45,11 @@ class FakeDebtRepository(initial: List<Debt> = emptyList()) : DebtRepository {
     }
 
     override suspend fun rename(id: Long, counterparty: String) {
+        val row = findById(id) ?: return
+        val key = NameKey.of(counterparty)
+        if (items.value.any { it.id != id && it.side == row.side && it.currencyCode == row.currencyCode && it.key == key }) {
+            throw WalletException.DebtNameTaken(counterparty.trim())
+        }
         items.value = items.value.map { if (it.id == id) it.copy(counterparty = counterparty) else it }
     }
 

@@ -1,4 +1,4 @@
-package org.aristonis.mywallet.domain.usecase
+package org.aristonis.mywallet.domain.ledger.recipe
 
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.FxSnapshot
@@ -42,12 +42,14 @@ internal fun Transaction.Transfer.pricedAsEditOf(
     destCurrency: String,
     fx: FxSnapshot,
 ): Transaction.Transfer {
-    val storedPair = (old as? Transaction.Transfer)
+    val stored = old as? Transaction.Transfer
+    val storedPair = stored
         ?.let { it.sourceAmount.currencyCode to it.destAmount.currencyCode }
     if (storedPair != sourceAmount.currencyCode to destCurrency) {
         throw WalletException.TransferCurrencyPairChanged(old.id)
     }
-    return copy(destAmount = convertAtStoredRate(sourceAmount, rateUsed, destCurrency, fx))
+    val storedRate = checkNotNull(stored).rateUsed
+    return copy(destAmount = convertAtStoredRate(sourceAmount, storedRate, destCurrency, fx), rateUsed = storedRate)
 }
 
 /** [source] at [rate], rounded to [destCurrency]'s decimals; a same-currency amount copies 1:1. */

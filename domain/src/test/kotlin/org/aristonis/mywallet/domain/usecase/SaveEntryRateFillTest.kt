@@ -1,6 +1,9 @@
 package org.aristonis.mywallet.domain.usecase
 
 import kotlinx.coroutines.test.runTest
+import org.aristonis.mywallet.domain.service.RoleCategories
+import org.aristonis.mywallet.domain.usecase.fake.FakeDebtRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeCategoryRoleRepository
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
@@ -47,14 +50,18 @@ class SaveEntryRateFillTest {
         val rates = FakeRateRepository(savedRates)
         val rateLedger = RecordingLedgerQueries(FakeLedgerQueries(entries))
         private val settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD", saveTransactionRates = saveRates))
+        private val categories = FakeCategoryRepository(listOf(EntryWorld.incomeCategory, EntryWorld.expenseCategory))
         val saveEntry = SaveEntry(
             runner = DirectTransactionRunner(),
             accounts = FakeAccountRepository(listOf(EntryWorld.usdAccount, EntryWorld.sypAccount)),
-            categories = FakeCategoryRepository(listOf(EntryWorld.incomeCategory, EntryWorld.expenseCategory)),
+            categories = categories,
             entries = entries,
             fx = fakeFx(EntryWorld.currencies, savedRates, "USD"),
             settings = settings,
             setExchangeRate = SetExchangeRate(FakeCurrencyRepository(EntryWorld.currencies), rates, rateLedger, DirectTransactionRunner(), settings),
+            debts = FakeDebtRepository(),
+            ledger = rateLedger,
+            roleCategories = RoleCategories(FakeCategoryRoleRepository(), categories),
         )
     }
 

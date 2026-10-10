@@ -581,6 +581,7 @@ private class FakeLedger(initial: List<Transaction>) : LedgerQueries {
     override suspend fun isAccountInUse(accountId: Long): Boolean = error("reports do not check account use")
     override fun observeAccountsInUse(): Flow<Set<Long>> = error("reports do not check account use")
     override fun observeCategoryUsage(): Flow<Map<Long, Int>> = error("reports do not read category usage")
+    override suspend fun debtLegs(debtIds: Set<Long>): List<DebtLeg> = emptyList()
     override fun observeDebtLegs(): Flow<List<DebtLeg>> = flowOf(emptyList())
     override suspend fun distinctLegRates(): List<LegRate> = error("reports do not read leg rates")
 

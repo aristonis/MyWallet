@@ -3,11 +3,13 @@ package org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.EntryRecipe
+import org.aristonis.mywallet.domain.ledger.EntrySaveContext
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.CategoryRole
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import java.math.BigDecimal
@@ -21,6 +23,16 @@ import java.time.LocalDate
 object WriteOffRecipe : EntryRecipe<Transaction.WriteOff> {
 
     override val kind: String = "WRITE_OFF"
+
+    override suspend fun prepareForSave(entry: Transaction.WriteOff, context: EntrySaveContext): Transaction.WriteOff {
+        val debtId = context.debtId(entry.debtId, entry.side, entry.amount.currencyCode)
+        val role = when (entry.side) {
+            DebtSide.OWED_TO_ME -> CategoryRole.LOST_DEBT
+            DebtSide.I_OWE -> CategoryRole.DEBT_FORGIVEN
+        }
+        val categoryId = context.roleCategories.categoryFor(role, entry.categoryId.takeUnless { it == 0L })
+        return entry.copy(debtId = debtId, categoryId = categoryId)
+    }
 
     // Exactly one of LOSS and FORGIVEN, the one the debt's side gives; the reader checks which.
     private val shape = LegShape(required = setOf(LegRole.DEBT), optional = setOf(LegRole.LOSS, LegRole.FORGIVEN))

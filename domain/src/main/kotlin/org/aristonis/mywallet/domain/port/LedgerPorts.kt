@@ -22,6 +22,9 @@ interface EntryRepository {
     /** Entries dated inside the inclusive [range], in the same order as [observeAll]. */
     fun observeBetween(range: DateRange): Flow<List<Transaction>>
 
+    /** Complete entries with any leg on [debtId], newest first, filtered in storage. */
+    fun observeOnDebt(debtId: Long): Flow<List<Transaction>>
+
     /**
      * At most [limit] entries dated inside the inclusive [range], in the order of [observeAll],
      * starting strictly after the entry [after] names (null starts at the newest). The key marks a
@@ -69,6 +72,9 @@ interface LedgerQueries {
      * [org.aristonis.mywallet.domain.error.WalletException.UnreadableRow] naming its entry.
      */
     fun observeDebtLegs(): Flow<List<DebtLeg>>
+
+    /** Current legs on [debtIds], read once inside a write transaction for its guards. */
+    suspend fun debtLegs(debtIds: Set<Long>): List<DebtLeg>
 
     /**
      * Every category leg of entries dated inside the inclusive [range], for Tracking, in no

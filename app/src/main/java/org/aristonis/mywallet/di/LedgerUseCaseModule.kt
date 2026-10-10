@@ -6,6 +6,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
+import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.service.RoleCategories
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
@@ -26,6 +30,10 @@ import javax.inject.Singleton
 object LedgerUseCaseModule {
 
     @Provides @Singleton
+    fun provideRoleCategories(roles: CategoryRoleRepository, categories: CategoryRepository): RoleCategories =
+        RoleCategories(roles, categories)
+
+    @Provides @Singleton
     fun provideSaveEntry(
         runner: TransactionRunner,
         accounts: AccountRepository,
@@ -34,13 +42,18 @@ object LedgerUseCaseModule {
         fx: FxRepository,
         settings: SettingsRepository,
         setExchangeRate: SetExchangeRate,
-    ): SaveEntry = SaveEntry(runner, accounts, categories, entries, fx, settings, setExchangeRate)
+        debts: DebtRepository,
+        ledger: LedgerQueries,
+        roleCategories: RoleCategories,
+    ): SaveEntry = SaveEntry(runner, accounts, categories, entries, fx, settings, setExchangeRate, debts, ledger, roleCategories)
 
     @Provides @Singleton
     fun provideDeleteEntry(
         runner: TransactionRunner,
         entries: EntryRepository,
-    ): DeleteEntry = DeleteEntry(runner, entries)
+        debts: DebtRepository,
+        ledger: LedgerQueries,
+    ): DeleteEntry = DeleteEntry(runner, entries, debts, ledger)
 
     @Provides @Singleton
     fun provideRestoreEntries(
@@ -48,5 +61,7 @@ object LedgerUseCaseModule {
         entries: EntryRepository,
         categories: CategoryRepository,
         accounts: AccountRepository,
-    ): RestoreEntries = RestoreEntries(runner, entries, categories, accounts)
+        debts: DebtRepository,
+        ledger: LedgerQueries,
+    ): RestoreEntries = RestoreEntries(runner, entries, categories, accounts, debts, ledger)
 }

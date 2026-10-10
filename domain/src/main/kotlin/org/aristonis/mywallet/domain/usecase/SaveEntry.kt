@@ -2,21 +2,28 @@ package org.aristonis.mywallet.domain.usecase
 
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.Leg
+import org.aristonis.mywallet.domain.ledger.EntrySaveContext
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.model.DebtRef
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.service.RateBook
+import org.aristonis.mywallet.domain.service.DebtEntryGuard
+import org.aristonis.mywallet.domain.service.DebtGuard
+import org.aristonis.mywallet.domain.service.RoleCategories
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -26,10 +33,9 @@ data class SavedEntry(val id: Long, val date: LocalDate)
 /**
  * Saves a new entry (id 0) or rewrites an existing one, of any kind, as one database transaction.
  *
- * Everything is checked before anything is written: each account leg's account exists, is live and
- * holds the leg's currency; each category leg's category is a valid pair and of the kind the leg
- * counts as; each typed rate is above zero and for a known currency. A refused save therefore leaves
- * no entry and no typed rate behind.
+ * References and rates are checked inside the runner. Each debt's remaining is checked after the
+ * write, including a debt an edit moved away from. Refusal rolls back the entry, newly resolved debts,
+ * role fallback categories, details and typed rates together.
  *
  * The save decides every rate; any rate on the entry it is given is ignored. Rates come from
  * [RateBook]: base 1, then typed, then saved, else none. A new entry in a currency with no rate is
@@ -53,23 +59,48 @@ class SaveEntry(
     private val fx: FxRepository,
     private val settings: SettingsRepository,
     private val setExchangeRate: SetExchangeRate,
+    private val debts: DebtRepository,
+    ledger: LedgerQueries,
+    private val roleCategories: RoleCategories,
 ) {
-    suspend operator fun invoke(entry: Transaction, typedRates: Map<String, BigDecimal>): SavedEntry =
+    private val debtGuard = DebtEntryGuard(debts, ledger)
+
+    suspend operator fun invoke(
+        entry: Transaction,
+        typedRates: Map<String, BigDecimal>,
+        debt: DebtRef? = null,
+    ): SavedEntry =
         runner.inTransaction {
             val old = if (entry.id == 0L) null else {
                 entries.findById(entry.id) ?: throw WalletException.TransactionNotFound(entry.id)
             }
             val snapshot = fx.currentFx()
             val book = rateBookFor(snapshot, typedRates)
-            val priced = if (entry is Transaction.Transfer) priceTransfer(entry, old, snapshot, book) else entry
+            val priced = entry.recipe().prepareForSave(
+                entry, EntrySaveContext(old, snapshot, book, accounts, roleCategories, debts, debt),
+            )
             val recipe = priced.recipe()
             val parts = recipe.toLegs(priced)
+            parts.legs.firstOrNull { it.amount.currencyCode !in snapshot.decimalPlaces }
+                ?.let { throw WalletException.CurrencyNotFound(it.amount.currencyCode) }
             requireReferences(parts.legs, recipe.trackingRules(priced))
 
-            // A new entry has no old legs, so every category leg is rated afresh.
             val oldLegs = old?.toParts()?.legs.orEmpty()
+            val touched = DebtGuard.touchedDebtIds(oldLegs, parts.legs)
+            // Reusing a settled person starts fresh; editing their existing loan keeps its details.
+            val reopenCandidates = DebtGuard.touchedDebtIds(emptyList(), parts.legs) -
+                DebtGuard.touchedDebtIds(oldLegs, emptyList())
+            val before = debtGuard.remaining(reopenCandidates)
+            // A new entry has no old legs, so every category leg is rated afresh.
             val stamped = recipe.fromLegs(parts.copy(legs = book.restamp(parts.legs, oldLegs)))
             val id = if (old == null) entries.insert(stamped) else stamped.id.also { entries.replace(stamped) }
+
+            val after = debtGuard.check(touched)
+            reopenCandidates.forEach { debtId ->
+                if (before[debtId]?.remaining?.isZero != false && after[debtId]?.remaining?.isPositive == true) {
+                    debts.updateDetails(debtId, dueDate = null, note = null)
+                }
+            }
 
             if (settings.get().saveTransactionRates) keepTypedRates(typedRates, snapshot.baseCurrencyCode)
             SavedEntry(id = id, date = stamped.date)
@@ -90,8 +121,7 @@ class SaveEntry(
                     val rule = checkNotNull(rules[leg.role]) { "no tracking rule for the ${leg.role} leg" }
                     requireCategoryOfKind(target, rule)
                 }
-                // No kind writes a debt leg yet; one arriving here has nothing to check it against.
-                is LegTarget.Debt -> error("debt legs are not supported yet")
+                is LegTarget.Debt -> debtGuard.requireReference(target, leg.amount.currencyCode)
             }
         }
     }
@@ -114,22 +144,6 @@ class SaveEntry(
             TrackingRule.NOT_COUNTED -> error("a leg that never counts cannot be on a category")
         }
         if (category.kind != expected) throw WalletException.CategoryWrongKind(target.id)
-    }
-
-    /** A new transfer is priced from the rates; an edit keeps its pair and its stored rate. */
-    private suspend fun priceTransfer(
-        transfer: Transaction.Transfer,
-        old: Transaction?,
-        snapshot: FxSnapshot,
-        book: RateBook,
-    ): Transaction.Transfer {
-        val destCurrency = accounts.findById(transfer.destAccountId)?.currencyCode
-            ?: throw WalletException.AccountNotFound(transfer.destAccountId)
-        return if (old == null) {
-            transfer.pricedAsNew(destCurrency, book)
-        } else {
-            transfer.pricedAsEditOf(old, destCurrency, snapshot)
-        }
     }
 
     /**

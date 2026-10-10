@@ -49,6 +49,8 @@ class FakeCategoryRepository(initial: List<Category> = emptyList()) : CategoryRe
     /** Everything currently stored, for assertions. */
     val stored: List<Category> get() = items.value
 
+    fun restoreSnapshot(snapshot: List<Category>) { items.value = snapshot }
+
     /**
      * Records what the use-case asked for. The real reassignment is a multi-table statement that
      * only Room can run atomically, so the domain tests assert the CONTRACT (which category, which
@@ -93,6 +95,7 @@ class FakeCurrencyRepository(initial: List<Currency> = emptyList()) : CurrencyRe
 
 class FakeRateRepository(initial: List<ExchangeRate> = emptyList()) : RateRepository {
     private val items = MutableStateFlow(initial)
+    fun restoreSnapshot(snapshot: List<ExchangeRate>) { items.value = snapshot }
     override fun observeAll(): Flow<List<ExchangeRate>> = items
     override suspend fun findByCode(code: String): ExchangeRate? =
         items.value.firstOrNull { it.currencyCode == code }

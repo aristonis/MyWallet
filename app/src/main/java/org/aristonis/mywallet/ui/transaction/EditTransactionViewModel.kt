@@ -69,10 +69,15 @@ data class EditTransactionUiState(
     val baseEquivalent: String? = null,
     /**
      * The loaded entry is of a kind the form cannot edit yet (a debt kind). It is shown as it is, and
-     * nothing on it can be saved or deleted from here.
+     * its fields cannot be saved. Guarded deletion remains available.
      */
     val readOnly: Boolean = false,
 ) {
+    val canEdit: Boolean get() = loaded != null && !readOnly
+
+    val canDelete: Boolean
+        get() = loaded != null && !isSubmitting && savedOn == null && undoableDelete == null
+
     /** Children of the chosen category, filtered by kind for the reason the add form gives. */
     val subCategoriesForSelected: List<Category>
         get() = selectedCategoryId?.let { parent ->
@@ -96,7 +101,7 @@ data class EditTransactionUiState(
      * read-only entry.
      */
     val canSubmit: Boolean
-        get() = !readOnly && undoableDelete == null && !isSubmitting && savedOn == null &&
+        get() = canEdit && undoableDelete == null && !isSubmitting && savedOn == null &&
             type?.let { EntryFormRules.forType(it).isSubmittable(formInputs()) } == true
 
     /** The form's choices, in the shape the shared rule of each type reads. */
@@ -225,7 +230,7 @@ class EditTransactionViewModel @Inject constructor(
      * Undo the just-completed delete: put the removed entry back at its own id, then finish. Balances
      * revert via the reactive read path; `deleted` fires so the screen leaves, and the restored entry
      * is visible where it returns to. The undoable state is cleared up front so a repeated trigger
-     * can't restore twice.
+     * can't restore twice. Submission stays locked until restore finishes, so Delete cannot race it.
      *
      * An [WalletException.EntryIdTaken] means the entry is already back at its id (an earlier undo
      * got there first), so the undo is done, not failed. Restore never overwrites, so whatever holds
@@ -233,7 +238,7 @@ class EditTransactionViewModel @Inject constructor(
      */
     fun undoDelete() {
         val removed = _state.value.undoableDelete ?: return
-        _state.update { it.copy(undoableDelete = null) }
+        _state.update { it.copy(undoableDelete = null, isSubmitting = true, error = null) }
         viewModelScope.launch {
             try {
                 restoreEntries(removed)
@@ -246,6 +251,8 @@ class EditTransactionViewModel @Inject constructor(
                 _state.update { it.copy(error = e.toUiMessage()) }
             } catch (e: Exception) {
                 _state.update { it.copy(error = UiMessage.TransactionRestoreFailed) }
+            } finally {
+                _state.update { it.copy(isSubmitting = false) }
             }
         }
     }
@@ -264,7 +271,7 @@ class EditTransactionViewModel @Inject constructor(
     fun submit() {
         val snapshot = _state.value
         val loaded = snapshot.loaded ?: return
-        if (snapshot.readOnly) return // a kind the form cannot edit yet is never written from here
+        if (!snapshot.canEdit) return
         if (snapshot.undoableDelete != null) return // the row is deleted with an undo pending — don't save a ghost
         if (snapshot.isSubmitting || snapshot.savedOn != null) return
         _state.update { it.copy(isSubmitting = true, error = null) }
@@ -294,12 +301,7 @@ class EditTransactionViewModel @Inject constructor(
     fun delete() {
         val snapshot = _state.value
         val loaded = snapshot.loaded ?: return
-        // A debt entry's delete has to keep its debt from going below zero, which this screen cannot
-        // check yet; a read-only entry stays exactly as it is.
-        if (snapshot.readOnly) return
-        if (snapshot.undoableDelete != null) return // already deleted with an undo pending
-        // A second tap while the delete runs would find the entry gone and report it missing.
-        if (snapshot.isSubmitting || snapshot.savedOn != null) return
+        if (!snapshot.canDelete) return
         _state.update { it.copy(isSubmitting = true, error = null) }
         viewModelScope.launch {
             try {

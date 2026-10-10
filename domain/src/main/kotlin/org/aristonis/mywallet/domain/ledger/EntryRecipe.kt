@@ -12,6 +12,9 @@ interface EntryRecipe<K : Transaction> {
     /** The kind stored on the header. Stored as text, so it never changes once released. */
     val kind: String
 
+    /** Resolve references and kind-specific pricing before legs are built, inside the runner. */
+    suspend fun prepareForSave(entry: K, context: EntrySaveContext): K = entry
+
     /** The header and signed legs that store [entry]. */
     fun toLegs(entry: K): EntryParts
 

@@ -49,6 +49,8 @@ fun UiMessage.text(): String = when (this) {
     is UiMessage.AmountRoundsToZero -> stringResource(R.string.msg_amount_rounds_to_zero, currencyCode)
 
     UiMessage.NameBlank -> stringResource(R.string.msg_name_blank)
+    UiMessage.DebtNotFound -> stringResource(R.string.msg_debt_not_found)
+    UiMessage.DebtSideMismatch -> stringResource(R.string.msg_debt_side_mismatch)
     is UiMessage.DebtBelowZero -> {
         val (name, formattedAmount) = debtBelowZeroArgs(counterparty, displayAsSummed(amount))
         stringResource(R.string.msg_debt_below_zero, name, formattedAmount)

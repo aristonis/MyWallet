@@ -11,6 +11,8 @@ import org.aristonis.mywallet.data.db.CurrencyEntity
 import org.aristonis.mywallet.data.db.RateEntity
 import org.aristonis.mywallet.data.db.SettingsEntity
 import org.aristonis.mywallet.data.db.WalletDatabase
+import org.aristonis.mywallet.data.repo.RoomDebtRepository
+import org.aristonis.mywallet.data.repo.RoomCategoryRoleRepository
 import org.aristonis.mywallet.data.repo.RoomAccountRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRepository
 import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
@@ -21,6 +23,10 @@ import org.aristonis.mywallet.data.repo.RoomRateRepository
 import org.aristonis.mywallet.data.repo.RoomSettingsRepository
 import org.aristonis.mywallet.data.repo.RoomTransactionRunner
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.DebtRef
+import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.service.RoleCategories
+import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
@@ -54,6 +60,7 @@ class SaveEntryOnRoomTest {
     private lateinit var db: WalletDatabase
     private lateinit var entries: RoomEntryRepository
     private lateinit var rates: RoomRateRepository
+    private lateinit var debts: RoomDebtRepository
     private lateinit var saveEntry: SaveEntry
     private lateinit var deleteEntry: DeleteEntry
     private lateinit var restoreEntries: RestoreEntries
@@ -89,6 +96,7 @@ class SaveEntryOnRoomTest {
         rates = RoomRateRepository(db.rateDao())
 
         val ledger = RoomLedgerQueries(db.ledgerQueryDao())
+        debts = RoomDebtRepository(db)
         saveEntry = SaveEntry(
             runner = runner,
             accounts = accounts,
@@ -97,9 +105,12 @@ class SaveEntryOnRoomTest {
             fx = RoomFxRepository(db),
             settings = RoomSettingsRepository(db.settingsDao()),
             setExchangeRate = SetExchangeRate(RoomCurrencyRepository(db.currencyDao()), rates, ledger, runner, RoomSettingsRepository(db.settingsDao())),
+            debts = debts,
+            ledger = ledger,
+            roleCategories = RoleCategories(RoomCategoryRoleRepository(db.categoryRoleDao()), categories),
         )
-        deleteEntry = DeleteEntry(runner = runner, entries = entries)
-        restoreEntries = RestoreEntries(runner = runner, entries = entries, categories = categories, accounts = accounts)
+        deleteEntry = DeleteEntry(runner = runner, entries = entries, debts = debts, ledger = ledger)
+        restoreEntries = RestoreEntries(runner = runner, entries = entries, categories = categories, accounts = accounts, debts = debts, ledger = ledger)
     }
 
     @After
@@ -148,6 +159,67 @@ class SaveEntryOnRoomTest {
         assertTrue("was $failure", failure is WalletException.EntryIdTaken)
         assertEquals(saved.id, (failure as WalletException.EntryIdTaken).id)
         assertNotNull(entries.findById(saved.id))
+    }
+
+    private fun borrow(debtId: Long = 0) = Transaction.Borrow(
+        accountId = 1, debtId = debtId, amount = Money.of("100", "USD"), date = day,
+    )
+
+    private fun repayment(debtId: Long, amount: String = "100", interest: String? = null) = Transaction.Repayment(
+        side = DebtSide.I_OWE, accountId = 1, debtId = debtId,
+        accountAmount = Money.of(BigDecimal(amount).add(interest?.let(::BigDecimal) ?: BigDecimal.ZERO), "USD"),
+        principal = Money.of(amount, "USD"), interest = interest?.let { Money.of(it, "USD") }, date = day,
+    )
+
+    @Test
+    fun savingADebtAndItsGuardReturnsInsideTheRoomWriteTransaction() = runBlocking {
+        val saved = withTimeout(RETURN_WITHIN_MS) {
+            saveEntry(borrow(), emptyMap(), DebtRef(" Ali ", DebtSide.I_OWE, "USD"))
+        }
+        val loan = entries.findById(saved.id) as Transaction.Borrow
+        assertEquals("Ali", debts.findById(loan.debtId)!!.counterparty)
+        withTimeout(RETURN_WITHIN_MS) { saveEntry(repayment(loan.debtId), emptyMap()) }
+        val failure = runCatching { withTimeout(RETURN_WITHIN_MS) { deleteEntry(saved.id) } }.exceptionOrNull()
+        assertTrue("was $failure", failure is WalletException.DebtBelowZero)
+        assertEquals(loan, entries.findById(saved.id))
+    }
+
+    @Test
+    fun aRefusedRepaymentRollsBackItsFallbackBucketAndLegs() = runBlocking {
+        val saved = saveEntry(borrow(), emptyMap(), DebtRef("Ali", DebtSide.I_OWE, "USD"))
+        val loan = entries.findById(saved.id) as Transaction.Borrow
+        val categoriesBefore = db.categoryDao().getAll()
+        val failure = runCatching {
+            withTimeout(RETURN_WITHIN_MS) { saveEntry(repayment(loan.debtId, "101", "5"), emptyMap()) }
+        }.exceptionOrNull()
+        assertTrue("was $failure", failure is WalletException.DebtBelowZero)
+        assertEquals(categoriesBefore, db.categoryDao().getAll())
+        assertEquals(1, db.entryDao().getAll().size)
+    }
+
+    @Test
+    fun aFaultAfterTheRoomInsertRollsBackTheNewDebtAndEntry() = runBlocking {
+        val runner = RoomTransactionRunner(db)
+        val ledger = RoomLedgerQueries(db.ledgerQueryDao())
+        val categories = RoomCategoryRepository(db.categoryDao())
+        val failureAfterInsert = object : EntryRepository by entries {
+            override suspend fun insert(entry: Transaction): Long {
+                entries.insert(entry)
+                error("injected after Room insert")
+            }
+        }
+        val failingSave = SaveEntry(
+            runner, RoomAccountRepository(db.accountDao()), categories, failureAfterInsert,
+            RoomFxRepository(db), RoomSettingsRepository(db.settingsDao()),
+            SetExchangeRate(RoomCurrencyRepository(db.currencyDao()), rates, ledger, runner, RoomSettingsRepository(db.settingsDao())),
+            debts, ledger, RoleCategories(RoomCategoryRoleRepository(db.categoryRoleDao()), categories),
+        )
+        val failure = runCatching {
+            withTimeout(RETURN_WITHIN_MS) { failingSave(borrow(), emptyMap(), DebtRef("Ali", DebtSide.I_OWE, "USD")) }
+        }.exceptionOrNull()
+        assertEquals("injected after Room insert", failure?.message)
+        assertTrue(db.debtDao().getAll().isEmpty())
+        assertTrue(db.entryDao().getAll().isEmpty())
     }
 
     private companion object {

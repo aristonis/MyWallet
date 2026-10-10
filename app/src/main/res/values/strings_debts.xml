@@ -16,4 +16,6 @@
 
     <!-- Edit screen, for a kind of entry the form cannot change yet -->
     <string name="edit_transaction_read_only">This kind of entry can\'t be edited here yet.</string>
+    <string name="msg_debt_not_found">This debt no longer exists.</string>
+    <string name="msg_debt_side_mismatch">Choose a debt on the correct side for this entry.</string>
 </resources>

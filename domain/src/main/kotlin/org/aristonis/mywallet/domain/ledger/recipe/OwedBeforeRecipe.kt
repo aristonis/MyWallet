@@ -3,6 +3,7 @@ package org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.EntryRecipe
+import org.aristonis.mywallet.domain.ledger.EntrySaveContext
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
@@ -20,6 +21,9 @@ import java.time.LocalDate
 object OwedBeforeRecipe : EntryRecipe<Transaction.OwedBefore> {
 
     override val kind: String = "OWED_BEFORE"
+
+    override suspend fun prepareForSave(entry: Transaction.OwedBefore, context: EntrySaveContext): Transaction.OwedBefore =
+        entry.copy(debtId = context.debtId(entry.debtId, entry.side, entry.amount.currencyCode))
 
     private val shape = LegShape(required = setOf(LegRole.DEBT))
 

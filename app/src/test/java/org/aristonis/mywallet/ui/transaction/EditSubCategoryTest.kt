@@ -10,6 +10,7 @@ import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
@@ -70,7 +71,7 @@ class EditSubCategoryTest {
         categoryRepo: FakeCategoryRepository,
         entries: FakeEntryRepository,
     ): EditTransactionViewModel {
-        val currencyRepo = FakeCurrencyRepository()
+        val currencyRepo = FakeCurrencyRepository(listOf(Currency("USD", "$", 2)))
         val rateRepo = FakeRateRepository()
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
         val use = EntryUseCases(accountRepo, categoryRepo, entries, currencyRepo, rateRepo, settingsRepo)

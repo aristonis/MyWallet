@@ -125,6 +125,10 @@ interface LedgerQueryDao {
     @Query(DEBT_LEGS_SQL)
     fun observeDebtLegs(): Flow<List<DebtLegRow>>
 
+    /** One filtered projection for guards, read within the caller's write transaction. */
+    @Query("$DEBT_LEGS_SQL WHERE l.debtId IN (:debtIds)")
+    suspend fun debtLegs(debtIds: List<Long>): List<DebtLegRow>
+
     @Query(CATEGORY_LEGS_SQL)
     fun observeCategoryLegs(start: LocalDate, end: LocalDate): Flow<List<CategoryLegRow>>
 

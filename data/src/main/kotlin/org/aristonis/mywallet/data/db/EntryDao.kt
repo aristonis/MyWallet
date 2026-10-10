@@ -75,8 +75,34 @@ private const val ENTRY_ROWS_SQL =
         "l.currencyCode AS currencyCode, l.rateToBase AS rateToBase, d.side AS debtSide " +
         "FROM entries AS e LEFT JOIN entry_legs AS l ON l.entryId = e.id LEFT JOIN debts AS d ON d.id = l.debtId"
 
+/** The debt index finds matching entry ids before any headers or sibling legs are read. */
+private const val DEBT_ENTRY_IDS_SQL = "SELECT entryId FROM entry_legs WHERE debtId = :debtId"
+
 @Dao
 interface EntryDao {
+
+    @Query(
+        "SELECT id, kind, date, note, pairRate FROM entries WHERE id IN ($DEBT_ENTRY_IDS_SQL) " +
+            "ORDER BY date DESC, id DESC",
+    )
+    suspend fun headersOnDebt(debtId: Long): List<EntryEntity>
+
+    /** Reads every sibling leg of matching entries, so an account leg on a repayment is retained. */
+    @Query(
+        "SELECT l.entryId AS entryId, l.id AS legId, l.role AS role, l.position AS position, " +
+            "l.accountId AS accountId, l.debtId AS debtId, l.categoryId AS categoryId, " +
+            "l.subCategoryId AS subCategoryId, l.amount AS amount, l.currencyCode AS currencyCode, " +
+            "l.rateToBase AS rateToBase, d.side AS debtSide " +
+            "FROM entries AS e CROSS JOIN entry_legs AS l ON l.entryId = e.id " +
+            "LEFT JOIN debts AS d ON d.id = l.debtId " +
+            "WHERE e.id IN ($DEBT_ENTRY_IDS_SQL) ORDER BY e.date DESC, e.id DESC, l.position, l.id",
+    )
+    suspend fun legsOnDebt(debtId: Long): List<LegRow>
+
+    /** Headers and complete legs share a snapshot even when an entry changes debt while reading. */
+    @Transaction
+    suspend fun readOnDebt(debtId: Long): EntryRangeRows =
+        EntryRangeRows(headers = headersOnDebt(debtId), legs = legsOnDebt(debtId))
 
     /**
      * Entries dated inside the inclusive [start]..[end], newest first (date desc, then id desc), each

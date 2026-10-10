@@ -3,11 +3,13 @@ package org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.EntryRecipe
+import org.aristonis.mywallet.domain.ledger.EntrySaveContext
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.CategoryRole
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import java.math.BigDecimal
@@ -27,6 +29,19 @@ import java.time.LocalDate
 object RepaymentRecipe : EntryRecipe<Transaction.Repayment> {
 
     override val kind: String = "REPAYMENT"
+
+    override suspend fun prepareForSave(entry: Transaction.Repayment, context: EntrySaveContext): Transaction.Repayment {
+        val debtId = context.debtId(entry.debtId, entry.side, entry.principal.currencyCode)
+        val role = when (entry.side) {
+            DebtSide.I_OWE -> CategoryRole.INTEREST_OUT
+            DebtSide.OWED_TO_ME -> CategoryRole.INTEREST_IN
+        }
+        val categoryId = if (entry.interest == null) entry.interestCategoryId else {
+            context.roleCategories.categoryFor(role, entry.interestCategoryId)
+        }
+        // Both amounts and the pair rate are historical facts, including a rounded full payoff.
+        return entry.copy(debtId = debtId, interestCategoryId = categoryId)
+    }
 
     private val shape = LegShape(
         required = setOf(LegRole.ACCOUNT, LegRole.DEBT),
