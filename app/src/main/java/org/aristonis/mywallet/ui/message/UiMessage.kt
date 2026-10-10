@@ -65,6 +65,9 @@ sealed interface UiMessage {
     /** [amount] is how far below zero the debt with [counterparty] would go, as a positive value. */
     data class DebtBelowZero(val counterparty: String, val amount: Money) : UiMessage
 
+    /** Another debt on the same side and currency already answers to [counterparty]. */
+    data class DebtNameTaken(val counterparty: String) : UiMessage
+
     // -- Transactions -----------------------------------------------------------------------------
 
     data object TransactionNotFound : UiMessage

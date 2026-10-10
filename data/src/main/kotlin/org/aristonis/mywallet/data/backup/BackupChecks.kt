@@ -9,6 +9,8 @@ import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.NameKey
 
 /**
  * Refuses, as [WalletException.BackupInvalid], a format-2 backup that could not be restored and then
@@ -18,17 +20,44 @@ import org.aristonis.mywallet.domain.model.DebtSide
  *
  * Every rule here is something the database or the read side would otherwise trip over later,
  * with an error the owner could do nothing about.
+ *
+ * Returns the file with every name key recomputed (see [withRecomputedKeys]); that is the file the
+ * checks judged, so it is the one a restore must write.
  */
-internal fun requireRestorable(backup: WalletBackupV2) {
-    try {
-        checkRestorable(backup)
-    } catch (e: IllegalArgumentException) {
-        // A failed check below, an unknown enum name, or a number that does not parse.
-        throw WalletException.BackupInvalid(e)
-    } catch (e: WalletException.UnreadableRow) {
-        throw WalletException.BackupInvalid(e)
-    }
+internal fun requireRestorable(backup: WalletBackupV2): WalletBackupV2 = try {
+    withRecomputedKeys(backup).also(::checkRestorable)
+} catch (e: IllegalArgumentException) {
+    // A failed check below, an unknown enum name, or a number that does not parse.
+    throw WalletException.BackupInvalid(e)
+} catch (e: WalletException.UnreadableRow) {
+    throw WalletException.BackupInvalid(e)
+} catch (e: WalletException.NameBlank) {
+    // A debt or deduction item whose name keys to nothing: no lookup could ever find it.
+    throw WalletException.BackupInvalid(e)
 }
+
+/**
+ * The file with each debt's `counterpartyKey` and each deduction item's `nameKey` replaced by the key
+ * of its name. The stored key is never trusted: it may have been edited by hand, or written by a
+ * build whose folding has since changed, and a row under a stale key is one no lookup finds while
+ * the unique index lets a second row for the same name in beside it. Uniqueness is then checked on
+ * these keys, so two names that fold together are caught here rather than by the database.
+ *
+ * The name itself comes back trimmed, the way a save stores it, and the key is computed from that
+ * trimmed name, so a hand-edited " Ali " restores as the same "Ali" the app would have written.
+ *
+ * @throws WalletException.NameBlank when a name keys to nothing.
+ */
+private fun withRecomputedKeys(backup: WalletBackupV2): WalletBackupV2 = backup.copy(
+    debts = backup.debts.map { debt ->
+        val name = debt.counterparty.trim()
+        debt.copy(counterparty = name, counterpartyKey = NameKey.of(name).value)
+    },
+    deductionItems = backup.deductionItems.map { item ->
+        val name = item.name.trim()
+        item.copy(name = name, nameKey = NameKey.of(name).value)
+    },
+)
 
 private fun checkRestorable(backup: WalletBackupV2) {
     // A real wallet backup is always taken after onboarding, so it carries settings (the base
@@ -37,16 +66,20 @@ private fun checkRestorable(backup: WalletBackupV2) {
     // Read every reference row the way the app will. A bad theme would stop the app at launch,
     // before Settings could be reached to restore anything else.
     settings.toEntity().toDomain()
+    // An account's credit limit is read here too, so a limit that is not a number or not above 0
+    // is refused the way the account model refuses it.
     backup.accounts.forEach { it.toEntity().toDomain() }
     backup.categories.forEach { it.toEntity().toDomain() }
     backup.currencies.forEach { it.toEntity().toDomain() }
     backup.rates.forEach { it.toEntity().toDomain() }
+    backup.debts.forEach { it.toEntity().toDomain() }
 
     requireSoundCategoryTree(backup.categories)
     requireKeysResolve(backup)
     requireLegsInTheirTargetsCurrency(backup)
     requireUniqueKeys(backup)
     requireReadableEntries(backup)
+    requireNoDebtBelowZero(backup)
 }
 
 /**
@@ -193,6 +226,22 @@ private fun requireUniqueKeys(backup: WalletBackupV2) {
     requireUnique(backup.deductionAutoCategories.map { it.itemId to it.incomeCategoryId }, "an auto-add link is listed twice")
     requireUnique(backup.deductionItems.map { it.nameKey }, "two deduction items share a name key")
     requireUnique(backup.debts.map { Triple(it.side, it.currencyCode, it.counterpartyKey) }, "two debts share a name, side and currency")
+}
+
+/**
+ * What remains on a debt, the sum of its legs, is never below zero. Paying back more than was owed
+ * means the other person now owes the owner: that is a debt on the other side, not a negative one,
+ * and a save refuses it. Every entry can read fine on its own while the sum still goes below zero,
+ * so this is checked per debt, over all its legs. The legs are already known to be in the debt's
+ * currency, so they add up as one amount. A debt with no legs remains at zero.
+ */
+private fun requireNoDebtBelowZero(backup: WalletBackupV2) {
+    val legsByDebt = backup.legs.groupBy { it.debtId }
+    backup.debts.forEach { debt ->
+        val remaining = legsByDebt[debt.id].orEmpty()
+            .fold(Money.zero(debt.currencyCode)) { sum, leg -> sum + Money.of(leg.amount, debt.currencyCode) }
+        require(!remaining.isNegative) { "debt ${debt.id} adds up to $remaining, which is below zero" }
+    }
 }
 
 private fun <T> requireUnique(keys: List<T>, problem: String) {

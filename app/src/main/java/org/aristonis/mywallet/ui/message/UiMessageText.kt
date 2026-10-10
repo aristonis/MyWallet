@@ -53,6 +53,8 @@ fun UiMessage.text(): String = when (this) {
         val (name, formattedAmount) = debtBelowZeroArgs(counterparty, displayAsSummed(amount))
         stringResource(R.string.msg_debt_below_zero, name, formattedAmount)
     }
+    // Isolated for the same reason as in the below-zero message: the name can run the other way.
+    is UiMessage.DebtNameTaken -> stringResource(R.string.msg_debt_name_taken, bidiIsolate(counterparty))
 
     UiMessage.TransactionNotFound -> stringResource(R.string.msg_transaction_not_found)
     UiMessage.EntryAlreadyRestored -> stringResource(R.string.msg_entry_already_restored)

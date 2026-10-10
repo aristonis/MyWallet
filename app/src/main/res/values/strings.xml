@@ -327,6 +327,7 @@
 
     <string name="msg_name_blank">Enter a name.</string>
     <string name="msg_debt_below_zero">That would take %1$s %2$s below zero.</string>
+    <string name="msg_debt_name_taken">A debt named %1$s already exists on this side and currency.</string>
 
     <string name="msg_transaction_not_found">That transaction no longer exists.</string>
     <string name="msg_entry_already_restored">That entry is already back.</string>

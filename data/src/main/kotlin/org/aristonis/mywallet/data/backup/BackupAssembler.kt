@@ -88,8 +88,8 @@ fun decodeValidated(text: String): WalletBackupV2 {
         // Also what the converters throw for a file the database could never have held.
         throw WalletException.BackupInvalid(e)
     }
-    requireRestorable(backup)
-    return backup
+    // The checks recompute every name key, so the file they hand back is the one to restore.
+    return requireRestorable(backup)
 }
 
 /**

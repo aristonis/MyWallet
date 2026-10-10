@@ -119,6 +119,14 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
         WalletException("That would take the debt with $counterparty $amount below zero")
 
     /**
+     * Another debt on the same side and in the same currency already answers to [counterparty], even
+     * one no entry points at any more. Two debts under one name would be one person's money split in
+     * two, and merging them would mix two people's money, so the rename is refused.
+     */
+    class DebtNameTaken(val counterparty: String) :
+        WalletException("Another debt on this side and currency is already named $counterparty")
+
+    /**
      * A stored entry whose kind, legs or values cannot be turned back into an entry. It is the only
      * error the read side throws for bad stored data, so screens can name the row instead of crashing.
      */

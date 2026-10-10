@@ -35,6 +35,7 @@ fun WalletException.toUiMessage(): UiMessage = when (this) {
     is WalletException.AmountRoundsToZero -> UiMessage.AmountRoundsToZero(currencyCode)
     is WalletException.NameBlank -> UiMessage.NameBlank
     is WalletException.DebtBelowZero -> UiMessage.DebtBelowZero(counterparty, amount)
+    is WalletException.DebtNameTaken -> UiMessage.DebtNameTaken(counterparty)
     is WalletException.BackupInvalid -> UiMessage.BackupNotRecognized
     is WalletException.BackupVersionUnsupported -> UiMessage.BackupFromNewerVersion
 }
