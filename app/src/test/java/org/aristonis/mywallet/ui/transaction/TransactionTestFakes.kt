@@ -237,6 +237,13 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
         is Transaction.Income -> copy(id = id)
         is Transaction.Expense -> copy(id = id)
         is Transaction.Transfer -> copy(id = id)
+        is Transaction.Borrow -> copy(id = id)
+        is Transaction.Lend -> copy(id = id)
+        is Transaction.OwedBefore -> copy(id = id)
+        is Transaction.CreditPurchase -> copy(id = id)
+        is Transaction.EarnedUnpaid -> copy(id = id)
+        is Transaction.Repayment -> copy(id = id)
+        is Transaction.WriteOff -> copy(id = id)
     }
 }
 

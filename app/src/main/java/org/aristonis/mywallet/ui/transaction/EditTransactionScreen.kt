@@ -70,7 +70,7 @@ import org.aristonis.mywallet.ui.message.text
  * via the VM's one-shot flags). [onSaved] leaves once the edit is saved and carries the date it was
  * stored under, so a list showing only some dates can say when the entry moved outside them. A delete
  * hands back no date: there is no entry left to show. An account in another currency shows its rate
- * field, as on the add form.
+ * field, as on the add form. A kind the form cannot edit yet opens read-only ([ReadOnlyEntry]).
  */
 @Composable
 fun EditTransactionScreen(
@@ -153,7 +153,9 @@ private fun EditTransactionContent(
         val loaded = state.loaded
         val type = state.type
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            if (loaded == null || type == null) {
+            if (loaded != null && state.readOnly) {
+                ReadOnlyEntry(state = state, loaded = loaded)
+            } else if (loaded == null || type == null) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
                 EditTransactionForm(

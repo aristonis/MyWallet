@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.CreditScore
 import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.CurrencyExchange
 import androidx.compose.material.icons.rounded.Delete
@@ -24,17 +25,24 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.MoneyOff
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.MoveToInbox
 import androidx.compose.material.icons.rounded.NorthEast
+import androidx.compose.material.icons.rounded.Outbox
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.PriceCheck
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material.icons.rounded.SouthWest
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Unarchive
@@ -63,10 +71,20 @@ object WalletIcons {
     val Expense: ImageVector = Icons.Rounded.NorthEast
     val Transfer: ImageVector = Icons.Rounded.SwapHoriz
 
+    // Debt kinds
+    val Borrow: ImageVector = Icons.Rounded.MoveToInbox
+    val Lend: ImageVector = Icons.Rounded.Outbox
+    val OwedBefore: ImageVector = Icons.Rounded.History
+    val CreditPurchase: ImageVector = Icons.Rounded.ShoppingCart
+    val EarnedUnpaid: ImageVector = Icons.Rounded.HourglassTop
+    val Repayment: ImageVector = Icons.Rounded.PriceCheck
+    val WriteOff: ImageVector = Icons.Rounded.MoneyOff
+
     // Accounts
     val AccountDefault: ImageVector = Icons.Rounded.AccountBalanceWallet
     val AccountBank: ImageVector = Icons.Rounded.AccountBalance
     val AccountCard: ImageVector = Icons.Rounded.CreditCard
+    val AccountCreditCard: ImageVector = Icons.Rounded.CreditScore
     val AccountCash: ImageVector = Icons.Rounded.Payments
 
     // Management
@@ -119,6 +137,7 @@ object WalletIcons {
 private val accountTypeIcons: Map<String, ImageVector> = mapOf(
     AccountTypeRegistry.BuiltIns.CASH.key to WalletIcons.AccountCash,
     AccountTypeRegistry.BuiltIns.CARD.key to WalletIcons.AccountCard,
+    AccountTypeRegistry.BuiltIns.CREDIT_CARD.key to WalletIcons.AccountCreditCard,
     AccountTypeRegistry.BuiltIns.BANK.key to WalletIcons.AccountBank,
 )
 

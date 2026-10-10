@@ -19,7 +19,6 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
@@ -31,10 +30,8 @@ import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
-import org.aristonis.mywallet.ui.message.MissingSelectionException
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
-import java.math.BigDecimal
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -70,6 +67,11 @@ data class EditTransactionUiState(
     val rateFields: List<RateField> = emptyList(),
     /** The amount in the base currency, e.g. "8.00 SYP"; null when there is nothing to convert. */
     val baseEquivalent: String? = null,
+    /**
+     * The loaded entry is of a kind the form cannot edit yet (a debt kind). It is shown as it is, and
+     * nothing on it can be saved or deleted from here.
+     */
+    val readOnly: Boolean = false,
 ) {
     /** Children of the chosen category, filtered by kind for the reason the add form gives. */
     val subCategoriesForSelected: List<Category>
@@ -80,11 +82,7 @@ data class EditTransactionUiState(
 
     /** Categories offered for the loaded kind: income lists income, expense lists expense, transfer none. */
     val categoriesForType: List<Category>
-        get() = when (type) {
-            TransactionType.INCOME -> allCategories.filter { it.kind == CategoryKind.INCOME && !it.isSubCategory }
-            TransactionType.EXPENSE -> allCategories.filter { it.kind == CategoryKind.EXPENSE && !it.isSubCategory }
-            TransactionType.TRANSFER, null -> emptyList()
-        }
+        get() = type?.let { EntryFormRules.forType(it).categoriesOffered(allCategories) }.orEmpty()
 
     /**
      * A transfer's stored rate is bound to its currency pair, so editing a transfer may only move the
@@ -94,16 +92,21 @@ data class EditTransactionUiState(
 
     /**
      * False while a save runs, while its date waits to be acknowledged, and while a delete can still
-     * be undone, so one tap writes once and a deleted entry is never saved back.
+     * be undone, so one tap writes once and a deleted entry is never saved back. Always false on a
+     * read-only entry.
      */
     val canSubmit: Boolean
-        get() = undoableDelete == null && !isSubmitting && savedOn == null && amountInput.isNotBlank() &&
-            when (type) {
-                null -> false
-                TransactionType.TRANSFER -> true
-                TransactionType.INCOME, TransactionType.EXPENSE ->
-                    selectedAccountId != null && selectedCategoryId != null
-            }
+        get() = !readOnly && undoableDelete == null && !isSubmitting && savedOn == null &&
+            type?.let { EntryFormRules.forType(it).isSubmittable(formInputs()) } == true
+
+    /** The form's choices, in the shape the shared rule of each type reads. */
+    fun formInputs(): EntryFormInputs = EntryFormInputs(
+        accountId = selectedAccountId,
+        categoryId = selectedCategoryId,
+        subCategoryId = selectedSubCategoryId,
+        destAccountId = destAccountId,
+        amountInput = amountInput,
+    )
 }
 
 /**
@@ -171,7 +174,7 @@ class EditTransactionViewModel @Inject constructor(
         mutate {
             it.copy(
                 loaded = null, type = null, isSubmitting = false, error = null,
-                savedOn = null, deleted = false, undoableDelete = null, rateInputs = emptyMap(),
+                savedOn = null, deleted = false, undoableDelete = null, rateInputs = emptyMap(), readOnly = false,
             )
         }
         loadJob = viewModelScope.launch {
@@ -261,6 +264,7 @@ class EditTransactionViewModel @Inject constructor(
     fun submit() {
         val snapshot = _state.value
         val loaded = snapshot.loaded ?: return
+        if (snapshot.readOnly) return // a kind the form cannot edit yet is never written from here
         if (snapshot.undoableDelete != null) return // the row is deleted with an undo pending — don't save a ghost
         if (snapshot.isSubmitting || snapshot.savedOn != null) return
         _state.update { it.copy(isSubmitting = true, error = null) }
@@ -290,6 +294,9 @@ class EditTransactionViewModel @Inject constructor(
     fun delete() {
         val snapshot = _state.value
         val loaded = snapshot.loaded ?: return
+        // A debt entry's delete has to keep its debt from going below zero, which this screen cannot
+        // check yet; a read-only entry stays exactly as it is.
+        if (snapshot.readOnly) return
         if (snapshot.undoableDelete != null) return // already deleted with an undo pending
         // A second tap while the delete runs would find the entry gone and report it missing.
         if (snapshot.isSubmitting || snapshot.savedOn != null) return
@@ -306,37 +313,34 @@ class EditTransactionViewModel @Inject constructor(
         }
     }
 
-    /** Re-hydrate every form field from a stored row, resetting transient/one-shot state. */
-    private fun EditTransactionUiState.populatedFrom(tx: Transaction): EditTransactionUiState = when (tx) {
-        is Transaction.Income -> copyLoaded(
-            tx, TransactionType.INCOME, tx.accountId, tx.categoryId, tx.subCategoryId, null, tx.amount,
-        )
-        is Transaction.Expense -> copyLoaded(
-            tx, TransactionType.EXPENSE, tx.accountId, tx.categoryId, tx.subCategoryId, null, tx.amount,
-        )
-        is Transaction.Transfer -> copyLoaded(
-            tx, TransactionType.TRANSFER, tx.sourceAccountId, null, null, tx.destAccountId, tx.sourceAmount,
-        )
+    /**
+     * Re-hydrate every form field from a stored row, resetting transient/one-shot state. A kind with
+     * no form rule yet opens read-only, showing the money that moved, its date and its note.
+     */
+    private fun EditTransactionUiState.populatedFrom(tx: Transaction): EditTransactionUiState {
+        val rule = EntryFormRules.forEntry(tx)
+            ?: return copyLoaded(tx, type = null, EntryFormInputs(amountInput = inputOf(tx.movedAmount())), readOnly = true)
+        return copyLoaded(tx, rule.type, rule.load(tx, moneyParser), readOnly = false)
     }
+
+    private fun inputOf(amount: Money): String = moneyParser.toInputString(amount.amount)
 
     private fun EditTransactionUiState.copyLoaded(
         tx: Transaction,
-        type: TransactionType,
-        accountId: Long,
-        categoryId: Long?,
-        subCategoryId: Long?,
-        destAccountId: Long?,
-        amount: Money,
+        type: TransactionType?,
+        inputs: EntryFormInputs,
+        readOnly: Boolean,
     ) = copy(
         loaded = tx,
         type = type,
-        selectedAccountId = accountId,
-        selectedCategoryId = categoryId,
+        readOnly = readOnly,
+        selectedAccountId = inputs.accountId,
+        selectedCategoryId = inputs.categoryId,
         // Seeded here for the same reason it is written on save: the form now owns this field, so
         // leaving it unseeded would make editing anything at all clear the stored sub-category.
-        selectedSubCategoryId = subCategoryId,
-        destAccountId = destAccountId,
-        amountInput = moneyParser.toInputString(amount.amount),
+        selectedSubCategoryId = inputs.subCategoryId,
+        destAccountId = inputs.destAccountId,
+        amountInput = inputs.amountInput,
         date = tx.date,
         note = tx.note ?: "",
         isSubmitting = false,
@@ -348,80 +352,21 @@ class EditTransactionViewModel @Inject constructor(
     )
 
     /**
-     * Fold the edited form back onto the loaded row, preserving its id and the fields the form never
-     * exposes. Income/expense may move account/category/amount/date/note; a transfer keeps its locked
-     * accounts and rate, changing only the source amount (the save re-derives the destination leg).
-     * The rate an income or expense carries here is ignored: the save decides it.
+     * Fold the edited form back onto the loaded row through its type's rule, which keeps its id and
+     * the fields the form never exposes. Income/expense may move account/category/amount/date/note; a
+     * transfer keeps its locked accounts and rate, changing only the source amount (the save
+     * re-derives the destination leg). The rate an income or expense carries here is ignored: the save
+     * decides it.
      */
     private fun buildEdited(snapshot: EditTransactionUiState, loaded: Transaction): Transaction {
-        val note = snapshot.note.trim().ifEmpty { null }
-        val date = snapshot.date ?: loaded.date
-        return when (loaded) {
-            is Transaction.Income -> {
-                val account = requireAccount(snapshot)
-                loaded.copy(
-                    accountId = account.id,
-                    amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode),
-                    categoryId = requireCategory(snapshot),
-                    subCategoryId = snapshot.selectedSubCategoryId,
-                    date = date,
-                    note = note,
-                )
-            }
-            is Transaction.Expense -> {
-                val account = requireAccount(snapshot)
-                loaded.copy(
-                    accountId = account.id,
-                    amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode),
-                    categoryId = requireCategory(snapshot),
-                    subCategoryId = snapshot.selectedSubCategoryId,
-                    date = date,
-                    note = note,
-                )
-            }
-            is Transaction.Transfer -> loaded.copy(
-                // Currency comes from the locked source leg, so the domain's pair-guard always passes.
-                sourceAmount = moneyParser.parseAmount(snapshot.amountInput, loaded.sourceAmount.currencyCode),
-                date = date,
-                note = note,
-            )
-        }
+        val rule = checkNotNull(snapshot.type?.let(EntryFormRules::forType)) { "an editable entry has a type" }
+        return rule.build(
+            inputs = snapshot.formInputs(),
+            accounts = snapshot.accounts,
+            moneyParser = moneyParser,
+            date = snapshot.date ?: loaded.date,
+            note = snapshot.note,
+            loaded = loaded,
+        )
     }
-
-    private fun requireAccount(snapshot: EditTransactionUiState): Account =
-        snapshot.accounts.firstOrNull { it.id == snapshot.selectedAccountId }
-            ?: throw MissingSelectionException(UiMessage.AccountRequired)
-
-    private fun requireCategory(snapshot: EditTransactionUiState): Long =
-        snapshot.selectedCategoryId ?: throw MissingSelectionException(UiMessage.CategoryRequired)
-}
-
-/**
- * What the rate previews are priced from, built the way the add form builds it. A transfer quotes
- * nothing here: its pair is locked and it is re-derived at its own stored rate, so a rate field would
- * change nothing. The entry's own rate is shown for the currency it was recorded in.
- */
-internal fun EditTransactionUiState.quoteInput(): RateQuoteInput {
-    val entry = loaded
-    val sourceCurrency = if (entry is Transaction.Transfer) {
-        null
-    } else {
-        accounts.firstOrNull { it.id == selectedAccountId }?.currencyCode
-    }
-    return RateQuoteInput(
-        fx = fx,
-        sourceCurrency = sourceCurrency,
-        destCurrency = null,
-        isTransfer = false,
-        amountInput = amountInput,
-        rateInputs = rateInputs,
-        keptRates = entry?.keptRate()?.let { (code, rate) -> mapOf(code to rate) }.orEmpty(),
-    )
-}
-
-/** The currency an income or expense was recorded in and the rate stored with it. */
-private fun Transaction.keptRate(): Pair<String, BigDecimal?>? = when (this) {
-    is Transaction.Income -> amount.currencyCode to rateToBase
-    is Transaction.Expense -> amount.currencyCode to rateToBase
-    is Transaction.Transfer -> null
 }

@@ -41,19 +41,13 @@ import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.LoadFailedState
-import org.aristonis.mywallet.ui.components.MoneyText
-import org.aristonis.mywallet.ui.components.WalletListRow
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
-import org.aristonis.mywallet.ui.format.amountRole
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.rememberDayFormatter
-import org.aristonis.mywallet.ui.format.signedAmount
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.text
-import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
-import org.aristonis.mywallet.ui.theme.amountColor
 import org.aristonis.mywallet.ui.window.DateRangeAction
 import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.window.DateWindowBar
@@ -294,85 +288,6 @@ private fun DayHeader(text: String) {
         )
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
     }
-}
-
-@Composable
-private fun TransactionRowItem(row: TransactionRow, onClick: () -> Unit) {
-    val role = row.type.amountRole()
-    WalletListRow(
-        headline = headline(row),
-        supporting = supporting(row),
-        leadingIcon = row.type.icon(),
-        leadingIconDescription = row.type.iconDescription(),
-        leadingIconTint = amountColor(role),
-        trailing = {
-            MoneyText(
-                amount = amountLine(row),
-                style = MaterialTheme.typography.titleMedium,
-                color = amountColor(role),
-            )
-        },
-        onClick = onClick,
-    )
-}
-
-/** What the row is about: the category for a spend or an income, the route for a transfer. */
-@Composable
-private fun headline(row: TransactionRow): String {
-    val missing = stringResource(R.string.value_missing)
-    if (row.type == TransactionRowType.TRANSFER) {
-        // Two names with an arrow between them: without isolation a right-to-left layout can swap
-        // which account the arrow points at, turning a transfer into its opposite.
-        return stringResource(
-            R.string.transfer_route,
-            bidiIsolate(row.accountName ?: missing),
-            bidiIsolate(row.destAccountName ?: missing),
-        )
-    }
-    val category = row.categoryLabel?.text() ?: missing
-    // The note is what tells two otherwise identical rows apart, so it belongs on the first line.
-    return row.note?.let { stringResource(R.string.transaction_headline_with_note, category, it) } ?: category
-}
-
-/** The quieter second line: which account the money moved through. */
-@Composable
-private fun supporting(row: TransactionRow): String? = when (row.type) {
-    TransactionRowType.INCOME, TransactionRowType.EXPENSE -> row.accountName ?: stringResource(R.string.value_missing)
-    TransactionRowType.TRANSFER -> row.note
-}
-
-@Composable
-private fun TransactionRowType.icon() = when (this) {
-    TransactionRowType.INCOME -> WalletIcons.Income
-    TransactionRowType.EXPENSE -> WalletIcons.Expense
-    TransactionRowType.TRANSFER -> WalletIcons.Transfer
-}
-
-/** The icon carries the kind, so it is announced rather than left as decoration. */
-@Composable
-private fun TransactionRowType.iconDescription() = stringResource(
-    when (this) {
-        TransactionRowType.INCOME -> R.string.cd_income
-        TransactionRowType.EXPENSE -> R.string.cd_expense
-        TransactionRowType.TRANSFER -> R.string.cd_transfer
-    },
-)
-
-@Composable
-private fun amountLine(row: TransactionRow): String = when (row.type) {
-    // A same-currency transfer moves one figure between two accounts, so showing it twice would say
-    // nothing. A cross-currency one genuinely has two amounts, and hiding either would misstate it.
-    TransactionRowType.TRANSFER ->
-        if (row.destAmountDisplay != null && row.destAmountDisplay != row.amountDisplay) {
-            stringResource(
-                R.string.transfer_amounts,
-                bidiIsolate(row.amountDisplay),
-                bidiIsolate(row.destAmountDisplay),
-            )
-        } else {
-            row.amountDisplay
-        }
-    TransactionRowType.INCOME, TransactionRowType.EXPENSE -> signedAmount(row.type.amountRole(), row.amountDisplay)
 }
 
 @Preview(showBackground = true)

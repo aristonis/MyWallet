@@ -27,8 +27,14 @@ class RecipeContractTest {
     }
 
     @Test
-    fun theRegistryHoldsTheThreeExistingKinds() {
-        assertEquals(setOf("INCOME", "EXPENSE", "TRANSFER"), EntryRecipes.all.map { it.kind }.toSet())
+    fun theRegistryHoldsEveryKind() {
+        assertEquals(
+            setOf(
+                "INCOME", "EXPENSE", "TRANSFER", "BORROW", "LEND", "OWED_BEFORE",
+                "CREDIT_PURCHASE", "EARNED_UNPAID", "REPAYMENT", "WRITE_OFF",
+            ),
+            EntryRecipes.all.map { it.kind }.toSet(),
+        )
         EntryRecipes.all.forEach { assertEquals(it, EntryRecipes.forKind(it.kind)) }
         assertEquals(null, EntryRecipes.forKind("NOT_A_KIND"))
     }
@@ -158,7 +164,7 @@ class RecipeContractTest {
             }
         }
         assertTrue(violations(opening).none { "accounts + owed to me - I owe" in it })
-        assertTrue(EntryRecipes.all.none { it.opensBalances })
+        assertEquals(listOf("OWED_BEFORE"), EntryRecipes.all.filter { it.opensBalances }.map { it.kind })
     }
 
     private fun expenseRecipe(): EntryRecipe<Transaction.Expense> {
@@ -185,21 +191,26 @@ class RecipeContractTest {
                     if (first.target is LegTarget.Account) first.copy(rateToBase = BigDecimal.ONE) else first,
                 ).takeIf { first.target is LegTarget.Account },
                 "header kind mismatch" to parts.copy(header = parts.header.copy(kind = "NOT_" + parts.header.kind)),
-                // A transfer's two legs are allowed different currencies, so only the others must match.
+                // A transfer's two legs are allowed different currencies, so only the others must match;
+                // an entry of one leg has nothing for that leg to disagree with.
                 "currency mismatch" to replaceFirst(first.copy(amount = Money.of(first.amount.amount, otherCurrency)))
-                    .takeIf { parts.header.kind != "TRANSFER" },
+                    .takeIf { parts.header.kind != "TRANSFER" && parts.legs.size > 1 },
             ).mapNotNull { (name, copy) -> copy?.let { name to it } }.toMutableList()
             parts.legs.firstOrNull { it.target is LegTarget.Category }?.let { cat ->
                 copies += "a rate of zero" to parts.copy(legs = parts.legs.map { if (it === cat) it.copy(rateToBase = BigDecimal.ZERO) else it })
             }
-            if (parts.header.kind == "TRANSFER") {
-                copies += "a transfer without a pair rate" to parts.copy(header = parts.header.copy(pairRate = null))
+            if (parts.header.pairRate != null) {
+                // A transfer, or a repayment across currencies: the rate between the two currencies is
+                // part of the entry, so losing it or zeroing it must not read back.
+                copies += "${parts.header.kind} without its pair rate" to parts.copy(header = parts.header.copy(pairRate = null))
                 copies += "a pair rate of zero" to parts.copy(header = parts.header.copy(pairRate = BigDecimal.ZERO))
+            } else {
+                copies += "a pair rate on ${parts.header.kind}" to parts.copy(header = parts.header.copy(pairRate = BigDecimal.ONE))
+            }
+            if (parts.header.kind == "TRANSFER") {
                 copies += "a negative destination" to parts.copy(
                     legs = parts.legs.map { if (it.role == LegRole.DEST) it.copy(amount = -it.amount) else it },
                 )
-            } else {
-                copies += "a pair rate on ${parts.header.kind}" to parts.copy(header = parts.header.copy(pairRate = BigDecimal.ONE))
             }
             return copies
         }

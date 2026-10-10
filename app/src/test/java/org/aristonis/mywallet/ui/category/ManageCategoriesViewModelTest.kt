@@ -67,6 +67,11 @@ class ManageCategoriesViewModelTest {
                     is Transaction.Income -> setOfNotNull(tx.categoryId, tx.subCategoryId)
                     is Transaction.Expense -> setOfNotNull(tx.categoryId, tx.subCategoryId)
                     is Transaction.Transfer -> emptySet()
+                    is Transaction.Borrow, is Transaction.Lend, is Transaction.OwedBefore -> emptySet()
+                    is Transaction.CreditPurchase -> setOfNotNull(tx.categoryId, tx.subCategoryId)
+                    is Transaction.EarnedUnpaid -> setOfNotNull(tx.categoryId, tx.subCategoryId)
+                    is Transaction.Repayment -> setOfNotNull(tx.interestCategoryId, tx.interestSubCategoryId)
+                    is Transaction.WriteOff -> setOfNotNull(tx.categoryId, tx.subCategoryId)
                 }
             }
             .groupingBy { it }

@@ -20,10 +20,28 @@ fun signedAmount(role: AmountRole, display: String): String = when (role) {
 
 /**
  * A transfer is neutral: the money moved between the user's own accounts, so the wallet is no richer
- * or poorer and a red or green amount would claim otherwise.
+ * or poorer and a red or green amount would claim otherwise. Borrowing, lending and an opening
+ * balance are neutral for the same reason: money and what is owed move together. A purchase on
+ * credit is an expense and income earned but unpaid is income, both counted when they happen.
+ *
+ * A repayment, paid or received, is neutral too: the principal moves money and the debt together,
+ * and only the interest counts, which its row shows on its own line. A write-off counts in full, so
+ * a loss reads as an expense and a forgiven debt as income.
  */
 fun TransactionRowType.amountRole(): AmountRole = when (this) {
-    TransactionRowType.INCOME -> AmountRole.INCOME
-    TransactionRowType.EXPENSE -> AmountRole.EXPENSE
-    TransactionRowType.TRANSFER -> AmountRole.NEUTRAL
+    TransactionRowType.INCOME,
+    TransactionRowType.EARNED_UNPAID,
+    TransactionRowType.WRITE_OFF_FORGIVEN,
+    -> AmountRole.INCOME
+    TransactionRowType.EXPENSE,
+    TransactionRowType.CREDIT_PURCHASE,
+    TransactionRowType.WRITE_OFF_LOSS,
+    -> AmountRole.EXPENSE
+    TransactionRowType.TRANSFER,
+    TransactionRowType.BORROW,
+    TransactionRowType.LEND,
+    TransactionRowType.OWED_BEFORE,
+    TransactionRowType.REPAYMENT_PAID,
+    TransactionRowType.REPAYMENT_RECEIVED,
+    -> AmountRole.NEUTRAL
 }

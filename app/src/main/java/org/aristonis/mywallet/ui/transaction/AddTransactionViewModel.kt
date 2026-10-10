@@ -17,19 +17,14 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
-import org.aristonis.mywallet.ui.message.MissingSelectionException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.FxSnapshot
-import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.SaveEntry
-import java.math.BigDecimal
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -79,30 +74,33 @@ data class AddTransactionUiState(
 
     /** Categories offered for the current type: income lists income, expense lists expense, transfer none. */
     val categoriesForType: List<Category>
-        get() = when (type) {
-            TransactionType.INCOME -> allCategories.filter { it.kind == CategoryKind.INCOME && !it.isSubCategory }
-            TransactionType.EXPENSE -> allCategories.filter { it.kind == CategoryKind.EXPENSE && !it.isSubCategory }
-            TransactionType.TRANSFER -> emptyList()
-        }
+        get() = EntryFormRules.forType(type).categoriesOffered(allCategories)
 
     /** Destination candidates for a transfer: every account except the chosen source. */
     val destAccounts: List<Account>
         get() = accounts.filter { it.id != selectedAccountId }
 
-    /** False while a save runs or its date waits to be acknowledged, so one tap stores one entry. */
+    /**
+     * False while a save runs or its date waits to be acknowledged, so one tap stores one entry. Only
+     * a transfer ever needs a rate before it can be priced, so [rateRequired] is false for the others.
+     */
     val canSubmit: Boolean
-        get() = !isSubmitting && savedOn == null && amountInput.isNotBlank() && when (type) {
-            TransactionType.TRANSFER ->
-                selectedAccountId != null && destAccountId != null &&
-                    destAccountId != selectedAccountId && !rateRequired
-            TransactionType.INCOME, TransactionType.EXPENSE ->
-                selectedAccountId != null && selectedCategoryId != null
-        }
+        get() = !isSubmitting && savedOn == null && !rateRequired &&
+            EntryFormRules.forType(type).isSubmittable(formInputs())
+
+    /** The form's choices, in the shape the shared rule of each type reads. */
+    fun formInputs(): EntryFormInputs = EntryFormInputs(
+        accountId = selectedAccountId,
+        categoryId = selectedCategoryId,
+        subCategoryId = selectedSubCategoryId,
+        destAccountId = destAccountId,
+        amountInput = amountInput,
+    )
 }
 
 /**
  * Records an income, expense, or transfer through [SaveEntry]. One view model, a [TransactionType]
- * selector, and a `when` that builds the matching entry. The amount is always built in the SELECTED
+ * selector, and the shared [EntryFormRule] of that type, which builds the matching entry. The amount is always built in the SELECTED
  * account's currency, so it matches by construction (the domain guard stays as defense). Because the
  * write goes through the same storage Home reads, recording an entry moves the balances and net
  * worth automatically; this view model never touches balance math.
@@ -224,12 +222,20 @@ class AddTransactionViewModel @Inject constructor(
     fun submit() {
         val snapshot = _state.value
         if (snapshot.isSubmitting || snapshot.savedOn != null) return
-        val account = snapshot.accounts.firstOrNull { it.id == snapshot.selectedAccountId } ?: return
+        if (snapshot.accounts.none { it.id == snapshot.selectedAccountId }) return
         _state.update { it.copy(isSubmitting = true, error = null) }
         viewModelScope.launch {
             try {
+                // A missing category or destination is thrown by the rule, before anything is written.
+                val entry = EntryFormRules.forType(snapshot.type).build(
+                    inputs = snapshot.formInputs(),
+                    accounts = snapshot.accounts,
+                    moneyParser = moneyParser,
+                    date = snapshot.date,
+                    note = snapshot.note,
+                )
                 val saved = saveEntry(
-                    entry = entryFrom(snapshot, account),
+                    entry = entry,
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )
                 _state.update { it.copy(isSubmitting = false, savedOn = saved.date) }
@@ -242,53 +248,6 @@ class AddTransactionViewModel @Inject constructor(
             }
         }
     }
-
-    /**
-     * The entry for the chosen type. A missing category or destination is thrown here, before
-     * anything is written. A transfer's destination amount and rate are placeholders: the save prices
-     * them from the source amount and the typed rates, the same way the preview did.
-     */
-    private fun entryFrom(snapshot: AddTransactionUiState, account: Account): Transaction {
-        val amount = moneyParser.parseAmount(snapshot.amountInput, account.currencyCode)
-        val note = snapshot.note.trim().ifEmpty { null }
-        return when (snapshot.type) {
-            TransactionType.INCOME -> Transaction.Income(
-                accountId = account.id,
-                amount = amount,
-                categoryId = requireCategory(snapshot),
-                subCategoryId = snapshot.selectedSubCategoryId,
-                date = snapshot.date,
-                note = note,
-            )
-            TransactionType.EXPENSE -> Transaction.Expense(
-                accountId = account.id,
-                amount = amount,
-                categoryId = requireCategory(snapshot),
-                subCategoryId = snapshot.selectedSubCategoryId,
-                date = snapshot.date,
-                note = note,
-            )
-            TransactionType.TRANSFER -> {
-                val dest = requireDestAccount(snapshot)
-                Transaction.Transfer(
-                    sourceAccountId = account.id,
-                    destAccountId = dest.id,
-                    sourceAmount = amount,
-                    destAmount = Money.of(amount.amount, dest.currencyCode),
-                    rateUsed = BigDecimal.ONE,
-                    date = snapshot.date,
-                    note = note,
-                )
-            }
-        }
-    }
-
-    private fun requireCategory(snapshot: AddTransactionUiState): Long =
-        snapshot.selectedCategoryId ?: throw MissingSelectionException(UiMessage.CategoryRequired)
-
-    private fun requireDestAccount(snapshot: AddTransactionUiState): Account =
-        snapshot.accounts.firstOrNull { it.id == snapshot.destAccountId }
-            ?: throw MissingSelectionException(UiMessage.DestinationAccountRequired)
 }
 
 /** What the rate previews are priced from; the edit form builds the same input from its own state. */

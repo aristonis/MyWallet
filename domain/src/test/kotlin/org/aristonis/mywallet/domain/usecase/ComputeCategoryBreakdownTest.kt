@@ -47,7 +47,8 @@ class ComputeCategoryBreakdownTest {
         return when (tx) {
             is Transaction.Income -> tx.copy(rateToBase = stored(tx.amount.currencyCode))
             is Transaction.Expense -> tx.copy(rateToBase = stored(tx.amount.currencyCode))
-            is Transaction.Transfer -> tx
+            // No other kind's legs are read by this breakdown's fixtures.
+            else -> tx
         }
     }
 

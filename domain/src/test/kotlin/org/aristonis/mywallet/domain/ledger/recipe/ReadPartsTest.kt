@@ -63,7 +63,7 @@ class ReadPartsTest {
         assertUnreadable(leg(LegRole.ACCOUNT), leg(LegRole.MAIN), leg(LegRole.DEDUCTION, 0), leg(LegRole.DEDUCTION, 0))
 
     @Test
-    fun aRoleTheShapeDoesNotNameIsUnreadable() = assertUnreadable(leg(LegRole.ACCOUNT), leg(LegRole.MAIN), leg(LegRole.INTEREST))
+    fun aRoleTheShapeDoesNotNameIsUnreadable() = assertUnreadable(leg(LegRole.ACCOUNT), leg(LegRole.MAIN), leg(LegRole.LOSS))
 
     @Test
     fun aRejectedValueInsideTheReaderIsUnreadable() {

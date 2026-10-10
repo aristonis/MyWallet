@@ -19,9 +19,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import org.aristonis.mywallet.data.format.MoneyFormatter
-import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.Category
-import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
@@ -33,7 +30,6 @@ import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.di.TodayProvider
-import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.load.ReadAttempts
 import org.aristonis.mywallet.ui.load.loadFailure
 import org.aristonis.mywallet.ui.load.toLoadFailure
@@ -43,8 +39,6 @@ import org.aristonis.mywallet.ui.window.TrackingWindowHolder
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
-import org.aristonis.mywallet.ui.CategoryLabel
-import org.aristonis.mywallet.ui.label
 
 /**
  * Where the read of one window stands, kept with the window it is for. A failure is a value here so
@@ -171,19 +165,19 @@ class TransactionsListViewModel @Inject constructor(
      * attempt's lookups: combine keeps the null as their last value, so the window's own read carries
      * on and the screen shows the failure instead of the app closing. [retry] reads them again.
      */
-    private val lookups: Flow<Lookups?> =
+    private val lookups: Flow<RowLookups?> =
         combine(
             accounts.observeAll(),
             categories.observeAll(),
             currencies.observeAll(),
         ) { accountList, categoryList, currencyList ->
-            Lookups(
+            RowLookups(
                 accountsById = accountList.associateBy { it.id },
                 categoriesById = categoryList.associateBy { it.id },
                 currencies = currencyList,
             )
         }
-            .catch<Lookups?> { error ->
+            .catch<RowLookups?> { error ->
                 if (error is CancellationException) throw error
                 errors.report("Transactions could not read the accounts, categories or currencies", error)
                 emit(null)
@@ -316,7 +310,7 @@ class TransactionsListViewModel @Inject constructor(
      * and is passed on. Null [lookups] means they could not be read, which fails the list too: rows
      * without names or currencies would misstate what was recorded.
      */
-    private fun stateFor(read: WindowedTransactions, lookups: Lookups?, day: LocalDate): TransactionsUiState {
+    private fun stateFor(read: WindowedTransactions, lookups: RowLookups?, day: LocalDate): TransactionsUiState {
         val served = when (read) {
             is WindowedTransactions.Failed -> return failedState(read.window, read.failure)
             is WindowedTransactions.Read -> read.pages
@@ -346,12 +340,12 @@ class TransactionsListViewModel @Inject constructor(
      */
     private fun buildSections(
         transactions: List<Transaction>,
-        lookups: Lookups,
+        lookups: RowLookups,
         day: LocalDate,
     ): List<TransactionSection> =
         transactions
             .sortedWith(compareByDescending<Transaction> { it.date }.thenByDescending { it.id })
-            .map { it.toRow(lookups) }
+            .map { it.toRow(lookups, moneyFormatter) }
             .groupBy { it.date }
             .map { (date, rows) -> TransactionSection(date, date.relationTo(day), rows) }
 
@@ -364,62 +358,6 @@ class TransactionsListViewModel @Inject constructor(
         day.minusDays(1) -> DayRelation.YESTERDAY
         else -> DayRelation.EARLIER
     }
-
-    private fun Transaction.toRow(lookups: Lookups): TransactionRow {
-        val accounts = lookups.accountsById
-        val categories = lookups.categoriesById
-        val currencies = lookups.currencies
-        return when (this) { // exhaustive over the sealed Transaction — no `else`
-            is Transaction.Income -> TransactionRow(
-                id = id, date = date, type = TransactionRowType.INCOME,
-                accountName = accountName(accountId, accounts),
-                destAccountName = null,
-                categoryLabel = categoryLabel(categoryId, categories),
-                amount = amount, destAmount = null,
-                amountDisplay = moneyFormatter.display(amount, currencies), destAmountDisplay = null,
-                note = note,
-            )
-
-            is Transaction.Expense -> TransactionRow(
-                id = id, date = date, type = TransactionRowType.EXPENSE,
-                accountName = accountName(accountId, accounts),
-                destAccountName = null,
-                categoryLabel = categoryLabel(categoryId, categories),
-                amount = amount, destAmount = null,
-                amountDisplay = moneyFormatter.display(amount, currencies), destAmountDisplay = null,
-                note = note,
-            )
-
-            is Transaction.Transfer -> TransactionRow(
-                id = id, date = date, type = TransactionRowType.TRANSFER,
-                accountName = accountName(sourceAccountId, accounts),
-                destAccountName = accountName(destAccountId, accounts),
-                categoryLabel = null,
-                amount = sourceAmount, destAmount = destAmount,
-                amountDisplay = moneyFormatter.display(sourceAmount, currencies),
-                destAmountDisplay = moneyFormatter.display(destAmount, currencies),
-                note = note,
-            )
-        }
-    }
-
-    // A deleted/unknown id degrades to a gap instead of crashing the whole list (defensive read).
-    // Nothing here decides what a gap looks like — that would be copy, and copy lives in the UI.
-    private fun accountName(id: Long, accounts: Map<Long, Account>): String? = accounts[id]?.name
-
-    private fun categoryLabel(id: Long, categories: Map<Long, Category>): CategoryLabel =
-        categories[id]?.label() ?: CategoryLabel.Unknown
-
-    /**
-     * The names and currencies the rows are dressed in; the same for every window. Accounts and
-     * categories are keyed by id once per emission, so resolving a row is a map lookup rather than a
-     * scan of the whole list for every row.
-     */
-    private data class Lookups(
-        val accountsById: Map<Long, Account>,
-        val categoriesById: Map<Long, Category>,
-        val currencies: List<Currency>,
-    )
 
     private companion object {
         private const val STOP_TIMEOUT_MS = 5_000L

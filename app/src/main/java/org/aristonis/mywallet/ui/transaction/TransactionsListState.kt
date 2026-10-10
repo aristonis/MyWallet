@@ -8,12 +8,38 @@ import org.aristonis.mywallet.ui.message.UiMessage
 import java.time.LocalDate
 
 /** Which kind a display row is — lets the screen pick the sign/icon without re-deriving it. */
-enum class TransactionRowType { INCOME, EXPENSE, TRANSFER }
+enum class TransactionRowType {
+    INCOME,
+    EXPENSE,
+    TRANSFER,
+    BORROW,
+    LEND,
+    OWED_BEFORE,
+    CREDIT_PURCHASE,
+    EARNED_UNPAID,
+
+    /** Paying back what I owe: money leaves the account. */
+    REPAYMENT_PAID,
+
+    /** Collecting what is owed to me: money comes into the account. */
+    REPAYMENT_RECEIVED,
+
+    /** Giving up on money owed to me: the rest is a loss. */
+    WRITE_OFF_LOSS,
+
+    /** Being let off what I owe: the rest is income. */
+    WRITE_OFF_FORGIVEN,
+}
 
 /**
  * A display-ready transaction row: ids already resolved to names, amounts pre-formatted per currency
  * + locale in [amountDisplay]/[destAmountDisplay]. The raw [Money] stays too so tests assert on exact
  * values and the screen keeps applying its own +/−/→ sign prefixes. Transfer rows carry BOTH legs.
+ *
+ * [amount] is the money that moved: the account side of a repayment, the debt amount of the other
+ * debt kinds. [countedAmount] is the part that counts in Tracking, in the entry's own currency (a
+ * repayment's interest, a write-off's amount); null when nothing on the row counts, so the screen
+ * shows no Tracking line for it.
  */
 data class TransactionRow(
     val id: Long,
@@ -28,6 +54,8 @@ data class TransactionRow(
     val amountDisplay: String,
     val destAmountDisplay: String?,
     val note: String?,
+    val countedAmount: Money? = null,
+    val countedAmountDisplay: String? = null,
 )
 
 /** How a day reads against the device's current date. */

@@ -1,8 +1,15 @@
 package org.aristonis.mywallet.domain.ledger
 
+import org.aristonis.mywallet.domain.ledger.recipe.BorrowRecipe
+import org.aristonis.mywallet.domain.ledger.recipe.CreditPurchaseRecipe
+import org.aristonis.mywallet.domain.ledger.recipe.EarnedUnpaidRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.ExpenseRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.IncomeRecipe
+import org.aristonis.mywallet.domain.ledger.recipe.LendRecipe
+import org.aristonis.mywallet.domain.ledger.recipe.OwedBeforeRecipe
+import org.aristonis.mywallet.domain.ledger.recipe.RepaymentRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.TransferRecipe
+import org.aristonis.mywallet.domain.ledger.recipe.WriteOffRecipe
 import org.aristonis.mywallet.domain.model.Transaction
 
 /**
@@ -12,7 +19,18 @@ import org.aristonis.mywallet.domain.model.Transaction
 object EntryRecipes {
 
     /** In a fixed order so anything listed from it stays stable. */
-    val all: List<EntryRecipe<out Transaction>> = listOf(IncomeRecipe, ExpenseRecipe, TransferRecipe)
+    val all: List<EntryRecipe<out Transaction>> = listOf(
+        IncomeRecipe,
+        ExpenseRecipe,
+        TransferRecipe,
+        BorrowRecipe,
+        LendRecipe,
+        OwedBeforeRecipe,
+        CreditPurchaseRecipe,
+        EarnedUnpaidRecipe,
+        RepaymentRecipe,
+        WriteOffRecipe,
+    )
 
     private val byKind: Map<String, EntryRecipe<out Transaction>> = all.associateBy { it.kind }
 
@@ -38,6 +56,13 @@ fun Transaction.recipe(): EntryRecipe<Transaction> {
         is Transaction.Income -> IncomeRecipe
         is Transaction.Expense -> ExpenseRecipe
         is Transaction.Transfer -> TransferRecipe
+        is Transaction.Borrow -> BorrowRecipe
+        is Transaction.Lend -> LendRecipe
+        is Transaction.OwedBefore -> OwedBeforeRecipe
+        is Transaction.CreditPurchase -> CreditPurchaseRecipe
+        is Transaction.EarnedUnpaid -> EarnedUnpaidRecipe
+        is Transaction.Repayment -> RepaymentRecipe
+        is Transaction.WriteOff -> WriteOffRecipe
     }
     check(EntryRecipes.forKind(recipe.kind) === recipe) {
         "the ${recipe.kind} recipe is not registered in EntryRecipes.all, so its entries could not be read back"

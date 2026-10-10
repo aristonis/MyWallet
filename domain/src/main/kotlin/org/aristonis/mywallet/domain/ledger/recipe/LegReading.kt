@@ -5,6 +5,7 @@ import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
+import org.aristonis.mywallet.domain.model.DebtSide
 import java.util.EnumMap
 import java.util.EnumSet
 
@@ -127,6 +128,17 @@ internal fun Leg.accountId(): Long =
 /** The category this leg is on; fails when the leg targets something else. */
 internal fun Leg.categoryTarget(): LegTarget.Category =
     requireNotNull(target as? LegTarget.Category) { "$role leg is on $target, not a category" }
+
+/** The debt this leg is on; fails when the leg targets something else. */
+internal fun Leg.debtTarget(): LegTarget.Debt =
+    requireNotNull(target as? LegTarget.Debt) { "$role leg is on $target, not a debt" }
+
+/** The debt this leg is on, which must be on [side]; a kind that writes one side never reads the other. */
+internal fun Leg.debtId(side: DebtSide): Long {
+    val debt = debtTarget()
+    require(debt.side == side) { "$role leg is on a ${debt.side} debt, not $side" }
+    return debt.id
+}
 
 /** Only category legs are converted for Tracking, so a rate anywhere else was not written by a recipe. */
 private fun Leg.requireReadableRate() {
