@@ -110,6 +110,7 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class NameBlank :
         WalletException("A name is required")
 
+    /** No debt row has [id], for example one deleted since the screen last loaded. */
     class DebtNotFound(val id: Long) : WalletException("Debt $id not found")
 
     /** A debt leg points to a row on the opposite side of what that entry records. */
@@ -119,6 +120,7 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class RepaymentExceedsRemaining(val remaining: Money) :
         WalletException("Repayment exceeds the available $remaining")
 
+    /** The debt with [counterparty] is already settled, so there is nothing left to pay or write off. */
     class DebtHasNoRemaining(val counterparty: String) :
         WalletException("The debt with $counterparty has no remaining amount")
 

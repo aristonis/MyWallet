@@ -22,6 +22,13 @@ class DeleteDebt(
 ) {
     private val debtGuard = DebtEntryGuard(debts, ledger)
 
+    /**
+     * Deletes every entry that belongs only to [debtId] and clears its due date and note, in one transaction.
+     * Returns the removed entries and the debt row so the delete can be undone.
+     *
+     * @throws WalletException.DebtNotFound when [debtId] has no row.
+     * @throws WalletException.DebtBelowZero when the remaining entries would leave a debt owing less than nothing.
+     */
     suspend operator fun invoke(debtId: Long): UndoBundle = runner.inTransaction {
         val debt = debts.findById(debtId) ?: throw WalletException.DebtNotFound(debtId)
         val ownEntries = entries.deletableDebtEntries(debtId)

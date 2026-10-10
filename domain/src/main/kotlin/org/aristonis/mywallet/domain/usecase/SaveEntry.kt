@@ -1,8 +1,8 @@
 package org.aristonis.mywallet.domain.usecase
 
 import org.aristonis.mywallet.domain.error.WalletException
-import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.EntrySaveContext
+import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
@@ -15,14 +15,14 @@ import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
-import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRunner
-import org.aristonis.mywallet.domain.service.RateBook
 import org.aristonis.mywallet.domain.service.DebtEntryGuard
 import org.aristonis.mywallet.domain.service.DebtGuard
+import org.aristonis.mywallet.domain.service.RateBook
 import org.aristonis.mywallet.domain.service.RoleCategories
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -81,6 +81,9 @@ class SaveEntry(
             )
             val recipe = priced.recipe()
             val parts = recipe.toLegs(priced)
+            require(debt == null || parts.legs.any { it.target is LegTarget.Debt }) {
+                "a debt reference needs an entry with a debt leg"
+            }
             parts.legs.firstOrNull { it.amount.currencyCode !in snapshot.decimalPlaces }
                 ?.let { throw WalletException.CurrencyNotFound(it.amount.currencyCode) }
             requireReferences(parts.legs, recipe.trackingRules(priced))

@@ -46,10 +46,9 @@ class RecordRepaymentFxTest {
         assertEquals(listOf(syp("1000000")), rig.store.ledger.observeAccountLegs().first().map { it.amount })
     }
 
-    @Test fun explicitlySuppliedPrincipalsStayExactWithAnExplicitPairRate() = runTest {
+    @Test fun aFullDebtPrincipalWithAnExplicitPairRateStaysExact() = runTest {
         val rig = sypDebt()
-        val saved = rig.record(7, 1, syp("1000050"), day,
-            accountPrincipal = usd("76.93"), pairRate = BigDecimal("13000"))
+        val saved = rig.record(7, 1, syp("1000050"), day, pairRate = BigDecimal("13000"))
         assertEquals(syp("1000050"), rig.saved(saved.id).principal)
         assertEquals(usd("76.93"), rig.saved(saved.id).accountAmount)
         assertRate("13000", rig.saved(saved.id).pairRate)
@@ -167,17 +166,16 @@ class RecordRepaymentFxTest {
         assertEquals(syp("0"), rig.remaining())
     }
 
-    @Test fun anExplicitNewPositivePairRateWinsOnAnEditEvenWhenBothAmountsAreUnchanged() = runTest {
+    @Test fun anExplicitNewPositivePairRateWinsOnAnEditAndRepricesTheAccountPrincipal() = runTest {
         val rig = sypDebt()
         val saved = rig.record(7, 1, null, day, pairRate = BigDecimal("13000"))
         val before = rig.saved(saved.id)
 
-        rig.record(7, 1, before.principal, day, id = saved.id,
-            accountPrincipal = before.accountAmount, pairRate = BigDecimal("14000"))
+        rig.record(7, 1, before.principal, day, id = saved.id, pairRate = BigDecimal("14000"))
 
         val edited = rig.saved(saved.id)
         assertEquals(before.principal, edited.principal)
-        assertEquals(before.accountAmount, edited.accountAmount)
+        assertEquals(usd("71.43"), edited.accountAmount)
         assertRate("14000", edited.pairRate)
         assertEquals(syp("0"), rig.remaining())
     }

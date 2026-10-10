@@ -12,6 +12,7 @@ import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.service.DebtEntryGuard
+import org.aristonis.mywallet.domain.service.DebtGuard
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -45,8 +46,15 @@ class RecordRepayment(
         val old = oldRepayment(id)
         val debt = debtGuard.requireDebt(debtId)
         val account = liveAccount(accountId)
-        val resolvedPrincipal = principalWithinAllowance(debt, principal, old)
+        val resolvedPrincipal = principalWithinAllowance(debt, principal, old, interest)
         requireInterest(interest, account.currencyCode)
+        // An edit that names no category keeps the stored one instead of falling back to the role default.
+        val storedCategory = old?.takeIf { interestCategoryId == null && interest != null && it.interest != null }
+        val category = if (storedCategory != null) {
+            storedCategory.interestCategoryId to storedCategory.interestSubCategoryId
+        } else {
+            interestCategoryId to interestSubCategoryId
+        }
         val priced = RepaymentPricing(fx.currentFx(), typedRates).price(
             resolvedPrincipal, account.currencyCode, accountPrincipal, pairRate, old,
         )
@@ -55,8 +63,8 @@ class RecordRepayment(
                 id = id, side = debt.side, accountId = accountId, debtId = debt.id,
                 accountAmount = interest?.let { priced.accountPrincipal + it } ?: priced.accountPrincipal,
                 principal = resolvedPrincipal, pairRate = priced.pairRate,
-                interest = interest, interestCategoryId = interestCategoryId,
-                interestSubCategoryId = interestSubCategoryId, date = date, note = note,
+                interest = interest, interestCategoryId = category.first,
+                interestSubCategoryId = category.second, date = date, note = note,
             ),
             typedRates,
         )
@@ -76,9 +84,18 @@ class RecordRepayment(
         return account
     }
 
-    private suspend fun principalWithinAllowance(debt: Debt, principal: Money?, old: Transaction.Repayment?): Money {
+    private suspend fun principalWithinAllowance(
+        debt: Debt,
+        principal: Money?,
+        old: Transaction.Repayment?,
+        interest: Money?,
+    ): Money {
         val current = debtGuard.remaining(setOf(debt.id))[debt.id]?.remaining ?: Money.zero(debt.currencyCode)
         val available = if (old?.debtId == debt.id) current + old.principal else current
+        if (principal == null) {
+            DebtGuard.check(debt, available)
+            if (available.isZero && interest == null) throw WalletException.DebtHasNoRemaining(debt.counterparty)
+        }
         val resolved = principal ?: available
         if (resolved.currencyCode != debt.currencyCode) {
             throw WalletException.CurrencyMismatch(resolved.currencyCode, debt.currencyCode)

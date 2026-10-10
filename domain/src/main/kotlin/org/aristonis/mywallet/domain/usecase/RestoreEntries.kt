@@ -7,11 +7,11 @@ import org.aristonis.mywallet.domain.model.UndoBundle
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.service.DebtEntryGuard
 import org.aristonis.mywallet.domain.service.DebtGuard
-import org.aristonis.mywallet.domain.port.EntryRepository
-import org.aristonis.mywallet.domain.port.TransactionRunner
 
 /**
  * Puts back what [DeleteEntry] removed, each entry at its original id and with the rates it was

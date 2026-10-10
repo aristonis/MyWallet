@@ -29,6 +29,10 @@ internal class RepaymentPricing(private val snapshot: FxSnapshot, typedRates: Ma
         requireCurrency(principal.currencyCode)
         requireCurrency(accountCurrency)
         require(suppliedPairRate == null || suppliedPairRate.signum() > 0) { "pair rate must be positive" }
+        // A third value could only disagree with the other two; the stored rate is reused on later edits.
+        require(suppliedAccountPrincipal == null || suppliedPairRate == null) {
+            "supply the account principal or the pair rate, not both"
+        }
         requireAccountPrincipal(suppliedAccountPrincipal, principal, accountCurrency)
         if (principal.currencyCode == accountCurrency) {
             require(suppliedAccountPrincipal == null || suppliedAccountPrincipal == principal) {

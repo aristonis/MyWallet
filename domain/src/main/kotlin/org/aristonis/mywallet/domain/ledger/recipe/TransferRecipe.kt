@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.domain.ledger.recipe
 
+import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.EntryRecipe
@@ -10,7 +11,6 @@ import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.error.WalletException
 import java.math.BigDecimal
 import java.time.LocalDate
 

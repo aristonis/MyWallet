@@ -8,8 +8,8 @@ import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
-import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.CategoryRole
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import java.math.BigDecimal

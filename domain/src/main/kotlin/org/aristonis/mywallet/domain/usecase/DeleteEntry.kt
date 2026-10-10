@@ -1,14 +1,14 @@
 package org.aristonis.mywallet.domain.usecase
 
 import org.aristonis.mywallet.domain.error.WalletException
-import org.aristonis.mywallet.domain.model.UndoBundle
 import org.aristonis.mywallet.domain.ledger.toParts
+import org.aristonis.mywallet.domain.model.UndoBundle
 import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.service.DebtEntryGuard
 import org.aristonis.mywallet.domain.service.DebtGuard
-import org.aristonis.mywallet.domain.port.EntryRepository
-import org.aristonis.mywallet.domain.port.TransactionRunner
 
 /**
  * Removes an entry with all its legs and hands back what was removed, so [RestoreEntries] can undo
