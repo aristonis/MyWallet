@@ -1,5 +1,7 @@
 package org.aristonis.mywallet.ui.message
 
+import org.aristonis.mywallet.domain.model.Money
+
 /**
  * Something the app needs to tell the user, named rather than worded.
  *
@@ -55,6 +57,13 @@ sealed interface UiMessage {
     data class MissingRate(val code: String) : UiMessage
     data class RateUnderflow(val code: String) : UiMessage
     data class AmountRoundsToZero(val currencyCode: String) : UiMessage
+
+    // -- Debts ------------------------------------------------------------------------------------
+
+    data object NameBlank : UiMessage
+
+    /** [amount] is how far below zero the debt with [counterparty] would go, as a positive value. */
+    data class DebtBelowZero(val counterparty: String, val amount: Money) : UiMessage
 
     // -- Transactions -----------------------------------------------------------------------------
 

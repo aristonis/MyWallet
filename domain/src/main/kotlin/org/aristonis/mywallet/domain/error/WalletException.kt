@@ -1,5 +1,7 @@
 package org.aristonis.mywallet.domain.error
 
+import org.aristonis.mywallet.domain.model.Money
+
 /**
  * Typed, fail-loud domain errors. Sealed so callers/tests can exhaustively react to each
  * kind, and so we never throw a vague `Exception("...")`. Each subclass keeps the offending value.
@@ -103,6 +105,18 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     /** A cross-currency conversion rounded the amount down to zero in the target currency — enter more. */
     class AmountRoundsToZero(val currencyCode: String) :
         WalletException("The amount is too small to convert to $currencyCode; it rounds to zero")
+
+    /** A name that is empty once trimmed. A debt is found by its person's name, so it can't be blank. */
+    class NameBlank :
+        WalletException("A name is required")
+
+    /**
+     * A payment or edit would leave the debt with [counterparty] below zero. Paying more than was owed
+     * would make the debt negative, which means the other side now owes, so the change is refused and
+     * nothing is saved. [amount] is how far below zero it would have gone, as a positive value.
+     */
+    class DebtBelowZero(val counterparty: String, val amount: Money) :
+        WalletException("That would take the debt with $counterparty $amount below zero")
 
     /**
      * A stored entry whose kind, legs or values cannot be turned back into an entry. It is the only

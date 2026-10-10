@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.message
 import org.aristonis.mywallet.data.format.MoneyParseError
 import org.aristonis.mywallet.data.format.MoneyParseException
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.Money
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -81,6 +82,21 @@ class UiMessageMappingTest {
         assertEquals(
             WalletException.AccountNotFound(11).toUiMessage(),
             WalletException.AccountNotFound(4098).toUiMessage(),
+        )
+    }
+
+    @Test
+    fun `a blank name has its own message`() {
+        assertEquals(UiMessage.NameBlank, WalletException.NameBlank().toUiMessage())
+    }
+
+    @Test
+    fun `a payment past what is owed keeps the counterparty and how far past`() {
+        val amount = Money.of("200", "USD")
+
+        assertEquals(
+            UiMessage.DebtBelowZero("Ali", amount),
+            WalletException.DebtBelowZero("Ali", amount).toUiMessage(),
         )
     }
 

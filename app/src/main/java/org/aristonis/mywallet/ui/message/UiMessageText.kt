@@ -3,6 +3,10 @@ package org.aristonis.mywallet.ui.message
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.ui.format.bidiIsolate
+import org.aristonis.mywallet.ui.format.currentLocale
 
 /**
  * The wording of a [UiMessage]. This is the only place a message becomes text, and the only layer
@@ -44,6 +48,12 @@ fun UiMessage.text(): String = when (this) {
     is UiMessage.RateUnderflow -> stringResource(R.string.msg_rate_underflow, code)
     is UiMessage.AmountRoundsToZero -> stringResource(R.string.msg_amount_rounds_to_zero, currencyCode)
 
+    UiMessage.NameBlank -> stringResource(R.string.msg_name_blank)
+    is UiMessage.DebtBelowZero -> {
+        val (name, formattedAmount) = debtBelowZeroArgs(counterparty, displayAsSummed(amount))
+        stringResource(R.string.msg_debt_below_zero, name, formattedAmount)
+    }
+
     UiMessage.TransactionNotFound -> stringResource(R.string.msg_transaction_not_found)
     UiMessage.EntryAlreadyRestored -> stringResource(R.string.msg_entry_already_restored)
     UiMessage.DataUnreadable -> stringResource(R.string.msg_data_unreadable)
@@ -60,3 +70,23 @@ fun UiMessage.text(): String = when (this) {
 
     UiMessage.Unexpected -> stringResource(R.string.msg_unexpected)
 }
+
+/**
+ * [money] with the device locale's separators and its ISO code, through the same [MoneyFormatter] the
+ * screens use. A message carries no currency list, so the digits shown are the ones the amount
+ * already has: it is a sum of stored amounts, which keep the scale they were entered with, and
+ * showing that scale rounds nothing away.
+ */
+@Composable
+private fun displayAsSummed(money: Money): String {
+    val decimalPlaces = money.amount.scale().coerceAtLeast(0)
+    return MoneyFormatter(currentLocale()).format(money.amount, decimalPlaces, money.currencyCode)
+}
+
+/**
+ * The two values the below-zero message substitutes. The typed name is isolated because it can run
+ * in the other direction from the sentence: an Arabic name in an English sentence, or the reverse,
+ * would otherwise pull the amount next to it onto the wrong side.
+ */
+internal fun debtBelowZeroArgs(counterparty: String, formattedAmount: String): Pair<String, String> =
+    Pair(bidiIsolate(counterparty), formattedAmount)
