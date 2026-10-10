@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -27,7 +26,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -72,6 +70,7 @@ fun EditAccountScreen(
         onNameChanged = viewModel::setName,
         onTypeSelected = viewModel::selectAccountType,
         onOpeningBalanceChanged = viewModel::setOpeningBalance,
+        onCreditLimitChanged = viewModel::setCreditLimit,
         onSubmit = viewModel::submit,
         onCancel = onDone,
         onRetry = viewModel::retry,
@@ -85,6 +84,7 @@ private fun EditAccountContent(
     onNameChanged: (String) -> Unit,
     onTypeSelected: (String) -> Unit,
     onOpeningBalanceChanged: (String) -> Unit,
+    onCreditLimitChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
@@ -112,6 +112,7 @@ private fun EditAccountContent(
                     onNameChanged = onNameChanged,
                     onTypeSelected = onTypeSelected,
                     onOpeningBalanceChanged = onOpeningBalanceChanged,
+                    onCreditLimitChanged = onCreditLimitChanged,
                     onSubmit = onSubmit,
                     onCancel = onCancel,
                 )
@@ -127,6 +128,7 @@ private fun EditAccountForm(
     onNameChanged: (String) -> Unit,
     onTypeSelected: (String) -> Unit,
     onOpeningBalanceChanged: (String) -> Unit,
+    onCreditLimitChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -170,14 +172,15 @@ private fun EditAccountForm(
             onSelect = { onTypeSelected(it.key) },
         )
 
-        OutlinedTextField(
+        OpeningBalanceField(
             value = state.openingBalanceInput,
+            typeKey = state.accountTypeKey,
             onValueChange = onOpeningBalanceChanged,
-            label = { Text(stringResource(R.string.field_opening_balance)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth(),
         )
+
+        if (state.showsCreditLimit) {
+            CreditLimitField(value = state.creditLimitInput, onValueChange = onCreditLimitChanged)
+        }
 
         state.error?.let { message ->
             Text(message.text(), color = MaterialTheme.colorScheme.error)
@@ -247,6 +250,7 @@ private fun EditAccountPreview() {
             onNameChanged = {},
             onTypeSelected = {},
             onOpeningBalanceChanged = {},
+            onCreditLimitChanged = {},
             onSubmit = {},
             onCancel = {},
             onRetry = {},

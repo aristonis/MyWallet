@@ -17,8 +17,8 @@ import java.math.BigDecimal
  */
 
 // --- Account ---
-// The credit limit and default fee columns have no domain field yet, so they read as nothing and an
-// account saved from the domain writes them empty.
+// The credit limit is stored as exact text in the account currency, null when no limit is set. The
+// default fee columns have no domain field yet, so they read as nothing and are written empty.
 fun AccountEntity.toDomain(): Account = Account(
     id = id,
     name = name,
@@ -27,6 +27,7 @@ fun AccountEntity.toDomain(): Account = Account(
     openingBalance = Money.of(openingBalanceAmount, currencyCode),
     archived = archived,
     sortOrder = sortOrder,
+    creditLimit = creditLimit?.let { Money.of(it, currencyCode) },
 )
 
 fun Account.toEntity(): AccountEntity = AccountEntity(
@@ -37,6 +38,9 @@ fun Account.toEntity(): AccountEntity = AccountEntity(
     openingBalanceAmount = openingBalance.amount.toPlainString(),
     archived = archived,
     sortOrder = sortOrder,
+    creditLimit = creditLimit?.amount?.toPlainString(),
+    defaultFeeMode = null,
+    defaultFeeValue = null,
 )
 
 // --- Category ---

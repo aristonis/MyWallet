@@ -14,10 +14,12 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
 import org.aristonis.mywallet.ui.HealthLedger
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -221,6 +223,166 @@ class EditAccountViewModelTest {
 
         assertFalse(f.viewModel.state.value.loadFailed)
         assertEquals(null, f.viewModel.state.value.loaded)
+    }
+
+    private fun creditCard(id: Long, currency: String = "USD", limit: String? = "2000.50") = Account(
+        id = id, name = "Visa", typeKey = "credit_card", currencyCode = currency,
+        openingBalance = Money.of("-120", currency), creditLimit = limit?.let { Money.of(it, currency) },
+    )
+
+    @Test
+    fun load_creditCard_showsItsLimitText() = runTest {
+        val f = Fixture(listOf(creditCard(1)), listOf(usd))
+
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        val s = f.viewModel.state.value
+        assertEquals("2000.50", s.creditLimitInput)
+        assertTrue(s.showsCreditLimit)
+    }
+
+    @Test
+    fun load_accountWithoutLimit_showsEmptyLimitText_andNoLimitField() = runTest {
+        val f = Fixture(listOf(account(1)), listOf(usd))
+
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        assertEquals("", f.viewModel.state.value.creditLimitInput)
+        assertFalse(f.viewModel.state.value.showsCreditLimit)
+    }
+
+    @Test
+    fun savingAfterARename_keepsTheStoredLimit() = runTest {
+        val f = Fixture(listOf(creditCard(1)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        f.viewModel.setName("Visa Gold")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        val saved = f.accountRepo.findById(1)!!
+        assertEquals("Visa Gold", saved.name)
+        assertEquals(Money.of("2000.50", "USD"), saved.creditLimit)
+        assertTrue(f.viewModel.state.value.saved)
+    }
+
+    @Test
+    fun clearingTheLimitText_removesTheLimit() = runTest {
+        val f = Fixture(listOf(creditCard(1)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        f.viewModel.setCreditLimit("")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertNull(f.accountRepo.findById(1)!!.creditLimit)
+        assertTrue(f.viewModel.state.value.saved)
+    }
+
+    @Test
+    fun changingACardToCreditCard_keepsItsHistoryAndBalance() = runTest {
+        val card = Account(
+            id = 7, name = "Bank card", typeKey = "card", currencyCode = "USD",
+            openingBalance = Money.of("-45.25", "USD"), sortOrder = 2,
+        )
+        val f = Fixture(listOf(card), listOf(usd), accountsInUse = setOf(7))
+        f.viewModel.load(7)
+        advanceUntilIdle()
+
+        f.viewModel.selectAccountType("credit_card")
+        f.viewModel.setCreditLimit("3000")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        val saved = f.accountRepo.findById(7)!!
+        assertEquals(7L, saved.id)
+        assertEquals("credit_card", saved.typeKey)
+        assertEquals(Money.of("-45.25", "USD"), saved.openingBalance)
+        assertEquals(Money.of("3000", "USD"), saved.creditLimit)
+        assertEquals(2, saved.sortOrder)
+        assertTrue(f.viewModel.state.value.saved)
+    }
+
+    @Test
+    fun changingCurrencyOfACreditCardWithALimit_savesTheLimitInTheNewCurrency() = runTest {
+        val f = Fixture(listOf(creditCard(1, limit = "2000")), listOf(usd, eur))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        f.viewModel.selectCurrency("EUR")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        val saved = f.accountRepo.findById(1)!!
+        assertEquals("EUR", saved.currencyCode)
+        assertEquals(Money.of("2000", "EUR"), saved.creditLimit)
+        assertEquals(Money.of("-120", "EUR"), saved.openingBalance)
+        assertNull(f.viewModel.state.value.error)
+        assertTrue(f.viewModel.state.value.saved)
+    }
+
+    @Test
+    fun zeroLimit_showsNotPositiveMessage_andDoesNotSave() = runTest {
+        val f = Fixture(listOf(creditCard(1)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        f.viewModel.setCreditLimit("0")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(UiMessage.AmountNotPositive, f.viewModel.state.value.error)
+        assertFalse(f.viewModel.state.value.saved)
+        assertEquals(Money.of("2000.50", "USD"), f.accountRepo.findById(1)!!.creditLimit)
+    }
+
+    @Test
+    fun negativeLimit_showsNotPositiveMessage_andDoesNotSave() = runTest {
+        val f = Fixture(listOf(creditCard(1)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        f.viewModel.setCreditLimit("-5")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(UiMessage.AmountNotPositive, f.viewModel.state.value.error)
+        assertFalse(f.viewModel.state.value.saved)
+    }
+
+    @Test
+    fun switchingTheTypeAwayFromCreditCard_savesNoLimit() = runTest {
+        val f = Fixture(listOf(creditCard(1)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        f.viewModel.selectAccountType("card")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        val saved = f.accountRepo.findById(1)!!
+        assertEquals("card", saved.typeKey)
+        assertNull(saved.creditLimit)
+        assertTrue(f.viewModel.state.value.saved)
+    }
+
+    @Test
+    fun switchingAwayWithAnInvalidHiddenLimit_stillSavesWithNoLimit() = runTest {
+        val f = Fixture(listOf(creditCard(1)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+
+        f.viewModel.setCreditLimit("0")
+        f.viewModel.selectAccountType("cash")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertNull(f.accountRepo.findById(1)!!.creditLimit)
+        assertTrue(f.viewModel.state.value.saved)
     }
 }
 

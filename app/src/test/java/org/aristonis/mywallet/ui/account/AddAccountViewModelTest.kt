@@ -17,10 +17,12 @@ import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CreateAccount
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -126,6 +128,152 @@ class AddAccountViewModelTest {
         assertNotNull(f.viewModel.state.value.error)
         assertFalse(f.viewModel.state.value.created)
         assertTrue(f.accountRepo.upserted.isEmpty())
+    }
+
+    private fun creditCardForm(f: Fixture, limit: String, currency: String = "USD") {
+        f.viewModel.selectCurrency(currency)
+        f.viewModel.setName("Visa")
+        f.viewModel.selectAccountType("credit_card")
+        f.viewModel.setCreditLimit(limit)
+    }
+
+    @Test
+    fun creditLimitField_isShownOnlyForOwedWhenNegativeTypes() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        assertFalse(f.viewModel.state.value.showsCreditLimit) // default type is cash
+        f.viewModel.selectAccountType("credit_card")
+        assertTrue(f.viewModel.state.value.showsCreditLimit)
+        f.viewModel.selectAccountType("card")
+        assertFalse(f.viewModel.state.value.showsCreditLimit)
+    }
+
+    @Test
+    fun submit_creditCardWithLimit_passesTheLimitInTheAccountCurrency() = runTest {
+        val f = Fixture(listOf(usd, eur))
+        advanceUntilIdle()
+
+        creditCardForm(f, "2000")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        val account = f.accountRepo.upserted.single()
+        assertEquals("credit_card", account.typeKey)
+        assertEquals(Money.of("2000", "USD"), account.creditLimit)
+        assertTrue(f.viewModel.state.value.created)
+    }
+
+    @Test
+    fun submit_creditCardInOtherCurrency_limitFollowsTheSelectedCurrency() = runTest {
+        val f = Fixture(listOf(usd, eur))
+        advanceUntilIdle()
+
+        creditCardForm(f, "1500", currency = "EUR")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(Money.of("1500", "EUR"), f.accountRepo.upserted.single().creditLimit)
+    }
+
+    @Test
+    fun submit_blankLimit_createsCreditCardWithNoLimit() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        creditCardForm(f, "   ")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        val account = f.accountRepo.upserted.single()
+        assertEquals("credit_card", account.typeKey)
+        assertNull(account.creditLimit)
+    }
+
+    @Test
+    fun submit_zeroLimit_showsNotPositiveMessage_andCreatesNothing() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        creditCardForm(f, "0")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(UiMessage.AmountNotPositive, f.viewModel.state.value.error)
+        assertFalse(f.viewModel.state.value.created)
+        assertTrue(f.accountRepo.upserted.isEmpty())
+    }
+
+    @Test
+    fun submit_negativeLimit_showsNotPositiveMessage_andCreatesNothing() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        creditCardForm(f, "-5")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(UiMessage.AmountNotPositive, f.viewModel.state.value.error)
+        assertTrue(f.accountRepo.upserted.isEmpty())
+    }
+
+    @Test
+    fun submit_unreadableLimit_isRefusedWithTheNumberMessage() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        creditCardForm(f, "lots")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(UiMessage.NotANumber, f.viewModel.state.value.error)
+        assertTrue(f.accountRepo.upserted.isEmpty())
+    }
+
+    @Test
+    fun submit_limitWithExtraDecimals_isHandledLikeTheOpeningBalance() = runTest {
+        // No amount path refuses or rounds to the currency's decimals today (the parser only guards the
+        // extreme scale), so the limit is kept exactly as typed, the same as the opening balance is.
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        creditCardForm(f, "2000.123")
+        f.viewModel.setOpeningBalance("-10.456")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        val account = f.accountRepo.upserted.single()
+        assertEquals(Money.of("2000.123", "USD"), account.creditLimit)
+        assertEquals(Money.of("-10.456", "USD"), account.openingBalance)
+    }
+
+    @Test
+    fun submit_switchingFromCreditCardToCash_createsAccountWithNoLimit() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        creditCardForm(f, "2000")
+        f.viewModel.selectAccountType("cash")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        val account = f.accountRepo.upserted.single()
+        assertEquals("cash", account.typeKey)
+        assertNull(account.creditLimit)
+    }
+
+    @Test
+    fun submit_hiddenInvalidLimit_isIgnoredWhenTypeHasNoLimit() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+
+        creditCardForm(f, "0")
+        f.viewModel.selectAccountType("cash")
+        f.viewModel.submit()
+        advanceUntilIdle()
+
+        assertTrue(f.viewModel.state.value.created)
+        assertNull(f.accountRepo.upserted.single().creditLimit)
     }
 }
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The credit card account type and its fields on the add and edit account screens -->
+    <string name="account_type_credit_card">Credit card</string>
+    <string name="field_credit_limit">Credit limit (optional)</string>
+    <string name="account_opening_balance_owed_hint">What you owe now, as a negative amount</string>
+</resources>

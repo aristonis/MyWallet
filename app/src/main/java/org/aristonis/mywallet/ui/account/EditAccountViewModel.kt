@@ -41,6 +41,7 @@ data class EditAccountUiState(
     val name: String = "",
     val accountTypeKey: String = AccountTypeRegistry.BuiltIns.CASH.key,
     val openingBalanceInput: String = "",
+    val creditLimitInput: String = "",
     // True once the loaded account has transactions: its currency is fixed, so the picker is disabled.
     val currencyLocked: Boolean = false,
     val isSubmitting: Boolean = false,
@@ -59,10 +60,14 @@ data class EditAccountUiState(
 ) {
     val canSubmit: Boolean
         get() = loaded != null && selectedCurrencyCode != null && name.isNotBlank() && !isSubmitting
+
+    /** The limit field is offered only for a type whose negative balance is money owed. */
+    val showsCreditLimit: Boolean
+        get() = isOwedWhenNegative(accountTypeKey)
 }
 
 /**
- * Edit an existing account (name / type / currency / opening balance) via [UpdateAccount]. [load]
+ * Edit an existing account (name / type / currency / opening balance / credit limit) via [UpdateAccount]. [load]
  * re-hydrates the form from the stored row and flags [currencyLocked] when the account already has
  * transactions (the domain refuses a currency change there). Because the view model is Activity-scoped
  * (no nav back-stack), [load] cancels any prior fetch and resets identity + one-shot state before the
@@ -162,6 +167,8 @@ class EditAccountViewModel @Inject constructor(
 
     fun setOpeningBalance(text: String) = _state.update { it.copy(openingBalanceInput = text) }
 
+    fun setCreditLimit(text: String) = _state.update { it.copy(creditLimitInput = text) }
+
     /** Clear the one-shot `saved` signal after the screen has navigated away, so a re-open won't bounce. */
     fun acknowledgeSaved() = _state.update { it.copy(saved = false, error = null) }
 
@@ -172,23 +179,27 @@ class EditAccountViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, error = null) }
             try {
-                // Rebuild the opening balance in the selected currency so it matches when the currency changes.
+                // Rebuild the amounts in the selected currency so they match when the currency changes.
                 val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
+                // The form holds the stored limit as text, so saving untouched keeps it; a type that is
+                // not owed when negative saves none.
+                val creditLimit = moneyParser.parseCreditLimit(
+                    snapshot.creditLimitInput, snapshot.showsCreditLimit, currencyCode,
+                )
                 updateAccount(
                     id = loaded.id,
                     name = snapshot.name.trim(),
                     typeKey = snapshot.accountTypeKey,
                     currencyCode = currencyCode,
                     openingBalance = openingBalance,
-                    // The form has no limit field yet, so an edit keeps whatever limit is stored.
-                    creditLimit = loaded.creditLimit,
+                    creditLimit = creditLimit,
                 )
                 _state.update { it.copy(isSubmitting = false, saved = true) }
             } catch (e: WalletException) {
                 // Includes AccountCurrencyLocked / AccountNotFound — surface it to the user.
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
-                // Blank name (Account invariant) or unparseable amount (NumberFormatException) — surface it.
+                // Blank name (Account invariant) or an amount or limit the parser refused — surface it.
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
@@ -201,6 +212,7 @@ class EditAccountViewModel @Inject constructor(
         accountTypeKey = account.typeKey,
         selectedCurrencyCode = account.currencyCode,
         openingBalanceInput = moneyParser.toInputString(account.openingBalance.amount),
+        creditLimitInput = account.creditLimit?.let { moneyParser.toInputString(it.amount) } ?: "",
         currencyLocked = locked,
         isSubmitting = false,
         error = null,

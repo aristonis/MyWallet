@@ -9,6 +9,7 @@ import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.ThemePreference
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.math.BigDecimal
 
@@ -22,6 +23,53 @@ class MappersTest {
     fun account_roundTrips() {
         val a = Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100.50", "USD"), archived = true, sortOrder = 3)
         assertEquals(a, a.toEntity().toDomain())
+    }
+
+    @Test
+    fun creditLimit_roundTripsAsText() {
+        val a = Account(
+            id = 4, name = "Visa", typeKey = "credit_card", currencyCode = "USD",
+            openingBalance = Money.of("-120.00", "USD"), creditLimit = Money.of("2000.50", "USD"),
+        )
+
+        val entity = a.toEntity()
+
+        assertEquals("2000.50", entity.creditLimit)
+        assertEquals(a, entity.toDomain())
+        assertEquals(Money.of("2000.50", "USD"), entity.toDomain().creditLimit)
+    }
+
+    @Test
+    fun noCreditLimit_writesNullColumn_andReadsBackNull() {
+        val a = Account(id = 5, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("1", "USD"))
+
+        val entity = a.toEntity()
+
+        assertNull(entity.creditLimit)
+        assertNull(entity.toDomain().creditLimit)
+    }
+
+    @Test
+    fun entityWithStoredLimit_readsItInTheAccountCurrency() {
+        val entity = AccountEntity(
+            id = 6, name = "Visa", typeKey = "credit_card", currencyCode = "EUR",
+            openingBalanceAmount = "0", creditLimit = "750",
+        )
+
+        assertEquals(Money.of("750", "EUR"), entity.toDomain().creditLimit)
+    }
+
+    @Test
+    fun feeColumns_areWrittenNull_becauseNothingWritesThemYet() {
+        val a = Account(
+            id = 7, name = "Visa", typeKey = "credit_card", currencyCode = "USD",
+            openingBalance = Money.zero("USD"), creditLimit = Money.of("100", "USD"),
+        )
+
+        val entity = a.toEntity()
+
+        assertNull(entity.defaultFeeMode)
+        assertNull(entity.defaultFeeValue)
     }
 
     @Test

@@ -28,17 +28,22 @@ data class AddAccountUiState(
     val name: String = "",
     val accountTypeKey: String = AccountTypeRegistry.BuiltIns.CASH.key,
     val openingBalanceInput: String = "",
+    val creditLimitInput: String = "",
     val isSubmitting: Boolean = false,
     val error: UiMessage? = null,
     val created: Boolean = false,
 ) {
     val canSubmit: Boolean
         get() = selectedCurrencyCode != null && name.isNotBlank() && !isSubmitting
+
+    /** The limit field is offered only for a type whose negative balance is money owed. */
+    val showsCreditLimit: Boolean
+        get() = isOwedWhenNegative(accountTypeKey)
 }
 
 /**
- * Add another account (name / type / currency / opening balance) via [CreateAccount]. Unlike
- * onboarding it does NOT touch the base currency. SKELETON — behavior filled in after the RED test.
+ * Add another account (name / type / currency / opening balance, plus a credit limit for a type that
+ * is owed when negative) via [CreateAccount]. Unlike onboarding it does NOT touch the base currency.
  */
 @HiltViewModel
 class AddAccountViewModel @Inject constructor(
@@ -72,6 +77,8 @@ class AddAccountViewModel @Inject constructor(
 
     fun setOpeningBalance(text: String) = _state.update { it.copy(openingBalanceInput = text) }
 
+    fun setCreditLimit(text: String) = _state.update { it.copy(creditLimitInput = text) }
+
     fun submit() {
         val snapshot = _state.value
         val currencyCode = snapshot.selectedCurrencyCode ?: return // UI guards this via canSubmit
@@ -79,11 +86,15 @@ class AddAccountViewModel @Inject constructor(
             _state.update { it.copy(isSubmitting = true, error = null) }
             try {
                 val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
+                val creditLimit = moneyParser.parseCreditLimit(
+                    snapshot.creditLimitInput, snapshot.showsCreditLimit, currencyCode,
+                )
                 createAccount(
                     name = snapshot.name.trim(),
                     typeKey = snapshot.accountTypeKey,
                     currencyCode = currencyCode,
                     openingBalance = openingBalance,
+                    creditLimit = creditLimit,
                 )
                 _state.update { it.copy(isSubmitting = false, created = true) }
             } catch (e: WalletException) {
@@ -102,7 +113,7 @@ class AddAccountViewModel @Inject constructor(
      * bounce a re-opened screen straight back to Home before the user could add a second account.
      */
     fun acknowledgeCreated() = _state.update {
-        it.copy(created = false, name = "", openingBalanceInput = "", error = null)
+        it.copy(created = false, name = "", openingBalanceInput = "", creditLimitInput = "", error = null)
     }
 
     private fun defaultCurrency(currencies: List<Currency>): String? =
