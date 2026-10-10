@@ -11,7 +11,7 @@ class AccountTypeRegistryTest {
     @Test
     fun seedsBuiltIns() {
         val reg = AccountTypeRegistry()
-        assertEquals(5, reg.all().size)
+        assertEquals(6, reg.all().size)
         assertNotNull(reg.byKey("cash"))
     }
 
@@ -20,7 +20,7 @@ class AccountTypeRegistryTest {
         val reg = AccountTypeRegistry()
         reg.register(AccountType("wallet"))
         assertEquals("wallet", reg.byKey("wallet")?.key)
-        assertEquals(6, reg.all().size)
+        assertEquals(7, reg.all().size)
     }
 
     /** A key is the whole identity: no display text lives here to be translated or drift. */
@@ -32,5 +32,34 @@ class AccountTypeRegistryTest {
     @Test
     fun unknownKey_returnsNull() {
         assertNull(AccountTypeRegistry().byKey("nope"))
+    }
+
+    @Test
+    fun cardStaysAnAsset_creditCardIsOwedWhenNegative() {
+        val reg = AccountTypeRegistry()
+        assertEquals(false, AccountTypeRegistry.BuiltIns.CARD.owedWhenNegative)
+        assertEquals(true, AccountTypeRegistry.BuiltIns.CREDIT_CARD.owedWhenNegative)
+        assertEquals("credit_card", AccountTypeRegistry.BuiltIns.CREDIT_CARD.key)
+        assertEquals(false, reg.byKey("card")?.owedWhenNegative)
+        assertEquals(true, reg.byKey("credit_card")?.owedWhenNegative)
+    }
+
+    @Test
+    fun noOtherBuiltInIsOwedWhenNegative() {
+        val owed = AccountTypeRegistry.BuiltIns.all.filter { it.owedWhenNegative }.map { it.key }
+        assertEquals(listOf("credit_card"), owed)
+    }
+
+    @Test
+    fun aTypeIsNotOwedWhenNegativeByDefault() {
+        assertEquals(false, AccountType("wallet").owedWhenNegative)
+    }
+
+    @Test
+    fun registeringACustomOwedWhenNegativeTypeWorks() {
+        val reg = AccountTypeRegistry()
+        reg.register(AccountType("store_card", owedWhenNegative = true))
+        assertEquals(true, reg.byKey("store_card")?.owedWhenNegative)
+        assertEquals(7, reg.all().size)
     }
 }

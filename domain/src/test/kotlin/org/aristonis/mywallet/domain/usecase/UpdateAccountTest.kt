@@ -51,7 +51,7 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1, archived = true, sortOrder = 7)))
 
         updateAccount(accounts).invoke(
-            id = 1, name = "Wallet", typeKey = "card", currencyCode = "USD", openingBalance = Money.of("100", "USD"),
+            id = 1, name = "Wallet", typeKey = "card", currencyCode = "USD", openingBalance = Money.of("100", "USD"), creditLimit = null,
         )
 
         val saved = accounts.findById(1)!!
@@ -67,7 +67,7 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1)))
 
         updateAccount(accounts).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"),
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
         )
 
         val saved = accounts.findById(1)!!
@@ -81,7 +81,7 @@ class UpdateAccountTest {
         val ledger = ledgerOf(expense(1, accountId = 1))
 
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"),
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
         )
     }
 
@@ -90,7 +90,7 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1)))
         val ledger = ledgerOf(transfer(1, source = 1, dest = 3))
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"),
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
         )
     }
 
@@ -99,14 +99,14 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1)))
         val ledger = ledgerOf(transfer(1, source = 3, dest = 1))
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"),
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
         )
     }
 
     @Test(expected = WalletException.AccountNotFound::class)
     fun unknownId_throwsAccountNotFound() = runTest {
         updateAccount(FakeAccountRepository()).invoke(
-            id = 99, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100", "USD"),
+            id = 99, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100", "USD"), creditLimit = null,
         )
     }
 
@@ -115,7 +115,7 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1)))
 
         updateAccount(accounts).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "XXX", openingBalance = Money.of("100", "XXX"),
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "XXX", openingBalance = Money.of("100", "XXX"), creditLimit = null,
         )
     }
 
@@ -125,7 +125,7 @@ class UpdateAccountTest {
         val (ledger, asked) = InUseOnlyLedgerQueries.of(accountsInUse = setOf(1L))
 
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Wallet", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100", "USD"),
+            id = 1, name = "Wallet", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100", "USD"), creditLimit = null,
         )
 
         assertEquals("Wallet", accounts.findById(1)!!.name)
@@ -138,7 +138,7 @@ class UpdateAccountTest {
         val (ledger, asked) = InUseOnlyLedgerQueries.of(accountsInUse = emptySet())
 
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"),
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
         )
 
         assertEquals(listOf(1L), asked.toList())
@@ -152,7 +152,7 @@ class UpdateAccountTest {
 
         try {
             updateAccount(accounts, ledger = ledger).invoke(
-                id = 3, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"),
+                id = 3, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
             )
             org.junit.Assert.fail("expected AccountCurrencyLocked")
         } catch (_: WalletException.AccountCurrencyLocked) {
@@ -170,12 +170,66 @@ class UpdateAccountTest {
 
         try {
             updateAccount(accounts, ledger = ledger).invoke(
-                id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"),
+                id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
             )
             org.junit.Assert.fail("expected AccountCurrencyLocked")
         } catch (_: WalletException.AccountCurrencyLocked) {
             // expected
         }
         assertEquals("USD", accounts.findById(1)!!.currencyCode)
+    }
+
+    @Test
+    fun renamingACreditAccountKeepsItsLimit() = runTest {
+        val limit = Money.of("2000", "USD")
+        val accounts = FakeAccountRepository(
+            listOf(account(1).copy(typeKey = "credit_card", creditLimit = limit)),
+        )
+
+        updateAccount(accounts).invoke(
+            id = 1, name = "Visa credit", typeKey = "credit_card", currencyCode = "USD",
+            openingBalance = Money.of("100", "USD"), creditLimit = limit,
+        )
+
+        val saved = accounts.findById(1)!!
+        assertEquals("Visa credit", saved.name)
+        assertEquals(limit, saved.creditLimit)
+    }
+
+    @Test
+    fun theLimitIsStoredAsGiven_includingClearingIt() = runTest {
+        val accounts = FakeAccountRepository(
+            listOf(account(1).copy(typeKey = "credit_card", creditLimit = Money.of("2000", "USD"))),
+        )
+
+        updateAccount(accounts).invoke(
+            id = 1, name = "Cash", typeKey = "credit_card", currencyCode = "USD",
+            openingBalance = Money.of("100", "USD"), creditLimit = Money.of("3000", "USD"),
+        )
+        assertEquals(Money.of("3000", "USD"), accounts.findById(1)!!.creditLimit)
+
+        updateAccount(accounts).invoke(
+            id = 1, name = "Cash", typeKey = "credit_card", currencyCode = "USD",
+            openingBalance = Money.of("100", "USD"), creditLimit = null,
+        )
+        assertEquals(null, accounts.findById(1)!!.creditLimit)
+    }
+
+    @Test
+    fun changingACardToCreditCardKeepsItsBalanceAndHistory() = runTest {
+        val card = account(1).copy(typeKey = "card", openingBalance = Money.of("-1146.04", "USD"))
+        val accounts = FakeAccountRepository(listOf(card))
+        val ledger = ledgerOf(expense(1, accountId = 1))
+
+        updateAccount(accounts, ledger = ledger).invoke(
+            id = 1, name = "Cash", typeKey = "credit_card", currencyCode = "USD",
+            openingBalance = Money.of("-1146.04", "USD"), creditLimit = Money.of("5000", "USD"),
+        )
+
+        val saved = accounts.findById(1)!!
+        assertEquals(1L, saved.id)
+        assertEquals("credit_card", saved.typeKey)
+        assertEquals(Money.of("-1146.04", "USD"), saved.openingBalance)
+        assertEquals(Money.of("5000", "USD"), saved.creditLimit)
     }
 }

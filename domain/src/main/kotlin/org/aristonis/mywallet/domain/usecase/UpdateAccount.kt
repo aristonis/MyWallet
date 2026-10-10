@@ -17,6 +17,10 @@ import org.aristonis.mywallet.domain.port.LedgerQueries
  *
  * Whether the account has transactions is asked of the ledger (does any leg sit on it), and only
  * when the currency actually changes: a rename never pays for it.
+ *
+ * The `creditLimit` passed to [invoke] is stored exactly as given, so null clears a stored limit. It
+ * has no default on purpose: every caller must pass it, and none can drop a stored limit just by
+ * forgetting it.
  */
 class UpdateAccount(
     private val currencies: CurrencyRepository,
@@ -29,6 +33,7 @@ class UpdateAccount(
         typeKey: String,
         currencyCode: String,
         openingBalance: Money,
+        creditLimit: Money?,
     ) {
         val existing = accounts.findById(id) ?: throw WalletException.AccountNotFound(id)
         if (currencyCode != existing.currencyCode) {
@@ -41,6 +46,7 @@ class UpdateAccount(
                 typeKey = typeKey,
                 currencyCode = currencyCode,
                 openingBalance = openingBalance,
+                creditLimit = creditLimit,
             ),
         )
     }

@@ -33,6 +33,20 @@ class SetAccountArchivedTest {
         assertEquals(false, accounts.observeAll().first().single { it.id == 1L }.archived)
     }
 
+    @Test
+    fun archiveThenUnarchiveKeepsTheCreditLimit() = runTest {
+        val limit = Money.of("2000", "USD")
+        val accounts = FakeAccountRepository(
+            listOf(account(1).copy(typeKey = "credit_card", creditLimit = limit)),
+        )
+
+        SetAccountArchived(accounts).invoke(1, archived = true)
+        assertEquals(limit, accounts.findById(1)!!.creditLimit)
+        SetAccountArchived(accounts).invoke(1, archived = false)
+
+        assertEquals(limit, accounts.findById(1)!!.creditLimit)
+    }
+
     @Test(expected = WalletException.AccountNotFound::class)
     fun unknownAccountFailsLoud() = runTest {
         SetAccountArchived(FakeAccountRepository()).invoke(99, archived = true)

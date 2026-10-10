@@ -26,6 +26,31 @@ class CreateAccountTest {
         assertEquals(Money.of("100", "USD"), accounts.findById(1)?.openingBalance)
     }
 
+    @Test
+    fun storesTheCreditLimit() = runTest {
+        val accounts = FakeAccountRepository()
+        val createAccount = CreateAccount(
+            currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2))),
+            accounts = accounts,
+        )
+
+        val id = createAccount(
+            name = "Visa credit", typeKey = "credit_card", currencyCode = "USD",
+            openingBalance = Money.of("0", "USD"), creditLimit = Money.of("2000", "USD"),
+        )
+
+        assertEquals(Money.of("2000", "USD"), accounts.findById(id)?.creditLimit)
+    }
+
+    @Test
+    fun withoutALimitNoneIsStored() = runTest {
+        val accounts = FakeAccountRepository()
+        val id = CreateAccount(FakeCurrencyRepository(listOf(Currency("USD", "$", 2))), accounts)
+            .invoke(name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("0", "USD"))
+
+        assertEquals(null, accounts.findById(id)?.creditLimit)
+    }
+
     @Test(expected = WalletException.CurrencyNotFound::class)
     fun unknownCurrency_throws() = runTest {
         CreateAccount(FakeCurrencyRepository(), FakeAccountRepository())

@@ -167,7 +167,7 @@ class EditAccountViewModel @Inject constructor(
 
     fun submit() {
         val snapshot = _state.value
-        val id = snapshot.loaded?.id ?: return // UI guards this via canSubmit
+        val loaded = snapshot.loaded ?: return // UI guards this via canSubmit
         val currencyCode = snapshot.selectedCurrencyCode ?: return
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, error = null) }
@@ -175,11 +175,13 @@ class EditAccountViewModel @Inject constructor(
                 // Rebuild the opening balance in the selected currency so it matches when the currency changes.
                 val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
                 updateAccount(
-                    id = id,
+                    id = loaded.id,
                     name = snapshot.name.trim(),
                     typeKey = snapshot.accountTypeKey,
                     currencyCode = currencyCode,
                     openingBalance = openingBalance,
+                    // The form has no limit field yet, so an edit keeps whatever limit is stored.
+                    creditLimit = loaded.creditLimit,
                 )
                 _state.update { it.copy(isSubmitting = false, saved = true) }
             } catch (e: WalletException) {
