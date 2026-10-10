@@ -87,6 +87,16 @@ interface EntryDao {
     )
     suspend fun headersOnDebt(debtId: Long): List<EntryEntity>
 
+    @Query("SELECT id FROM entries WHERE id IN ($DEBT_ENTRY_IDS_SQL) ORDER BY date DESC, id DESC")
+    suspend fun allEntryIdsOnDebt(debtId: Long): List<Long>
+
+    /** Header exclusions preserve income ids without asking a recipe to reconstruct their legs. */
+    @Query(
+        "SELECT id FROM entries WHERE id IN ($DEBT_ENTRY_IDS_SQL) AND kind NOT IN (:excludingKinds) " +
+            "ORDER BY date DESC, id DESC",
+    )
+    suspend fun entryIdsOnDebt(debtId: Long, excludingKinds: List<String>): List<Long>
+
     /** Reads every sibling leg of matching entries, so an account leg on a repayment is retained. */
     @Query(
         "SELECT l.entryId AS entryId, l.id AS legId, l.role AS role, l.position AS position, " +

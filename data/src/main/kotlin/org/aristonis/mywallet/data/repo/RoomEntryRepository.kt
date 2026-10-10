@@ -31,6 +31,10 @@ class RoomEntryRepository(
 
     override fun observeAll(): Flow<List<Transaction>> = observeBetween(DateRange.ALL_TIME)
 
+    override suspend fun entryIdsOnDebt(debtId: Long, excludingKinds: Set<String>): List<Long> =
+        if (excludingKinds.isEmpty()) dao.allEntryIdsOnDebt(debtId)
+        else dao.entryIdsOnDebt(debtId, excludingKinds.toList())
+
     /** Filters through the debt index while reconstructing complete entries in one read transaction. */
     override fun observeOnDebt(debtId: Long): Flow<List<Transaction>> =
         database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {

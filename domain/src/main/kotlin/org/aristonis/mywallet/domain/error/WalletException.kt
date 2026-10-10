@@ -115,6 +115,13 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     /** A debt leg points to a row on the opposite side of what that entry records. */
     class DebtSideMismatch(val id: Long) : WalletException("Debt $id is on the wrong side for this entry")
 
+    /** An edited repayment may reuse its own old principal as well as the current remaining. */
+    class RepaymentExceedsRemaining(val remaining: Money) :
+        WalletException("Repayment exceeds the available $remaining")
+
+    class DebtHasNoRemaining(val counterparty: String) :
+        WalletException("The debt with $counterparty has no remaining amount")
+
     /**
      * A payment or edit would leave the debt with [counterparty] below zero. Paying more than was owed
      * would make the debt negative, which means the other side now owes, so the change is refused and

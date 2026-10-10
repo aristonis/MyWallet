@@ -26,6 +26,13 @@ interface EntryRepository {
     fun observeOnDebt(debtId: Long): Flow<List<Transaction>>
 
     /**
+     * Distinct ids of entries with a leg on [debtId], newest first. [excludingKinds] filters stored
+     * headers before any entry is decoded; an empty set returns every matching id. This one-shot
+     * read participates in the caller's transaction.
+     */
+    suspend fun entryIdsOnDebt(debtId: Long, excludingKinds: Set<String>): List<Long>
+
+    /**
      * At most [limit] entries dated inside the inclusive [range], in the order of [observeAll],
      * starting strictly after the entry [after] names (null starts at the newest). The key marks a
      * place in the order, so it still works after its own entry is deleted.

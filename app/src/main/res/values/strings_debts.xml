@@ -18,4 +18,6 @@
     <string name="edit_transaction_read_only">This kind of entry can\'t be edited here yet.</string>
     <string name="msg_debt_not_found">This debt no longer exists.</string>
     <string name="msg_debt_side_mismatch">Choose a debt on the correct side for this entry.</string>
+    <string name="msg_repayment_exceeds_remaining">You can repay up to %1$s.</string>
+    <string name="msg_debt_has_no_remaining">There is nothing left to write off for %1$s.</string>
 </resources>

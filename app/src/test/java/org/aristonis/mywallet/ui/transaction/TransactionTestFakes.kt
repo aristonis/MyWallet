@@ -48,6 +48,7 @@ import org.aristonis.mywallet.domain.model.CategoryRole
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.service.RoleCategories
+import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.toParts
 import java.time.LocalDate
@@ -184,6 +185,12 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
     override fun observeOnDebt(debtId: Long): Flow<List<Transaction>> = items.map { all ->
         all.filter { entry -> entry.toParts().legs.any { (it.target as? LegTarget.Debt)?.id == debtId } }
     }
+
+    override suspend fun entryIdsOnDebt(debtId: Long, excludingKinds: Set<String>): List<Long> =
+        items.value.map { it.toParts() }.filter { row ->
+            row.header.kind !in excludingKinds && row.legs.any { (it.target as? LegTarget.Debt)?.id == debtId }
+        }.sortedWith(compareByDescending<EntryParts> { it.header.date }
+            .thenByDescending { it.header.id }).map { it.header.id }
 
     override fun observeAll(): Flow<List<Transaction>> = items.onStart { wholeHistoryReads++ }
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> =

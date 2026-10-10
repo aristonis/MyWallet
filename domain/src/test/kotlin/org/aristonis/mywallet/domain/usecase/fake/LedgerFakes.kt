@@ -53,6 +53,11 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
             .sortedWith(NEWEST_FIRST).map(::read)
     }
 
+    override suspend fun entryIdsOnDebt(debtId: Long, excludingKinds: Set<String>): List<Long> =
+        store.value.filter { row ->
+            row.header.kind !in excludingKinds && row.legs.any { (it.target as? LegTarget.Debt)?.id == debtId }
+        }.sortedWith(NEWEST_FIRST).map { it.header.id }
+
     override fun observeAll(): Flow<List<Transaction>> = observeBetween(DateRange.ALL_TIME)
 
     override fun observeBetween(range: DateRange): Flow<List<Transaction>> = store.map { rows ->
