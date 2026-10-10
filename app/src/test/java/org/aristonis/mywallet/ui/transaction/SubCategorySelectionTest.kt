@@ -1,27 +1,27 @@
 package org.aristonis.mywallet.ui.transaction
 
-import org.aristonis.mywallet.data.format.MoneyFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.data.format.MoneyParser
+import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
-import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.model.Settings
+import org.aristonis.mywallet.domain.model.Transaction
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.aristonis.mywallet.data.format.MoneyParser
-import org.aristonis.mywallet.di.TodayProvider
 import java.time.LocalDate
 import java.util.Locale
 

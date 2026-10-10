@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,14 +17,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -42,22 +42,22 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
-import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.rememberDateFormatter
 import org.aristonis.mywallet.ui.icons.WalletIcons
+import org.aristonis.mywallet.ui.label
+import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import org.aristonis.mywallet.ui.label
-import org.aristonis.mywallet.ui.text
-import org.aristonis.mywallet.ui.message.text
 
 /**
  * Add-transaction screen. A type selector (Income / Expense / Transfer) drives which fields show:
@@ -141,8 +141,10 @@ internal fun AddTransactionContent(
             if (state.type !in standardTransactionTypes) {
                 Text(typeLabel(state.type), style = MaterialTheme.typography.titleMedium)
             }
-            DebtKindFields(state.type, state.formInputs(), state.fx?.currencies.orEmpty(), state.counterpartySuggestions,
-                onCounterpartyChanged, onSuggestionSelected, onCurrencySelected, onDebtSideSelected)
+            DebtKindFields(
+                state.type, state.formInputs(), state.fx?.currencies.orEmpty(), state.counterpartySuggestions,
+                onCounterpartyChanged, onSuggestionSelected, onCurrencySelected, onDebtSideSelected,
+            )
 
             val rule = EntryFormRules.forType(state.type)
             val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }

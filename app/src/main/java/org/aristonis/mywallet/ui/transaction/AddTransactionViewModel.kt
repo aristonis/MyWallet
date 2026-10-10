@@ -14,19 +14,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
+import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.di.TodayProvider
-import org.aristonis.mywallet.ui.message.UiMessage
-import org.aristonis.mywallet.ui.message.toUiMessage
-import org.aristonis.mywallet.domain.model.DebtSide
-import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.SaveEntry
+import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -131,6 +132,7 @@ class AddTransactionViewModel @Inject constructor(
     @Suppress("UNUSED_PARAMETER") settings: SettingsRepository,
     moneyFormatter: MoneyFormatter,
     suggestCounterparties: SuggestCounterparties,
+    private val errors: ErrorReporter = ErrorReporter { _, _ -> },
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
@@ -138,8 +140,10 @@ class AddTransactionViewModel @Inject constructor(
     val state: StateFlow<AddTransactionUiState> = _state.asStateFlow()
     private val suggestions = CounterpartySuggestions(viewModelScope, suggestCounterparties,
         onResult = { names -> _state.update { it.copy(counterpartySuggestions = names) } },
-        onFailure = { e -> _state.update { it.copy(error = e.toUiMessage()) } })
-
+        onFailure = { e ->
+            errors.report("Counterparty suggestions could not be read", e)
+            _state.update { it.copy(counterpartySuggestions = emptyList()) }
+        })
 
     init {
         combine(accounts.observeAll(), categories.observeAll()) { accountList, categoryList ->
@@ -158,7 +162,11 @@ class AddTransactionViewModel @Inject constructor(
                 }
             }
             .launchIn(viewModelScope)
-        fx.observeFx().onEach { snapshot -> mutate { it.copy(fx = snapshot, currencyCode = it.currencyCode ?: snapshot.baseCurrencyCode) } }.launchIn(viewModelScope)
+        fx.observeFx()
+            .onEach { snapshot ->
+                mutate { it.copy(fx = snapshot, currencyCode = it.currencyCode ?: snapshot.baseCurrencyCode) }
+            }
+            .launchIn(viewModelScope)
     }
 
     /**

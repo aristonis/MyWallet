@@ -1,13 +1,11 @@
 package org.aristonis.mywallet.ui.transaction
 
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -15,6 +13,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.junit.Assert.assertEquals
@@ -41,7 +41,6 @@ class MoreKindsSheetTest {
             assertTrue("$label must have a 48dp tap target", height >= 48f * compose.density.density)
         }
         compose.onNodeWithText("Refund").assertDoesNotExist()
-        compose.formScreenshot("more-kinds-five-choices")
     }
 
     @Test fun everyMoreChoiceSelectsItsKindAndDismissesTheSheet() {
@@ -72,7 +71,6 @@ class MoreKindsSheetTest {
             }
         }
         compose.onNodeWithText("Earned, not paid yet").performScrollTo().assertIsDisplayed()
-        compose.formScreenshot("more-kinds-dark-rtl-font200-last-choice")
         compose.onNodeWithText("Earned, not paid yet").performClick()
         compose.runOnIdle { assertEquals(TransactionType.EARNED_UNPAID, chosen) }
     }

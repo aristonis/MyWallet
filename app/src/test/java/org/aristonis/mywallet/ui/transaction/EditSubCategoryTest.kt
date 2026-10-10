@@ -10,8 +10,8 @@ import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
-import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction

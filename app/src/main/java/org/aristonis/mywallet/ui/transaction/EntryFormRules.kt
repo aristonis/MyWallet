@@ -1,15 +1,15 @@
 package org.aristonis.mywallet.ui.transaction
 
 import org.aristonis.mywallet.data.format.MoneyParser
+import org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.DebtRef
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.ledger.recipe
-import java.math.BigDecimal
 import org.aristonis.mywallet.ui.message.MissingSelectionException
 import org.aristonis.mywallet.ui.message.UiMessage
+import java.math.BigDecimal
 import java.time.LocalDate
 
 /** What the user has chosen and typed on an entry form, whichever screen it is on. */
@@ -25,6 +25,7 @@ data class EntryFormInputs(
     val debtId: Long? = null,
 )
 
+/** The entry the form built, with the debt it belongs to (a name, side and currency) when it has one. */
 data class BuiltEntry(val entry: Transaction, val debt: DebtRef? = null)
 
 /**
@@ -91,9 +92,10 @@ object EntryFormRules {
         BorrowFormRule, LendFormRule, OwedBeforeFormRule, CreditPurchaseFormRule, EarnedUnpaidFormRule)
     private val byType = all.associateBy { it.type }
     private val byKind = all.associateBy { it.kind }
+    /** The rule for [type]; every type the form records has one. */
     fun forType(type: TransactionType): EntryFormRule = checkNotNull(byType[type])
+    /** The rule that edits [entry], or null for a kind the form cannot edit (repayments and write-offs). */
     fun forEntry(entry: Transaction): EntryFormRule? = byKind[entry.recipe().kind]
-
 }
 
 /** A note typed as blanks is no note at all. */
@@ -101,7 +103,8 @@ internal fun noteOrNull(note: String): String? = note.trim().ifEmpty { null }
 
 /** The chosen account, or a refusal that names it as missing. */
 internal fun requireAccount(inputs: EntryFormInputs, accounts: List<Account>): Account =
-    accounts.firstOrNull { it.id == inputs.accountId && !it.archived } ?: throw MissingSelectionException(UiMessage.AccountRequired)
+    accounts.firstOrNull { it.id == inputs.accountId && !it.archived }
+        ?: throw MissingSelectionException(UiMessage.AccountRequired)
 
 /** Refuses an entry of another type than [rule]'s: a bug in the caller, never something the user typed. */
 internal fun wrongType(rule: EntryFormRule, loaded: Transaction): Nothing =

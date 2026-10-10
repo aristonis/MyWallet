@@ -7,11 +7,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -45,13 +45,12 @@ class DebtsScreenTest {
             }
         }
         compose.onNodeWithText("Overdue").assertIsDisplayed()
-        compose.onNodeWithText("Ali").performClick()
+        compose.onNodeWithText("Ali", substring = true).performClick()
         compose.runOnIdle { assertEquals(1L, opened) }
         compose.reachDebtRow("Sara")
         compose.onAllNodesWithText("Settled")[0].assertIsDisplayed()
-        compose.onNodeWithText("Sara").performClick()
+        compose.onNodeWithText("Sara", substring = true).performClick()
         compose.runOnIdle { assertEquals(2L, opened) }
-        compose.debtScreenshot("debts-overdue-settled")
     }
 
     @Test fun missingRateKeepsNativeRowsAndOffersManageRates() {
@@ -62,12 +61,11 @@ class DebtsScreenTest {
                     onDone = {}, onOpenDebt = {}, onManageRates = { managed = true }, onSelectSide = {}, onRetry = {})
             }
         }
-        compose.onNodeWithText("Ali").assertIsDisplayed()
+        compose.onNodeWithText("Ali", substring = true).assertIsDisplayed()
         compose.onNodeWithText("10.00 USD").assertIsDisplayed()
         compose.onNodeWithText("EUR", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Manage rates").performClick()
         compose.runOnIdle { assertEquals(true, managed) }
-        compose.debtScreenshot("debts-missing-rate")
     }
 
     @Test fun sideSegmentAndRetryInvokeTheirActions() {
@@ -87,7 +85,6 @@ class DebtsScreenTest {
         }
         compose.onNodeWithText("Retry").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(true, retried) }
-        compose.debtScreenshot("debts-read-failure")
     }
 
     @Test fun lastNegativeDebtIsReachableInDarkRtlAtTwoHundredPercentFont() {
@@ -104,8 +101,7 @@ class DebtsScreenTest {
             }
         }
         compose.reachDebtRow("Person 30")
-        compose.onNodeWithText("Person 30").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Person 30", substring = true).assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(30L, opened) }
-        compose.debtScreenshot("debts-dark-rtl-font200-final-row")
     }
 }

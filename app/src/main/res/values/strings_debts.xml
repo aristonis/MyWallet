@@ -16,12 +16,15 @@
 
     <!-- Edit screen, for a kind of entry the form cannot change yet -->
     <string name="edit_transaction_read_only">This kind of entry can\'t be edited here yet.</string>
+
+    <!-- Refusals and hints about a debt -->
     <string name="msg_debt_not_found">This debt no longer exists.</string>
     <string name="msg_debt_side_mismatch">Choose a debt on the correct side for this entry.</string>
     <string name="msg_repayment_exceeds_remaining">You can repay up to %1$s.</string>
     <string name="msg_debt_has_no_remaining">There is nothing left to write off for %1$s.</string>
+
+    <!-- Debts list screen -->
     <string name="debts_title">Debts</string>
-    <string name="debt_detail_title">Debt details</string>
     <string name="debts_i_owe">I owe</string>
     <string name="debts_owed_to_me">Owed to me</string>
     <string name="debts_open">Open</string>
@@ -31,6 +34,10 @@
     <string name="debts_empty">No debts on this side.</string>
     <string name="debts_negative">Below zero. Open the debt to review its entries.</string>
     <string name="debts_missing_rate">Set the %1$s rate to see the total.</string>
+    <string name="debts_manage_rates">Manage rates</string>
+
+    <!-- Debt detail screen -->
+    <string name="debt_detail_title">Debt details</string>
     <string name="debt_counterparty">Counterparty</string>
     <string name="debt_rename">Rename</string>
     <string name="debt_due_date">Due date</string>
@@ -39,5 +46,4 @@
     <string name="debt_note">Note</string>
     <string name="debt_save_details">Save details</string>
     <string name="debt_history">Debt history</string>
-    <string name="debts_manage_rates">Manage rates</string>
 </resources>

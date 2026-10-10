@@ -10,8 +10,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
-import org.junit.Rule
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.atomic.AtomicInteger

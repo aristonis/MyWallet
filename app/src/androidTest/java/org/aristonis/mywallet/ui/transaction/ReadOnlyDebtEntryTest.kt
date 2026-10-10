@@ -1,32 +1,33 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import java.io.File
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 
+/**
+ * Rendering and confirmation of the read-only debt entry. Whether a delete is refused is decided in
+ * the domain and mapped by the view model (see EditDebtKindReadOnlyTest); here the refusal is only
+ * given to the screen as state, to check it is shown.
+ */
 @RunWith(AndroidJUnit4::class)
 class ReadOnlyDebtEntryTest {
     @get:Rule val compose = createComposeRule()
@@ -44,10 +45,8 @@ class ReadOnlyDebtEntryTest {
         }
         compose.onNodeWithText("Save transaction").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("Delete").performScrollTo().assertIsEnabled()
-        screenshot("read-only-initial")
         compose.onNodeWithText("Delete").performClick()
         compose.onNodeWithText("Delete this transaction?").assertIsDisplayed()
-        screenshot("read-only-confirmation")
         compose.runOnIdle { assertEquals(0, deletes) }
         compose.onNode(hasText("Delete") and hasAnyAncestor(isDialog())).performClick()
         compose.runOnIdle { assertEquals(1, deletes) }
@@ -60,10 +59,9 @@ class ReadOnlyDebtEntryTest {
             }
         }
         compose.onNodeWithText("Delete").performScrollTo().assertIsNotEnabled()
-        screenshot("read-only-submitting")
     }
 
-    @Test fun aGuardFailureNamesThePersonAfterDeleteConfirmationWithoutScrolling() {
+    @Test fun aRefusalShownByTheStateNamesThePersonWithoutScrolling() {
         val state = mutableStateOf(EditTransactionUiState(loaded = entry, readOnly = true, amountInput = "100", note = "Unpaid balance"))
         compose.setContent {
             MyWalletTheme(dynamicColor = false) {
@@ -75,19 +73,5 @@ class ReadOnlyDebtEntryTest {
         compose.onNodeWithText("Delete").performScrollTo().performClick()
         compose.onNode(hasText("Delete") and hasAnyAncestor(isDialog())).performClick()
         compose.onNode(hasText("That would take", substring = true) and hasText("Sara", substring = true)).assertIsDisplayed()
-        screenshot("read-only-guard-error")
-    }
-
-    private fun screenshot(name: String) {
-        compose.waitForIdle()
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.waitForIdleSync()
-        instrumentation.uiAutomation.waitForIdle(500, 5_000)
-        val directory = File(instrumentation.targetContext.filesDir, "wave4-evidence").apply { mkdirs() }
-        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
-        File(directory, "$name.png").outputStream().use { output ->
-            assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
-        }
-        bitmap.recycle()
     }
 }

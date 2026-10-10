@@ -19,6 +19,7 @@ internal abstract class CategoryFormRule(
     final override val type: TransactionType,
     private val categoryKind: CategoryKind,
 ) : EntryFormRule {
+    final override val kind = type.name
     final override val requiresCategory = true
     final override val countsInTracking = true
 
@@ -81,8 +82,11 @@ internal data class CategoryEntryFields(
 
 internal object IncomeFormRule : CategoryFormRule(TransactionType.INCOME, CategoryKind.INCOME) {
 
-    override val kind = "INCOME"
-    override fun keptRates(entry: Transaction): Map<String, BigDecimal?> = (entry as Transaction.Income).let { mapOf(it.amount.currencyCode to it.rateToBase) }
+    override fun keptRates(entry: Transaction): Map<String, BigDecimal?> {
+        if (entry !is Transaction.Income) wrongType(this, entry)
+        return mapOf(entry.amount.currencyCode to entry.rateToBase)
+    }
+
     override fun newEntry(fields: CategoryEntryFields): Transaction = Transaction.Income(
         accountId = fields.accountId, amount = fields.amount, categoryId = fields.categoryId,
         subCategoryId = fields.subCategoryId, date = fields.date, note = fields.note,
@@ -104,8 +108,11 @@ internal object IncomeFormRule : CategoryFormRule(TransactionType.INCOME, Catego
 
 internal object ExpenseFormRule : CategoryFormRule(TransactionType.EXPENSE, CategoryKind.EXPENSE) {
 
-    override val kind = "EXPENSE"
-    override fun keptRates(entry: Transaction): Map<String, BigDecimal?> = (entry as Transaction.Expense).let { mapOf(it.amount.currencyCode to it.rateToBase) }
+    override fun keptRates(entry: Transaction): Map<String, BigDecimal?> {
+        if (entry !is Transaction.Expense) wrongType(this, entry)
+        return mapOf(entry.amount.currencyCode to entry.rateToBase)
+    }
+
     override fun newEntry(fields: CategoryEntryFields): Transaction = Transaction.Expense(
         accountId = fields.accountId, amount = fields.amount, categoryId = fields.categoryId,
         subCategoryId = fields.subCategoryId, date = fields.date, note = fields.note,
@@ -134,7 +141,7 @@ internal object ExpenseFormRule : CategoryFormRule(TransactionType.EXPENSE, Cate
 internal object TransferFormRule : EntryFormRule {
 
     override val type: TransactionType = TransactionType.TRANSFER
-    override val kind = "TRANSFER"
+    override val kind = type.name
 
     override fun quoteLegs(inputs: EntryFormInputs, accounts: List<Account>, loaded: Transaction?): List<QuoteLeg> =
         if (loaded == null) super.quoteLegs(inputs, accounts, loaded) else emptyList()

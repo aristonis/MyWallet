@@ -17,8 +17,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -44,9 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
-import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.components.LabeledDropdown
@@ -54,13 +54,13 @@ import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.rememberDateFormatter
 import org.aristonis.mywallet.ui.icons.WalletIcons
+import org.aristonis.mywallet.ui.label
+import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import org.aristonis.mywallet.ui.label
-import org.aristonis.mywallet.ui.text
-import org.aristonis.mywallet.ui.message.text
 
 /**
  * Edit-transaction screen. The type is fixed at load and shown read-only: income/expense may change

@@ -16,23 +16,24 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
+import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
-import org.aristonis.mywallet.domain.model.DebtSide
-import org.aristonis.mywallet.domain.port.DebtRepository
-import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.model.UndoBundle
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
+import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
 import java.time.LocalDate
@@ -150,6 +151,7 @@ class EditTransactionViewModel @Inject constructor(
     fx: FxRepository,
     private val debts: DebtRepository,
     suggestCounterparties: SuggestCounterparties,
+    private val errors: ErrorReporter = ErrorReporter { _, _ -> },
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
@@ -157,8 +159,10 @@ class EditTransactionViewModel @Inject constructor(
     val state: StateFlow<EditTransactionUiState> = _state.asStateFlow()
     private val suggestions = CounterpartySuggestions(viewModelScope, suggestCounterparties,
         onResult = { names -> _state.update { it.copy(counterpartySuggestions = names) } },
-        onFailure = { e -> _state.update { it.copy(error = e.toUiMessage()) } })
-
+        onFailure = { e ->
+            errors.report("Counterparty suggestions could not be read", e)
+            _state.update { it.copy(counterpartySuggestions = emptyList()) }
+        })
 
     private var loadJob: Job? = null
 

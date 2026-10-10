@@ -24,15 +24,15 @@ import org.aristonis.mywallet.ui.rates.ManageRatesUiState
 import org.aristonis.mywallet.ui.rates.RateRow
 import org.aristonis.mywallet.ui.reports.CategoryRow
 import org.aristonis.mywallet.ui.reports.ReportsContent
-import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.reports.ReportsData
 import org.aristonis.mywallet.ui.reports.ReportsUiState
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
+import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.time.LocalDate
 import java.math.BigDecimal
+import java.time.LocalDate
 
 /**
  * A `LazyColumn` with nothing bounding its height asks for the height of every row it holds. A

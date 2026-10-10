@@ -23,8 +23,8 @@ import org.aristonis.mywallet.ui.account.EditAccountScreen
 import org.aristonis.mywallet.ui.account.ManageAccountsScreen
 import org.aristonis.mywallet.ui.category.ManageCategoriesScreen
 import org.aristonis.mywallet.ui.currency.ChangeBaseCurrencyScreen
-import org.aristonis.mywallet.ui.debt.DebtsScreen
 import org.aristonis.mywallet.ui.debt.DebtDetailScreen
+import org.aristonis.mywallet.ui.debt.DebtsScreen
 import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen

@@ -8,8 +8,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -50,14 +50,13 @@ class DebtDetailScreenTest {
                 DebtDetailContent(current, onDone = {}, onEditEntry = {},
                     onCounterpartyChange = { current = current.copy(counterpartyInput = it) },
                     onRename = { current = current.copy(error = UiMessage.DebtNameTaken(current.counterpartyInput)) },
-                    onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {})
+                    onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {}, today = { LocalDate.of(2026, 10, 10) })
             }
         }
         compose.onNodeWithText("Counterparty").performScrollTo().performTextReplacement("Omar")
         compose.onNodeWithText("Rename").performScrollTo().performClick()
         compose.onNodeWithText("Counterparty").assertTextContains("Omar")
         compose.onNode(hasText("A debt named", substring = true) and hasText("already exists on this side and currency.", substring = true)).assertIsDisplayed()
-        compose.debtScreenshot("debt-detail-inline-rename-collision")
     }
 
     @Test fun noteCanBeSavedSeparatelyAndHistoryOpensItsOriginalEntryId() {
@@ -68,7 +67,7 @@ class DebtDetailScreenTest {
             MyWalletTheme(dynamicColor = false) {
                 DebtDetailContent(current, onDone = {}, onEditEntry = { opened = it }, onCounterpartyChange = {},
                     onRename = {}, onDueDateChange = {}, onNoteChange = { current = current.copy(noteInput = it) },
-                    onSaveDetails = { saved = current.noteInput }, onRetry = {})
+                    onSaveDetails = { saved = current.noteInput }, onRetry = {}, today = { LocalDate.of(2026, 10, 10) })
             }
         }
         compose.onNodeWithText("Note").performScrollTo().performTextReplacement("rent reminder")
@@ -77,7 +76,6 @@ class DebtDetailScreenTest {
         compose.reachDebtRow("History receipt 1")
         compose.onNodeWithText("History receipt 1").performClick()
         compose.runOnIdle { assertEquals(1L, opened) }
-        compose.debtScreenshot("debt-detail-saved-note-history-editor")
     }
 
     @Test fun finalHistoryEntryIsReachableInDarkRtlAtTwoHundredPercentFont() {
@@ -88,13 +86,12 @@ class DebtDetailScreenTest {
                 LocalDensity provides Density(density.density, 2f)) {
                 MyWalletTheme(darkTheme = true, dynamicColor = false) {
                     DebtDetailContent(state((1L..30L).map(::entry)), onDone = {}, onEditEntry = { opened = it },
-                        onCounterpartyChange = {}, onRename = {}, onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {})
+                        onCounterpartyChange = {}, onRename = {}, onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {}, today = { LocalDate.of(2026, 10, 10) })
                 }
             }
         }
         compose.reachDebtRow("History receipt 30")
         compose.onNodeWithText("History receipt 30").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(30L, opened) }
-        compose.debtScreenshot("debt-detail-dark-rtl-font200-final-history")
     }
 }

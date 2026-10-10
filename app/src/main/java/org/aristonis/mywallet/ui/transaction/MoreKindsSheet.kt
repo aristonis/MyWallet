@@ -10,19 +10,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.R
 
-internal val standardTransactionTypes = listOf(TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER)
+/** The three kinds always on the form; the rest sit behind "More". */
+internal val standardTransactionTypes =
+    listOf(TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER)
+/** The kinds offered in the "More" sheet. */
 internal val moreTransactionTypes = listOf(TransactionType.BORROW, TransactionType.LEND, TransactionType.OWED_BEFORE,
     TransactionType.CREDIT_PURCHASE, TransactionType.EARNED_UNPAID)
 
+/** The sheet that lists the kinds behind "More"; choosing one selects it and closes the sheet. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MoreKindsSheet(onTypeSelected: (TransactionType) -> Unit, onDismiss: () -> Unit) {

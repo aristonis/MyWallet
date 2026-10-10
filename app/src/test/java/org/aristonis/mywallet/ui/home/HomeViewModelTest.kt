@@ -1,19 +1,15 @@
 package org.aristonis.mywallet.ui.home
 
-import org.aristonis.mywallet.cancelAndAwait
-import kotlinx.coroutines.awaitCancellation
-import org.aristonis.mywallet.namedWorkThread
-import org.aristonis.mywallet.ThreadRecordingList
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.aristonis.mywallet.domain.model.DateRange
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -21,26 +17,31 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.RecordingErrorReporter
+import org.aristonis.mywallet.ThreadRecordingList
+import org.aristonis.mywallet.cancelAndAwait
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
-import org.aristonis.mywallet.domain.port.AccountRepository
-import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.RateRepository
-import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.AccountLeg
+import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryLeg
+import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.LedgerQueries
-import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.port.LegRate
+import org.aristonis.mywallet.domain.port.RateRepository
+import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
 import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
+import org.aristonis.mywallet.namedWorkThread
+import org.aristonis.mywallet.ui.transaction.FakeFxRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,7 +50,6 @@ import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 import java.util.Locale
-import org.aristonis.mywallet.ui.transaction.FakeFxRepository
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {

@@ -22,9 +22,15 @@ import org.aristonis.mywallet.ui.window.toUtcMillis
 import org.aristonis.mywallet.ui.window.utcMillisToDate
 import java.time.LocalDate
 
+/** The due date as a button that opens a picker, which starts on the current due date or on today. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun DebtDueDateField(dueDate: LocalDate?, enabled: Boolean, onChange: (LocalDate?) -> Unit) {
+internal fun DebtDueDateField(
+    dueDate: LocalDate?,
+    enabled: Boolean,
+    today: () -> LocalDate,
+    onChange: (LocalDate?) -> Unit,
+) {
     var choosing by rememberSaveable { mutableStateOf(false) }
     val formatDate = rememberDateFormatter()
     Column {
@@ -32,16 +38,27 @@ internal fun DebtDueDateField(dueDate: LocalDate?, enabled: Boolean, onChange: (
         OutlinedButton(onClick = { choosing = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
             Text(dueDate?.let(formatDate) ?: stringResource(R.string.debt_due_date_none))
         }
-        if (dueDate != null) TextButton(onClick = { onChange(null) }, enabled = enabled) { Text(stringResource(R.string.debt_clear_due_date)) }
+        if (dueDate != null) {
+            TextButton(onClick = { onChange(null) }, enabled = enabled) {
+                Text(stringResource(R.string.debt_clear_due_date))
+            }
+        }
     }
     if (choosing) {
-        val picker = rememberDatePickerState(initialSelectedDateMillis = (dueDate ?: LocalDate.now()).toUtcMillis())
-        DatePickerDialog(onDismissRequest = { choosing = false }, confirmButton = {
-            TextButton(onClick = {
-                picker.selectedDateMillis?.let { onChange(utcMillisToDate(it)) }
-                choosing = false
-            }) { Text(stringResource(R.string.action_ok)) }
-        }, dismissButton = { TextButton(onClick = { choosing = false }) { Text(stringResource(R.string.action_cancel)) } }) {
+        val start = dueDatePickerStart(dueDate, today())
+        val picker = rememberDatePickerState(initialSelectedDateMillis = start.toUtcMillis())
+        DatePickerDialog(
+            onDismissRequest = { choosing = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    picker.selectedDateMillis?.let { onChange(utcMillisToDate(it)) }
+                    choosing = false
+                }) { Text(stringResource(R.string.action_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { choosing = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        ) {
             DatePicker(picker)
         }
     }

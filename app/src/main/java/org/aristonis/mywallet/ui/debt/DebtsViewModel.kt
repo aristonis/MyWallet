@@ -31,6 +31,7 @@ import javax.inject.Inject
 /** Native currency stays on each row even when a conversion rate is missing. */
 data class DebtRow(val summary: DebtSummary, val remainingDisplay: String)
 
+/** What the debts list shows for the selected side: its rows, its total and the state of the read. */
 data class DebtsUiState(
     val selectedSide: DebtSide = DebtSide.I_OWE,
     val open: List<DebtRow> = emptyList(),
@@ -43,6 +44,7 @@ data class DebtsUiState(
     val loadError: UiMessage? = null,
 )
 
+/** Reads the debts of the selected side and shows them in open and settled groups with a total. */
 @HiltViewModel
 class DebtsViewModel @Inject constructor(
     observeDebts: ObserveDebts,

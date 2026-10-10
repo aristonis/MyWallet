@@ -1,16 +1,16 @@
 package org.aristonis.mywallet.ui.transaction
 
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
-import org.aristonis.mywallet.domain.error.WalletException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
+import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Transaction
 import org.junit.After

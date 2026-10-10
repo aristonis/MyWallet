@@ -40,44 +40,80 @@ import org.aristonis.mywallet.ui.transaction.rowType
 import org.aristonis.mywallet.ui.window.RefreshOnStart
 import java.time.LocalDate
 
+/** One debt: its balance, editable name, due date and note, and the entries that make it up. */
 @Composable
-fun DebtDetailScreen(debtId: Long, onDone: () -> Unit, onEditEntry: (Long) -> Unit,
-    viewModel: DebtDetailViewModel = hiltViewModel()) {
+fun DebtDetailScreen(
+    debtId: Long,
+    onDone: () -> Unit,
+    onEditEntry: (Long) -> Unit,
+    viewModel: DebtDetailViewModel = hiltViewModel(),
+) {
     LaunchedEffect(debtId) { viewModel.load(debtId) }
     RefreshOnStart(viewModel::refreshToday)
     val state by viewModel.state.collectAsStateWithLifecycle()
-    DebtDetailContent(state, onDone, onEditEntry, viewModel::setCounterparty, viewModel::rename,
-        viewModel::setDueDate, viewModel::setNote, viewModel::saveDetails, viewModel::retry)
+    DebtDetailContent(
+        state, onDone, onEditEntry, viewModel::setCounterparty, viewModel::rename,
+        viewModel::setDueDate, viewModel::setNote, viewModel::saveDetails, viewModel::retry, viewModel::today,
+    )
 }
 
 @Composable
-internal fun DebtDetailContent(state: DebtDetailUiState, onDone: () -> Unit, onEditEntry: (Long) -> Unit,
-    onCounterpartyChange: (String) -> Unit, onRename: () -> Unit, onDueDateChange: (LocalDate?) -> Unit,
-    onNoteChange: (String) -> Unit, onSaveDetails: () -> Unit, onRetry: () -> Unit) {
+internal fun DebtDetailContent(
+    state: DebtDetailUiState,
+    onDone: () -> Unit,
+    onEditEntry: (Long) -> Unit,
+    onCounterpartyChange: (String) -> Unit,
+    onRename: () -> Unit,
+    onDueDateChange: (LocalDate?) -> Unit,
+    onNoteChange: (String) -> Unit,
+    onSaveDetails: () -> Unit,
+    onRetry: () -> Unit,
+    today: () -> LocalDate,
+) {
     BackHandler(onBack = onDone)
     val dateDisplay = rememberDateFormatter()
     Scaffold(topBar = { WalletTopAppBar(stringResource(R.string.debt_detail_title), onBack = onDone) }) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             when {
                 state.isLoading -> item { CircularProgressIndicator() }
-                state.loadFailed -> item { LoadFailedState((state.loadError ?: UiMessage.DataUnreadable).text(), onRetry) }
+                state.loadFailed -> item {
+                    LoadFailedState((state.loadError ?: UiMessage.DataUnreadable).text(), onRetry)
+                }
                 state.detail == null -> item { Text(UiMessage.DebtNotFound.text()) }
                 else -> {
-                    item { MoneyText(state.remainingDisplay); DebtStateLabel(state.detail.summary.state) }
-                    item { DebtNameField(state, onCounterpartyChange, onRename) }
-                    item { DebtDueDateField(state.dueDate, !state.isSubmitting, onDueDateChange) }
                     item {
-                        OutlinedTextField(state.noteInput, onNoteChange, modifier = Modifier.fillMaxWidth(),
-                            label = { Text(stringResource(R.string.debt_note)) }, enabled = !state.isSubmitting)
+                        MoneyText(state.remainingDisplay)
+                        DebtStateLabel(state.detail.summary.state)
                     }
-                    item { Button(onClick = onSaveDetails, enabled = !state.isSubmitting) { Text(stringResource(R.string.debt_save_details)) } }
-                    if (state.error != null && !state.error.isNameError()) item { Text(state.error.text(), Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                    item { DebtNameField(state, onCounterpartyChange, onRename) }
+                    item { DebtDueDateField(state.dueDate, !state.isSubmitting, today, onDueDateChange) }
+                    item {
+                        OutlinedTextField(
+                            state.noteInput, onNoteChange, modifier = Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.debt_note)) }, enabled = !state.isSubmitting,
+                        )
+                    }
+                    item {
+                        Button(onClick = onSaveDetails, enabled = !state.isSubmitting) {
+                            Text(stringResource(R.string.debt_save_details))
+                        }
+                    }
+                    if (state.error != null && !state.error.isNameError()) {
+                        item { Text(state.error.text(), Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                    }
                     item { Text(stringResource(R.string.debt_history)) }
                     items(state.detail.entries, key = { it.id }) { entry ->
-                        WalletListRow(headline = entry.note?.takeIf(String::isNotBlank) ?: kindLabel(entry.rowType()),
-                            supporting = listOfNotNull(kindLabel(entry.rowType()), dateDisplay(entry.date), state.historyAmounts[entry.id]).joinToString(" · "),
-                            onClick = { onEditEntry(entry.id) })
+                        WalletListRow(
+                            headline = entry.note?.takeIf(String::isNotBlank) ?: kindLabel(entry.rowType()),
+                            supporting = debtHistorySupporting(
+                                kindLabel(entry.rowType()), dateDisplay(entry.date), state.historyAmounts[entry.id],
+                            ),
+                            onClick = { onEditEntry(entry.id) },
+                        )
                     }
                 }
             }
@@ -89,11 +125,14 @@ internal fun DebtDetailContent(state: DebtDetailUiState, onDone: () -> Unit, onE
 private fun DebtNameField(state: DebtDetailUiState, onChange: (String) -> Unit, onRename: () -> Unit) {
     val error = state.error?.takeIf { it.isNameError() }
     Column {
-        OutlinedTextField(state.counterpartyInput, onChange, modifier = Modifier.fillMaxWidth(),
+        OutlinedTextField(
+            state.counterpartyInput, onChange, modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(R.string.debt_counterparty)) }, enabled = !state.isSubmitting,
-            isError = error != null, supportingText = error?.let { message ->
+            isError = error != null,
+            supportingText = error?.let { message ->
                 { Text(message.text(), Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
-            })
+            },
+        )
         TextButton(onClick = onRename, enabled = !state.isSubmitting) { Text(stringResource(R.string.debt_rename)) }
     }
 }

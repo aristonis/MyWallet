@@ -34,6 +34,7 @@ import org.aristonis.mywallet.ui.transaction.movedAmount
 import java.time.LocalDate
 import javax.inject.Inject
 
+/** What the debt detail screen shows: the debt, the draft fields being edited, and the state of the read. */
 data class DebtDetailUiState(
     val detail: DebtDetail? = null,
     val counterpartyInput: String = "",
@@ -48,6 +49,7 @@ data class DebtDetailUiState(
     val isSubmitting: Boolean = false,
 )
 
+/** Reads one debt with its entries and saves edits to its name, due date and note. */
 @HiltViewModel
 class DebtDetailViewModel @Inject constructor(
     private val observeDebt: ObserveDebt,
@@ -68,6 +70,7 @@ class DebtDetailViewModel @Inject constructor(
     private var persistedDebt: Debt? = null
     private var actionError: UiMessage? = null
 
+    /** Starts reading [debtId]; asking again for the debt already loaded does nothing. */
     fun load(debtId: Long) {
         if (loadedId == debtId) return
         reads?.cancel()
@@ -78,10 +81,15 @@ class DebtDetailViewModel @Inject constructor(
         reads = viewModelScope.launch {
             attempts.reading(loading = { state.value.copy(isLoading = true, loadFailed = false, loadError = null) }) {
                 combine(observeDebt(debtId), observeLedgerHealth(), currencies.observeAll()) { detail, _, codes ->
-                    DebtDetailUiState(detail = detail, isLoading = false,
-                        remainingDisplay = detail?.let { moneyFormatter.display(it.summary.remaining, codes) }.orEmpty(),
-                        historyAmounts = detail?.entries.orEmpty().associate { it.id to moneyFormatter.display(it.movedAmount(), codes) },
-                        error = if (detail == null) UiMessage.DebtNotFound else null)
+                    DebtDetailUiState(
+                        detail = detail,
+                        isLoading = false,
+                        remainingDisplay = detail
+                            ?.let { moneyFormatter.display(it.summary.remaining, codes) }.orEmpty(),
+                        historyAmounts = detail?.entries.orEmpty()
+                            .associate { it.id to moneyFormatter.display(it.movedAmount(), codes) },
+                        error = if (detail == null) UiMessage.DebtNotFound else null,
+                    )
                 }.catch { failure ->
                     if (failure is CancellationException) throw failure
                     errors.report("Debt detail could not read the wallet", failure)
@@ -95,30 +103,45 @@ class DebtDetailViewModel @Inject constructor(
         val previous = persistedDebt
         val next = read.detail?.summary?.debt
         mutableState.update { current ->
-            val refreshName = next != null && (previous == null || current.counterpartyInput == previous.counterparty)
-            val refreshDate = next != null && (previous == null || current.dueDate == previous.dueDate)
-            val refreshNote = next != null && (previous == null || current.noteInput == previous.note.orEmpty())
-            current.copy(detail = read.detail, remainingDisplay = read.remainingDisplay, historyAmounts = read.historyAmounts,
-                isLoading = read.isLoading, loadFailed = read.loadFailed, loadError = read.loadError,
-                counterpartyInput = if (refreshName) next!!.counterparty else current.counterpartyInput,
-                dueDate = if (refreshDate) next!!.dueDate else current.dueDate,
-                noteInput = if (refreshNote) next!!.note.orEmpty() else current.noteInput,
-                error = read.error ?: actionError)
+            val withRead = current.copy(detail = read.detail, remainingDisplay = read.remainingDisplay,
+                historyAmounts = read.historyAmounts, isLoading = read.isLoading, loadFailed = read.loadFailed,
+                loadError = read.loadError, error = read.error ?: actionError)
+            if (next == null) withRead else withRead.refreshedUnlessEdited(previous, next)
         }
         if (next != null) persistedDebt = next
     }
+
+    /** The draft fields take the stored values, except one the person already changed from [previous]. */
+    private fun DebtDetailUiState.refreshedUnlessEdited(previous: Debt?, next: Debt) = copy(
+        counterpartyInput = if (previous == null || counterpartyInput == previous.counterparty) {
+            next.counterparty
+        } else {
+            counterpartyInput
+        },
+        dueDate = if (previous == null || dueDate == previous.dueDate) next.dueDate else dueDate,
+        noteInput = if (previous == null || noteInput == previous.note.orEmpty()) next.note.orEmpty() else noteInput,
+    )
 
     fun setCounterparty(value: String) {
         actionError = null
         mutableState.update { it.copy(counterpartyInput = value, error = null) }
     }
 
-    fun setDueDate(value: LocalDate?) { mutableState.update { it.copy(dueDate = value) } }
-    fun setNote(value: String) { mutableState.update { it.copy(noteInput = value) } }
+    fun setDueDate(value: LocalDate?) {
+        mutableState.update { it.copy(dueDate = value) }
+    }
+
+    fun setNote(value: String) {
+        mutableState.update { it.copy(noteInput = value) }
+    }
+
+    /** Saves the typed name; a name already used on this side and currency is reported inline. */
     fun rename() {
         val draft = state.value
         submit { id -> renameDebt(id, draft.counterpartyInput) }
     }
+
+    /** Saves the due date and the note; a blank note is stored as none. */
     fun saveDetails() {
         val draft = state.value
         submit { id -> updateDebtDetails(id, draft.dueDate, draft.noteInput.takeIf(String::isNotBlank)) }
@@ -144,5 +167,10 @@ class DebtDetailViewModel @Inject constructor(
     }
 
     fun retry() = attempts.retry()
+
+    /** Reopens the midnight timer with the current device zone. */
     fun refreshToday() = today.refresh()
+
+    /** Today from the injected clock, read when the due-date picker opens. */
+    fun today(): LocalDate = today.now()
 }

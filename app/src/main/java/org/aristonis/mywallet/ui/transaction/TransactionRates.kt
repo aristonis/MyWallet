@@ -52,8 +52,18 @@ private val PAIR_RATE_PRECISION = MathContext(PAIR_RATE_SIGNIFICANT_DIGITS, Curr
 
 /** A money leg and whether it contributes to income or expense tracking. */
 data class QuoteLeg(val currencyCode: String, val amountInput: String, val countsInTracking: Boolean)
+/** The two currencies of a transfer preview, from the source account to the destination. */
 data class QuotePair(val from: String, val to: String)
 
+/**
+ * What a rate quote is priced from.
+ *
+ * @property fx the rates and currencies known now, or null before they load.
+ * @property legs the money legs to price.
+ * @property rateInputs the rate text typed so far, by currency code.
+ * @property keptRates the rate stored on an entry being edited, by currency code.
+ * @property pair the transfer currencies to preview, or null when nothing is converted between accounts.
+ */
 internal data class RateQuoteInput(
     val fx: FxSnapshot?,
     val legs: List<QuoteLeg>,
