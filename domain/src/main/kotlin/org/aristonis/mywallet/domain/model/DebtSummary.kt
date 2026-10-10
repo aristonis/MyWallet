@@ -11,9 +11,8 @@ enum class DebtState { OPEN, OVERDUE, SETTLED, HIDDEN }
 /**
  * A debt with what still remains on it and the state that follows from the two.
  *
- * @property remaining In the debt's own currency. A negative value is not judged here: the save guard
- *   and restore keep it at zero or more, and readers report one that slips through via ledger health.
- *   If one does reach here, it reads as [DebtState.OPEN].
+ * @property remaining In the debt's own currency. A negative value is kept readable as
+ *   [DebtState.OPEN]; Home names the debt in its below-zero warning and leaves it out of totals.
  */
 data class DebtSummary(
     val debt: Debt,
