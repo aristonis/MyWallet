@@ -135,7 +135,7 @@ data class EditTransactionUiState(
  * the save re-rates that leg the same way, so the field shows what will be stored. While the entry
  * stays in its own currency and no rate is typed, the field shows the rate the entry keeps.
  *
- * Because the write goes through the same storage Home reads, balances and net worth recompute via the
+ * Because the write goes through the same storage Home reads, balances and the Home summary recompute via the
  * reactive read path; this view model never touches balance math.
  */
 @HiltViewModel

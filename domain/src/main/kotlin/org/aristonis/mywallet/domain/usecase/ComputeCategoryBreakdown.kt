@@ -20,7 +20,7 @@ import java.math.RoundingMode
 /**
  * The result of computing a category breakdown: either the income / expense totals, or a signal that
  * a rate is still missing. Sealed (rather than throwing) so the reactive flow stays live and resolves
- * once the missing rate is filled in. Mirrors [NetWorth].
+ * once the missing rate is filled in. Like the Home summary, this remains live while a rate is missing.
  */
 sealed interface CategoryBreakdownResult {
     data class Resolved(val breakdown: CategoryBreakdown) : CategoryBreakdownResult

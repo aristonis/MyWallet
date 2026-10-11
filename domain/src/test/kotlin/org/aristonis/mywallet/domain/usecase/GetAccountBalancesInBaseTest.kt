@@ -1,6 +1,8 @@
 package org.aristonis.mywallet.domain.usecase
 
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import org.aristonis.mywallet.domain.model.AccountBalanceInBase
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
@@ -19,7 +21,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import java.math.BigDecimal
 
-/** Same constructor as before; balances now come from account legs through `GetAccountBalances(accounts, ledger)`. */
 class GetAccountBalancesInBaseTest {
 
     private fun account(id: Long, currency: String, opening: String) =
@@ -30,12 +31,11 @@ class GetAccountBalancesInBaseTest {
         currencies: List<Currency>,
         rates: List<ExchangeRate> = emptyList(),
         base: String = "USD",
-    ): GetAccountBalancesInBase {
+    ): Flow<List<AccountBalanceInBase>> {
         val getBalances = GetAccountBalances(FakeAccountRepository(accounts), FakeLedgerQueries(FakeEntryRepository()))
         return GetAccountBalancesInBase(
-            getAccountBalances = getBalances,
             fx = fakeFx(currencies, rates, base),
-        )
+        )(getBalances())
     }
 
     @Test
@@ -43,7 +43,7 @@ class GetAccountBalancesInBaseTest {
         val result = usecase(
             accounts = listOf(account(1, "USD", "100")),
             currencies = listOf(Currency("USD", "$", 2)),
-        )().first()
+        ).first()
 
         val row = result.single()
         assertEquals(Money.of("100", "USD"), row.native)
@@ -56,7 +56,7 @@ class GetAccountBalancesInBaseTest {
             accounts = listOf(account(1, "EUR", "50")),
             currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)),
             rates = listOf(ExchangeRate("EUR", BigDecimal("1.10"))), // 1 EUR = 1.10 USD
-        )().first()
+        ).first()
 
         assertEquals(Money.of("55.00", "USD"), result.single().base)
     }
@@ -67,7 +67,7 @@ class GetAccountBalancesInBaseTest {
             accounts = listOf(account(1, "EUR", "50"), account(2, "USD", "100")),
             currencies = listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)),
             rates = emptyList(), // no EUR rate
-        )().first()
+        ).first()
 
         assertEquals(2, result.size) // whole list still resolves
         val eur = result.first { it.account.currencyCode == "EUR" }

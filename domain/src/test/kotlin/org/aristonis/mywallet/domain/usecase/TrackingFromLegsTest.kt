@@ -13,6 +13,7 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.FxSnapshot
+import org.aristonis.mywallet.domain.model.HomeSummary
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
@@ -26,8 +27,8 @@ import java.math.BigDecimal
 import java.time.LocalDate
 
 /**
- * Tracking and net worth read legs. Tracking converts each category leg at the rate stored on it;
- * net worth converts balances at today's saved rate.
+ * Tracking and Home read legs. Tracking converts each category leg at the rate stored on it;
+ * Home converts balances at today's saved rate.
  *
  * Assumed (see also ComputeCategoryBreakdownTest):
  * - `ComputeCategoryBreakdown(ledger: LedgerQueries, fx: FxRepository)`.
@@ -78,16 +79,18 @@ class TrackingFromLegsTest {
     }
 
     @Test
-    fun netWorthUsesTodaysRate380() = runTest {
+    fun homeBalanceUsesTodaysRate380() = runTest {
         val account = Account(id = 1, name = "Dollars", typeKey = "cash", currencyCode = "USD", openingBalance = usd("100"))
         val entries = FakeEntryRepository()
         val fx = fakeFx(currencies, listOf(rateOf("USD", "3.75")), "SAR")
-        val netWorth = ComputeNetWorth(GetAccountBalances(FakeAccountRepository(listOf(account)), FakeLedgerQueries(entries)), fx)
-        assertEquals(NetWorth.Amount(sar("375")), netWorth().first())
+        val ledger = FakeLedgerQueries(entries)
+        val balances = GetAccountBalances(FakeAccountRepository(listOf(account)), ledger)()
+        val summary = ComputeHomeSummary(ledger, fx)
+        assertEquals(sar("375"), (summary(balances).first() as HomeSummary.Amounts).balance)
 
         fx.emit(snapshot("3.80"))
 
-        assertEquals(NetWorth.Amount(sar("380")), netWorth().first())
+        assertEquals(sar("380"), (summary(balances).first() as HomeSummary.Amounts).balance)
     }
 
     @Test

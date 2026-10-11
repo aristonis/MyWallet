@@ -23,7 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -115,10 +114,16 @@ internal fun HomeContent(
         ) {
             // A failed read has no figure coming, so no spinner promising one; the message below says why.
             if (!state.loadFailed) {
-                item(key = "net-worth") {
+                item(key = "balance") {
                     Column(modifier = Modifier.padding(bottom = 16.dp)) {
-                        NetWorthHero(state.netWorth, onManageRates)
+                        HomeSummaryHero(state.summary, onManageRates, onDebts)
                     }
+                }
+            }
+            if (!state.loadFailed && state.debtsBelowZero.isNotEmpty()) {
+                item(key = "negative-debts") {
+                    StatusCard(StatusTone.WARNING, stringResource(R.string.home_debts_below_zero),
+                        iconDescription = stringResource(R.string.cd_warning), onClick = onDebts)
                 }
             }
             item(key = "accounts-header") {
@@ -140,7 +145,7 @@ internal fun HomeContent(
                 }
 
                 // Before the first read an empty list means "unknown", not "no accounts", so no prompt
-                // yet. The net-worth figure above already shows the screen is loading; one spinner is
+                // yet. The balance figure above already shows the screen is loading; one spinner is
                 // enough.
                 !state.isLoading && state.accounts.isEmpty() -> item(key = "accounts-empty") {
                     EmptyState(
@@ -159,87 +164,69 @@ internal fun HomeContent(
     }
 }
 
-/**
- * The single figure the screen exists to show. It gets the full width and the display type size —
- * everything below it is the working detail behind that one number.
- */
 @Composable
-private fun NetWorthHero(netWorth: NetWorthState, onManageRates: () -> Unit) {
-    when (netWorth) {
-        NetWorthState.Loading -> CircularProgressIndicator()
-
-        is NetWorthState.Amount -> Card(
+private fun HomeSummaryHero(summary: HomeSummaryState, onManageRates: () -> Unit, onDebts: () -> Unit) {
+    when (summary) {
+        HomeSummaryState.Loading -> CircularProgressIndicator()
+        is HomeSummaryState.MissingRate -> StatusCard(StatusTone.WARNING,
+            stringResource(R.string.home_missing_rate, summary.currencyCode),
+            iconDescription = stringResource(R.string.cd_warning), onClick = onManageRates)
+        is HomeSummaryState.Amounts -> Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer),
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(stringResource(R.string.home_net_worth), style = MaterialTheme.typography.labelMedium)
-                MoneyText(
-                    amount = netWorth.totalDisplay,
-                    style = MaterialTheme.typography.displaySmall,
-                )
-                // Says what the figure covers, so an archived account's absence is not a surprise.
-                Text(
-                    text = stringResource(R.string.home_net_worth_scope),
-                    style = MaterialTheme.typography.bodySmall,
-                )
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.home_balance), style = MaterialTheme.typography.labelMedium)
+                MoneyText(summary.balanceDisplay, style = MaterialTheme.typography.displaySmall)
+                SummaryAmount(stringResource(R.string.home_in_my_pocket), summary.pocketDisplay)
+                TextButton(onClick = onDebts, modifier = Modifier.fillMaxWidth()) {
+                    SummaryAmount(stringResource(R.string.home_owed_to_me), summary.owedToMeDisplay)
+                }
+                TextButton(onClick = onDebts, modifier = Modifier.fillMaxWidth()) {
+                    SummaryAmount(stringResource(R.string.home_i_owe), summary.iOweDisplay)
+                }
             }
         }
+    }
+}
 
-        // A missing rate is recoverable, and the card is the way to recover it: tapping opens rates.
-        is NetWorthState.MissingRate -> StatusCard(
-            tone = StatusTone.WARNING,
-            message = stringResource(R.string.home_missing_rate, netWorth.currencyCode),
-            iconDescription = stringResource(R.string.cd_warning),
-            onClick = onManageRates,
-        )
+@Composable
+private fun SummaryAmount(label: String, amount: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        MoneyText(amount, style = MaterialTheme.typography.titleMedium)
     }
 }
 
 @Composable
 private fun AccountCard(row: AccountRow, onManageRates: () -> Unit) {
-    val base = row.base // local val so Kotlin can smart-cast after the null check
+    val base = row.base
     Card(modifier = Modifier.fillMaxWidth()) {
-        WalletListRow(
-            headline = row.account.name,
-            supporting = stringResource(
-                R.string.account_type_and_currency,
-                accountTypeLabel(row.account.typeKey),
-                row.account.currencyCode,
-            ),
+        WalletListRow(headline = row.account.name,
+            supporting = stringResource(R.string.account_type_and_currency,
+                accountTypeLabel(row.account.typeKey), row.account.currencyCode),
             leadingIcon = accountTypeIcon(row.account.typeKey),
-            trailing = {
-                Column(horizontalAlignment = Alignment.End) {
-                    MoneyText(
-                        amount = row.nativeDisplay,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    when {
-                        // A missing rate shows a prompt, never a fabricated number.
-                        base == null -> Text(
-                            text = stringResource(R.string.home_account_missing_rate, row.native.currencyCode),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = WalletTheme.colors.warning,
-                        )
-                        // Held in another currency: show what it is worth in the base one too.
-                        base.currencyCode != row.native.currencyCode -> MoneyText(
-                            amount = stringResource(R.string.home_account_converted, row.baseDisplay.orEmpty()),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        // Already in the base currency: native == base, so a second line would repeat.
-                    }
+            onClick = if (base == null) onManageRates else null)
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            MoneyText(row.nativeDisplay, style = MaterialTheme.typography.titleMedium)
+            when {
+                base == null -> TextButton(onClick = onManageRates) {
+                    Text(stringResource(R.string.home_account_missing_rate, row.native.currencyCode),
+                        color = WalletTheme.colors.warning)
                 }
-            },
-            // Only tappable when there is something to fix; otherwise the row is a read-only figure.
-            onClick = if (base == null) onManageRates else null,
-        )
+                base.currencyCode != row.native.currencyCode -> MoneyText(
+                    stringResource(R.string.home_account_converted, row.baseDisplay.orEmpty()),
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            row.owedDisplay?.let { Text(stringResource(R.string.home_credit_owed, "\u2066$it\u2069")) }
+            row.availableDisplay?.let { Text(stringResource(R.string.home_credit_available, "\u2066$it\u2069")) }
+            if (row.credit?.overLimit == true) {
+                StatusCard(StatusTone.WARNING, stringResource(R.string.home_credit_over_limit, "\u2066${row.overLimitDisplay.orEmpty()}\u2069"),
+                    iconDescription = stringResource(R.string.cd_warning))
+            }
+        }
     }
 }
 
@@ -255,7 +242,7 @@ private fun HomePreview() {
             onSettings = {},
             onDebts = {},
             state = HomeUiState(
-                netWorth = NetWorthState.Amount("1,275.00 USD"),
+                summary = HomeSummaryState.Amounts("1,275.00 USD", "0.00 USD", "0.00 USD", "1,275.00 USD"),
                 accounts = listOf(
                     AccountRow(
                         account = Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("1000", "USD")),

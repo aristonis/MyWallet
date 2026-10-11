@@ -32,12 +32,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.components.EmptyState
+import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.math.BigDecimal
 
 /**
- * Manage-rates screen. Lists the currencies the user's accounts use (base excluded) and lets each be
+ * Manage-rates screen. Lists currencies used by active accounts and outstanding debts (base excluded) and lets each be
  * given a rate to the base currency. [onDone] returns to Home (Done button and system back). No nav
  * library: the parent toggles this screen, same as add-account.
  */
@@ -53,6 +54,7 @@ fun ManageRatesScreen(
         onInputChanged = viewModel::setRateInput,
         onSave = viewModel::submit,
         onDone = onDone,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -62,6 +64,7 @@ internal fun ManageRatesContent(
     onInputChanged: (String, String) -> Unit,
     onSave: (String) -> Unit,
     onDone: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -77,6 +80,8 @@ internal fun ManageRatesContent(
         ) {
             val base = state.baseCurrencyCode
             when {
+                state.loadFailed -> LoadFailedState(stringResource(R.string.rates_data_unreadable), onRetry = onRetry)
+
                 state.isLoading -> CircularProgressIndicator()
 
                 state.rows.isEmpty() -> EmptyState(
@@ -182,6 +187,7 @@ private fun ManageRatesPreview() {
             onInputChanged = { _, _ -> },
             onSave = {},
             onDone = {},
+            onRetry = {},
         )
     }
 }

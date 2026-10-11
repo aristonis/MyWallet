@@ -3,28 +3,37 @@ package org.aristonis.mywallet.ui.rates
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.math.BigDecimal
+import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyParser
+import org.aristonis.mywallet.di.DefaultDispatcher
+import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
-import org.aristonis.mywallet.ui.message.UiMessage
-import org.aristonis.mywallet.ui.message.toUiMessage
-import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
-import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
+import org.aristonis.mywallet.domain.service.DebtRemaining
+import org.aristonis.mywallet.domain.usecase.GetAccountBalances
+import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
-import java.math.BigDecimal
-import javax.inject.Inject
+import org.aristonis.mywallet.ui.load.ReadAttempts
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 
 /** One editable rate line: a non-base currency, its saved rate (if any), and the field the user types in. */
 data class RateRow(
@@ -40,46 +49,70 @@ data class ManageRatesUiState(
     val baseCurrencyCode: String? = null,
     val rows: List<RateRow> = emptyList(),
     val isLoading: Boolean = true,
+    val loadFailed: Boolean = false,
 )
 
 /**
- * Manage the exchange rates for the currencies the user's accounts actually use. The base currency
- * is implicitly 1 and is excluded. Each row is saved independently via [SetExchangeRate]; a re-emit
+ * Manage rates needed by active accounts, owing cards and positive debts. The base currency is
+ * implicitly 1 and is excluded. Each row is saved independently via [SetExchangeRate]; a re-emit
  * of the rate stream refreshes the saved value without wiping whatever the user is mid-typing.
  */
 @HiltViewModel
 class ManageRatesViewModel @Inject constructor(
-    accounts: AccountRepository,
+    getAccountBalances: GetAccountBalances,
+    ledger: LedgerQueries,
     currencies: CurrencyRepository,
     rates: RateRepository,
     settings: SettingsRepository,
     private val setExchangeRate: SetExchangeRate,
     private val moneyParser: MoneyParser,
+    observeLedgerHealth: ObserveLedgerHealth,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    private val errors: ErrorReporter,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ManageRatesUiState())
     val state: StateFlow<ManageRatesUiState> = _state.asStateFlow()
 
+    private val attempts = ReadAttempts()
+    private var carriedRows: List<RateRow> = emptyList()
+
     init {
-        combine(
-            accounts.observeAll(),
-            currencies.observeAll(),
-            rates.observeAll(),
-            settings.observe(),
-        ) { accountList, currencyList, rateList, currentSettings ->
-            Snapshot(currentSettings.baseCurrencyCode, accountList, currencyList, rateList)
-        }
-            .onEach { snapshot ->
-                _state.update { current ->
-                    current.copy(
-                        baseCurrencyCode = snapshot.base,
-                        rows = buildRows(snapshot, current.rows),
-                        isLoading = false,
-                    )
+        attempts.reading<ReadResult>(loading = { ReadResult.Loading }) {
+            combine<Snapshot, Unit, ReadResult>(snapshotFlow(getAccountBalances, ledger, currencies, rates, settings), observeLedgerHealth()) {
+                snapshot, _ -> ReadResult.Ready(snapshot)
+            }.flowOn(defaultDispatcher).catch { error ->
+                if (error is CancellationException) throw error
+                errors.report("Rates could not read the wallet", IllegalStateException(error.javaClass.simpleName))
+                emit(ReadResult.Failed)
+            }
+        }.onEach { result ->
+            when (result) {
+                ReadResult.Loading -> _state.update { it.copy(isLoading = true, loadFailed = false) }
+                ReadResult.Failed -> _state.update { it.copy(rows = emptyList(), isLoading = false, loadFailed = true) }
+                is ReadResult.Ready -> {
+                    carriedRows = buildRows(result.snapshot, carriedRows)
+                    _state.value = ManageRatesUiState(result.snapshot.base, carriedRows, isLoading = false)
                 }
             }
-            .launchIn(viewModelScope)
+        }.launchIn(viewModelScope)
     }
+
+    private fun snapshotFlow(
+        balances: GetAccountBalances,
+        ledger: LedgerQueries,
+        currencies: CurrencyRepository,
+        rates: RateRepository,
+        settings: SettingsRepository,
+    ) = combine(balances(), ledger.observeDebtLegs(), currencies.observeAll(), rates.observeAll(), settings.observe()) {
+        accounts, debtLegs, currencyList, rateList, currentSettings ->
+        val used = accounts.filter { !it.account.archived || (it.credit != null && it.balance.amount.signum() < 0) }
+            .map { it.balance.currencyCode } + DebtRemaining.byDebt(debtLegs).values
+            .filter { it.remaining.amount.signum() > 0 }.map { it.remaining.currencyCode }
+        Snapshot(currentSettings.baseCurrencyCode, used.toSet(), currencyList, rateList)
+    }
+
+    fun retry() = attempts.retry()
 
     fun setRateInput(currencyCode: String, text: String) = updateRow(currencyCode) {
         it.copy(input = text, error = null)
@@ -101,8 +134,9 @@ class ManageRatesViewModel @Inject constructor(
         }
     }
 
-    private fun updateRow(currencyCode: String, transform: (RateRow) -> RateRow) = _state.update { s ->
-        s.copy(rows = s.rows.map { if (it.currencyCode == currencyCode) transform(it) else it })
+    private fun updateRow(currencyCode: String, transform: (RateRow) -> RateRow) {
+        carriedRows = carriedRows.map { if (it.currencyCode == currencyCode) transform(it) else it }
+        _state.update { s -> s.copy(rows = s.rows.map { if (it.currencyCode == currencyCode) transform(it) else it }) }
     }
 
     /**
@@ -119,13 +153,7 @@ class ManageRatesViewModel @Inject constructor(
         // unrelated edit elsewhere does not throw away what the user is in the middle of typing.
         val carried = if (rowsBase == snapshot.base) previous else emptyList()
         rowsBase = snapshot.base
-        // Only currencies that active accounts use need a rate — this mirrors ComputeNetWorth, which
-        // excludes archived accounts, so we never prompt for a rate that can't change the net worth.
-        val usedNonBase = snapshot.accounts
-            .filterNot { it.archived }
-            .map { it.currencyCode }
-            .toSortedSet()
-            .filter { it != snapshot.base }
+        val usedNonBase = snapshot.currencyCodes.sorted().filter { it != snapshot.base }
 
         return usedNonBase.map { code ->
             val currentRate = snapshot.rates.firstOrNull { it.currencyCode == code }?.rateToBase
@@ -141,9 +169,15 @@ class ManageRatesViewModel @Inject constructor(
         }
     }
 
+    private sealed interface ReadResult {
+        data object Loading : ReadResult
+        data object Failed : ReadResult
+        data class Ready(val snapshot: Snapshot) : ReadResult
+    }
+
     private data class Snapshot(
         val base: String,
-        val accounts: List<Account>,
+        val currencyCodes: Set<String>,
         val currencies: List<Currency>,
         val rates: List<ExchangeRate>,
     )

@@ -15,7 +15,7 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
-import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
+import org.aristonis.mywallet.domain.usecase.ComputeHomeSummary
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.ui.HealthLedger
@@ -36,9 +36,6 @@ import java.util.Locale
  * Home sums balances from leg projections, which never open a whole entry, so an entry of a kind the
  * app cannot read would be left out of the numbers without a word. Home therefore also reads the
  * ledger's health and shows the cannot-be-read state instead of totals that miss a row.
- *
- * Assumed constructor change: `HomeViewModel(..., observeLedgerHealth: ObserveLedgerHealth, ...)`,
- * a new parameter taking the `ObserveLedgerHealth` use case (called by name here).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeLedgerHealthTest {
@@ -62,8 +59,9 @@ class HomeLedgerHealthTest {
         val fx = FakeFxRepository(currencies, FakeRateRepository(), settings)
         val balances = GetAccountBalances(accounts, ledger)
         return HomeViewModel(
-            getAccountBalancesInBase = GetAccountBalancesInBase(balances, fx),
-            computeNetWorth = ComputeNetWorth(balances, fx),
+            getAccountBalances = balances,
+            getAccountBalancesInBase = GetAccountBalancesInBase(fx),
+            computeHomeSummary = ComputeHomeSummary(ledger, fx),
             observeLedgerHealth = ledger.health(),
             currencies = currencies,
             settings = settings,
@@ -106,7 +104,7 @@ class HomeLedgerHealthTest {
         assertFalse(state.loadFailed)
         assertFalse(state.isLoading)
         assertEquals(1, state.accounts.size)
-        assertEquals(NetWorthState.Amount("100.00 USD"), state.netWorth)
+        assertEquals(HomeSummaryState.Amounts("100.00 USD", "0.00 USD", "0.00 USD", "100.00 USD"), state.summary)
     }
 
     @Test
@@ -116,7 +114,7 @@ class HomeLedgerHealthTest {
         advanceUntilIdle()
 
         assertFalse(vm.state.value.loadFailed)
-        assertEquals(NetWorthState.Amount("100.00 USD"), vm.state.value.netWorth)
+        assertEquals(HomeSummaryState.Amounts("100.00 USD", "0.00 USD", "0.00 USD", "100.00 USD"), vm.state.value.summary)
         assertTrue(errors.reported.isEmpty())
     }
 

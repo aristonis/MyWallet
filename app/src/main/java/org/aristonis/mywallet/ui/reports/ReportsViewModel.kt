@@ -66,7 +66,7 @@ data class SubCategoryRow(val id: Long?, val label: CategoryLabel, val totalDisp
 /**
  * The report body. A missing rate is a first-class value (not a spinner and not a wrong number), so
  * the screen shows a prompt; because the underlying use-case emits it as a value the flow stays live
- * and this resolves to [Ready] the moment the rate is set. Mirrors Home's net-worth state.
+ * and this resolves to [Ready] the moment the rate is set. Mirrors Home's summary state.
  */
 sealed interface ReportsData {
     data object Loading : ReportsData

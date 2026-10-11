@@ -125,7 +125,7 @@ class AddTransactionViewModelTest {
     @Test
     fun archivedAccounts_areExcludedFromThePickers_andNeverPreSelected() = runTest {
         // Archived account listed FIRST so a naive firstOrNull() pre-select would pick it. Recording
-        // against an archived account would move money the rest of the app excludes from net worth.
+        // against an archived account would move money the rest of the app excludes from Home.
         val f = Fixture(
             accounts = listOf(account(1, "USD").copy(archived = true), account(2, "USD")),
             currencies = listOf(usd),

@@ -6,7 +6,7 @@ import org.aristonis.mywallet.domain.port.LedgerQueries
 
 /**
  * Hard-deletes an account, but only when nothing references it. Deleting an account that still has
- * legs would orphan that history and quietly drop its balance from net worth, so it fails loud with
+ * legs would orphan that history and quietly drop its balance from Home, so it fails loud with
  * [WalletException.AccountInUse] and the UI steers the user to archive. An account no leg is on is
  * safe to remove outright.
  *

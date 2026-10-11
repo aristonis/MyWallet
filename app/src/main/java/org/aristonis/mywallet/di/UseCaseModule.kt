@@ -14,7 +14,7 @@ import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
-import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
+import org.aristonis.mywallet.domain.usecase.ComputeHomeSummary
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.ExportBackup
@@ -115,16 +115,15 @@ object UseCaseModule {
     ): GetAccountBalances = GetAccountBalances(accounts, ledger)
 
     @Provides @Singleton
-    fun provideComputeNetWorth(
-        getAccountBalances: GetAccountBalances,
+    fun provideComputeHomeSummary(
+        ledger: LedgerQueries,
         fx: FxRepository,
-    ): ComputeNetWorth = ComputeNetWorth(getAccountBalances, fx)
+    ): ComputeHomeSummary = ComputeHomeSummary(ledger, fx)
 
     @Provides @Singleton
     fun provideGetAccountBalancesInBase(
-        getAccountBalances: GetAccountBalances,
         fx: FxRepository,
-    ): GetAccountBalancesInBase = GetAccountBalancesInBase(getAccountBalances, fx)
+    ): GetAccountBalancesInBase = GetAccountBalancesInBase(fx)
 
     @Provides @Singleton
     fun provideComputeCategoryBreakdown(

@@ -22,5 +22,5 @@ sealed interface HomeSummary {
         val debtsBelowZero: List<Long>,
     ) : HomeSummary
 
-    data class MissingRate(val currencyCode: String) : HomeSummary
+    data class MissingRate(val currencyCode: String, val debtsBelowZero: List<Long> = emptyList()) : HomeSummary
 }

@@ -148,7 +148,7 @@ class AddTransactionViewModel @Inject constructor(
     init {
         combine(accounts.observeAll(), categories.observeAll()) { accountList, categoryList ->
             // Archived accounts are not transactable — keep them out of every picker (and the
-            // pre-select), or money recorded against them would silently vanish from net worth.
+            // pre-select), or money recorded against them would silently vanish from Home.
             accountList.filterNot { it.archived } to categoryList
         }
             .onEach { (accountList, categoryList) ->

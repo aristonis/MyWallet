@@ -16,7 +16,7 @@ import org.aristonis.mywallet.domain.port.FxRepository
  *
  * Room invalidates per table, so observing those three separately means a change to one can arrive
  * before the others. A base-currency change is the case that matters: for one emission the new base
- * is paired with the rates that belonged to the old one, and every converted figure — net worth, the
+ * is paired with the rates that belonged to the old one, and every converted figure — the Home summary, the
  * per-account line, each report — renders a wrong number as an ordinary amount, with nothing
  * anywhere saying so.
  *

@@ -173,7 +173,7 @@ class HardcodedUiTextTest {
             "accountName =", "amountDisplay =", "destAmountDisplay =", "nativeDisplay =",
             "baseDisplay =", "totalDisplay =", "incomeDisplay =", "expenseDisplay =", "netDisplay =",
             "CategoryLabel.Named(", "Account(", "Category(", "Currency(", "Money.of(",
-            "NetWorthState.Amount(", "CategoryRow(",
+            "HomeSummaryState.Amounts(", "CategoryRow(",
         )
     }
 }

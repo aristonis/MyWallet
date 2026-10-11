@@ -59,14 +59,14 @@ class WalletComponentsTest {
         setContent {
             StatusCard(
                 tone = StatusTone.WARNING,
-                message = "Set an exchange rate for EUR to see your net worth.",
+                message = "Set an exchange rate for EUR to see your balance.",
                 iconDescription = "Warning",
                 onClick = { tapped = true },
             )
         }
 
         compose.onNodeWithContentDescription("Warning").assertIsDisplayed()
-        compose.onNodeWithText("Set an exchange rate for EUR to see your net worth.")
+        compose.onNodeWithText("Set an exchange rate for EUR to see your balance.")
             .assertIsDisplayed()
             .assertHasClickAction()
             .performClick()

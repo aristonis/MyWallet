@@ -1,0 +1,11 @@
+<resources>
+    <string name="home_balance">Balance</string>
+    <string name="home_in_my_pocket">In my pocket</string>
+    <string name="home_owed_to_me">Owed to me</string>
+    <string name="home_i_owe">I owe</string>
+    <string name="home_debts_below_zero">Some debts are below zero. Open Debts to review them.</string>
+    <string name="home_credit_owed">Owed: %1$s</string>
+    <string name="home_credit_available">Available credit: %1$s</string>
+    <string name="home_credit_over_limit">Over limit by %1$s</string>
+    <string name="rates_data_unreadable">Some wallet data cannot be read. Try again.</string>
+</resources>

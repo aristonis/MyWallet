@@ -3,6 +3,10 @@ package org.aristonis.mywallet.data.golden
 import android.content.Context
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import org.aristonis.mywallet.data.db.ALL_MIGRATIONS
@@ -13,14 +17,14 @@ import org.aristonis.mywallet.data.repo.RoomEntryRepository
 import org.aristonis.mywallet.data.repo.RoomLedgerQueries
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
-import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
+import org.aristonis.mywallet.domain.usecase.ComputeHomeSummary
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import java.time.YearMonth
 
 /**
  * Median milliseconds, over [runs] after one warm-up, for the first complete value of each screen's
- * read on a copy of the seed: Home (balances in base plus net worth), the all-time transactions
+ * read on a copy of the seed: Home (balances in base plus the Home summary), the all-time transactions
  * list, and Tracking for the latest month and for all time.
  *
  * The transactions list opens on one page of the newest entries, so its timing is that first page
@@ -42,14 +46,20 @@ internal suspend fun captureDataReadyTimings(context: Context, asset: String, ru
         val fx = RoomFxRepository(db)
         val ledger = RoomLedgerQueries(db.ledgerQueryDao())
         val balances = GetAccountBalances(RoomAccountRepository(db.accountDao()), ledger)
-        val inBase = GetAccountBalancesInBase(balances, fx)
-        val netWorth = ComputeNetWorth(balances, fx)
+        val inBase = GetAccountBalancesInBase(fx)
+        val summary = ComputeHomeSummary(ledger, fx)
         val breakdown = ComputeCategoryBreakdown(ledger, fx)
         val dates = transactions.observeAll().first().map { it.date }
         check(dates.isNotEmpty()) { "seed asset $asset holds no transactions" }
         val lastMonth = YearMonth.from(dates.max())
         val reads: Map<String, suspend () -> Unit> = linkedMapOf(
-            "home" to { combine(inBase(), netWorth()) { a, b -> a to b }.first() },
+            "home" to {
+                coroutineScope {
+                    val shared = balances().shareIn(this, SharingStarted.Lazily, replay = 1)
+                    try { combine(inBase(shared), summary(shared)) { a, b -> a to b }.first() }
+                    finally { coroutineContext.cancelChildren() }
+                }
+            },
             "transactions-all-time" to {
                 transactions.observePage(DateRange.ALL_TIME, after = null, limit = LIST_FIRST_READ).first()
             },

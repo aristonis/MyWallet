@@ -18,7 +18,7 @@ import org.aristonis.mywallet.ui.account.ManageAccountsUiState
 import org.aristonis.mywallet.ui.home.AccountRow
 import org.aristonis.mywallet.ui.home.HomeContent
 import org.aristonis.mywallet.ui.home.HomeUiState
-import org.aristonis.mywallet.ui.home.NetWorthState
+import org.aristonis.mywallet.ui.home.HomeSummaryState
 import org.aristonis.mywallet.ui.rates.ManageRatesContent
 import org.aristonis.mywallet.ui.rates.ManageRatesUiState
 import org.aristonis.mywallet.ui.rates.RateRow
@@ -88,7 +88,7 @@ class BoundedListLayoutTest {
             HomeContent(
                 state = HomeUiState(
                     isLoading = false,
-                    netWorth = NetWorthState.Amount("465.00 USD"),
+                    summary = HomeSummaryState.Amounts("465.00 USD", "0.00 USD", "0.00 USD", "465.00 USD"),
                     accounts = accounts,
                     baseCurrencyCode = "USD",
                 ),
@@ -114,7 +114,7 @@ class BoundedListLayoutTest {
             HomeContent(
                 state = HomeUiState(
                     isLoading = false,
-                    netWorth = NetWorthState.Amount("465.00 USD"),
+                    summary = HomeSummaryState.Amounts("465.00 USD", "0.00 USD", "0.00 USD", "465.00 USD"),
                     accounts = (1..rowCount).map { index ->
                         AccountRow(
                             account = Account(
@@ -142,9 +142,9 @@ class BoundedListLayoutTest {
             )
         }
 
-        compose.onNodeWithText("465.00 USD").assertIsDisplayed()
+        compose.onNodeWithText("Balance").assertIsDisplayed()
         scrollToLast("Account $rowCount")
-        compose.onNodeWithText("465.00 USD").assertDoesNotExist()
+        compose.onNodeWithText("Balance").assertDoesNotExist()
     }
 
     @Test
@@ -194,6 +194,7 @@ class BoundedListLayoutTest {
                 onInputChanged = { _, _ -> },
                 onSave = {},
                 onDone = {},
+                onRetry = {},
             )
         }
 

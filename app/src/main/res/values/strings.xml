@@ -54,16 +54,14 @@
 
     <!-- Home -->
     <string name="home_title">My Wallet</string>
-    <string name="home_net_worth">Net worth</string>
-    <string name="home_net_worth_scope">Updated from all active accounts</string>
-    <string name="home_no_accounts">Your wallet needs an account before you can record anything.</string>
+    <string name="home_no_accounts">Add an account to track the money you hold.</string>
     <string name="home_create_first_account">Create your first account</string>
     <string name="home_accounts">Accounts</string>
     <string name="home_manage">Manage</string>
     <string name="home_settings">Settings</string>
     <string name="home_add_account">Add account</string>
     <string name="home_add_transaction">Add transaction</string>
-    <string name="home_missing_rate">Set an exchange rate for %1$s to see your net worth.</string>
+    <string name="home_missing_rate">Set an exchange rate for %1$s to see your balance.</string>
     <string name="home_account_missing_rate">Set a rate for %1$s to convert</string>
     <!-- The approximately-equals sign marks a converted, rounded balance. -->
     <string name="home_account_converted">≈ %1$s</string>

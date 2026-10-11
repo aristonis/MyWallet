@@ -63,7 +63,7 @@ class HomeScreenTest {
 
         compose.onNodeWithText(text(R.string.home_data_unreadable)).assertIsDisplayed()
         compose.onNodeWithText(text(R.string.home_no_accounts)).assertDoesNotExist()
-        // Net worth cannot be worked out either; a spinner next to the error would never stop.
+        // The balance cannot be worked out either; a spinner next to the error would never stop.
         compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertDoesNotExist()
     }
 

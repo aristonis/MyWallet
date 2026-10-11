@@ -21,8 +21,10 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
+import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
 import org.aristonis.mywallet.ui.HealthLedger
+import org.aristonis.mywallet.RecordingErrorReporter
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -50,7 +52,7 @@ class ManageRatesViewModelTest {
     private fun account(currency: String, archived: Boolean = false) =
         Account(id = 0, name = "a-$currency", typeKey = "cash", currencyCode = currency, openingBalance = Money.zero(currency), archived = archived)
 
-    private class Fixture(
+    private inner class Fixture(
         accounts: List<Account>,
         currencies: List<Currency>,
         rates: List<ExchangeRate> = emptyList(),
@@ -61,13 +63,17 @@ class ManageRatesViewModelTest {
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         val viewModel = ManageRatesViewModel(
-            accounts = accountRepo,
+            getAccountBalances = GetAccountBalances(accountRepo, HealthLedger()),
+            ledger = HealthLedger(),
             currencies = currencyRepo,
             rates = rateRepo,
             settings = settingsRepo,
             // The ledger holds no legs here; filling legs that wait for a rate is the use case's own test.
             setExchangeRate = SetExchangeRate(currencyRepo, rateRepo, HealthLedger(), DirectTransactionRunner(), settingsRepo),
             moneyParser = MoneyParser(Locale.US),
+            observeLedgerHealth = HealthLedger().health(),
+            defaultDispatcher = dispatcher,
+            errors = RecordingErrorReporter(),
         )
     }
 
@@ -140,7 +146,7 @@ class ManageRatesViewModelTest {
         )
         advanceUntilIdle()
 
-        // EUR is used only by an archived account, which ComputeNetWorth ignores — so no rate row for it.
+        // EUR is used only by an archived account, which Home excludes — so no rate row for it.
         assertTrue(f.viewModel.state.value.rows.isEmpty())
     }
 

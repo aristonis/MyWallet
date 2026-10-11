@@ -36,7 +36,7 @@ import org.aristonis.mywallet.domain.port.LegRate
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
-import org.aristonis.mywallet.domain.usecase.ComputeNetWorth
+import org.aristonis.mywallet.domain.usecase.ComputeHomeSummary
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.GetAccountBalancesInBase
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
@@ -80,15 +80,15 @@ class HomeViewModelTest {
         val rateRepo = FakeRateRepository(rates)
         val settingsRepo = FakeSettingsRepository(Settings(baseCurrencyCode = base))
         val getBalances = GetAccountBalances(accountRepo, ledger)
-        val getBalancesInBase = GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
-        val computeNetWorth = ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
+        val getBalancesInBase = GetAccountBalancesInBase(FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
+        val computeHomeSummary = ComputeHomeSummary(ledger, FakeFxRepository(currencyRepo, rateRepo, settingsRepo))
         return HomeViewModel(
-            getBalancesInBase, computeNetWorth, ObserveLedgerHealth(ledger), currencyRepo, settingsRepo, moneyFormatter, work, errors,
+            getBalances, getBalancesInBase, computeHomeSummary, ObserveLedgerHealth(ledger), currencyRepo, settingsRepo, moneyFormatter, work, errors,
         )
     }
 
     @Test
-    fun singleBaseAccount_netWorthEqualsItsBalance() = runTest {
+    fun singleBaseAccount_balanceEqualsItsBalance() = runTest {
         val vm = buildVm(
             accounts = listOf(account("USD", "100")),
             currencies = listOf(Currency("USD", "$", 2)),
@@ -101,12 +101,12 @@ class HomeViewModelTest {
         assertEquals(1, state.accounts.size)
         assertEquals(Money.of("100", "USD"), state.accounts.first().native)
         assertEquals(Money.of("100", "USD"), state.accounts.first().base)
-        assertEquals(NetWorthState.Amount("100.00 USD"), state.netWorth)
+        assertEquals(HomeSummaryState.Amounts("100.00 USD", "0.00 USD", "0.00 USD", "100.00 USD"), state.summary)
     }
 
     @Test
-    fun netWorthAndAccountRows_areFormattedPerCurrencyAndLocale() = runTest {
-        // USD 2-decimals with thousands grouping: net worth and the native row both render "1,000.50 USD".
+    fun balanceAndAccountRows_areFormattedPerCurrencyAndLocale() = runTest {
+        // USD 2-decimals with thousands grouping: balance and the native row both render "1,000.50 USD".
         val vm = buildVm(
             accounts = listOf(account("USD", "1000.5")),
             currencies = listOf(Currency("USD", "$", 2)),
@@ -115,7 +115,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = vm.state.value
-        assertEquals(NetWorthState.Amount("1,000.50 USD"), state.netWorth)
+        assertEquals(HomeSummaryState.Amounts("1,000.50 USD", "0.00 USD", "0.00 USD", "1,000.50 USD"), state.summary)
         assertEquals("1,000.50 USD", state.accounts.first().nativeDisplay)
         assertEquals("1,000.50 USD", state.accounts.first().baseDisplay)
     }
@@ -145,7 +145,7 @@ class HomeViewModelTest {
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
-        // Archived accounts stay out of the active list (they're already out of net worth).
+        // Archived accounts stay out of the active list (they're already out of balance).
         assertEquals(listOf(1L), vm.state.value.accounts.map { it.account.id })
     }
 
@@ -159,7 +159,7 @@ class HomeViewModelTest {
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
-        assertEquals(NetWorthState.Amount("55.00 USD"), vm.state.value.netWorth)
+        assertEquals(HomeSummaryState.Amounts("55.00 USD", "0.00 USD", "0.00 USD", "55.00 USD"), vm.state.value.summary)
     }
 
     @Test
@@ -172,13 +172,13 @@ class HomeViewModelTest {
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
 
-        assertEquals(NetWorthState.MissingRate("EUR"), vm.state.value.netWorth)
+        assertEquals(HomeSummaryState.MissingRate("EUR"), vm.state.value.summary)
         assertEquals(1, vm.state.value.accounts.size) // accounts still shown
     }
 
     @Test
-    fun netWorthReResolvesLive_whenRateIsAddedWhileSubscribed() = runTest {
-        // The regression this guards: net worth must recover from MissingRate to a total once the rate
+    fun balanceReResolvesLive_whenRateIsAddedWhileSubscribed() = runTest {
+        // The regression this guards: balance must recover from MissingRate to a total once the rate
         // is set, on the SAME live state subscription (the old .catch terminated the flow and never did).
         val accountRepo = FakeAccountRepository(listOf(account("EUR", "50")))
         val currencyRepo = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2)))
@@ -187,8 +187,9 @@ class HomeViewModelTest {
         val ledger = AccountLegsLedger()
         val getBalances = GetAccountBalances(accountRepo, ledger)
         val vm = HomeViewModel(
-            GetAccountBalancesInBase(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
-            ComputeNetWorth(getBalances, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
+            getBalances,
+            GetAccountBalancesInBase(FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
+            ComputeHomeSummary(ledger, FakeFxRepository(currencyRepo, rateRepo, settingsRepo)),
             ObserveLedgerHealth(ledger),
             currencyRepo,
             settingsRepo,
@@ -199,12 +200,12 @@ class HomeViewModelTest {
 
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
-        assertEquals(NetWorthState.MissingRate("EUR"), vm.state.value.netWorth)
+        assertEquals(HomeSummaryState.MissingRate("EUR"), vm.state.value.summary)
 
         rateRepo.upsert(ExchangeRate("EUR", BigDecimal("1.10")))
         advanceUntilIdle()
 
-        assertEquals(NetWorthState.Amount("55.00 USD"), vm.state.value.netWorth)
+        assertEquals(HomeSummaryState.Amounts("55.00 USD", "0.00 USD", "0.00 USD", "55.00 USD"), vm.state.value.summary)
     }
 
     @Test
@@ -310,7 +311,7 @@ class HomeViewModelTest {
         assertFalse(vm.state.value.loadFailed)
         assertFalse(vm.state.value.isLoading)
         assertEquals(1, vm.state.value.accounts.size)
-        assertEquals(NetWorthState.Amount("100.00 USD"), vm.state.value.netWorth)
+        assertEquals(HomeSummaryState.Amounts("100.00 USD", "0.00 USD", "0.00 USD", "100.00 USD"), vm.state.value.summary)
     }
 }
 
