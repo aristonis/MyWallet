@@ -10,5 +10,5 @@ data class AccountBalanceInBase(
     val account: Account,
     val native: Money,
     val base: Money?,
-    val credit: CreditStatus? = null,
+    val credit: CreditStatus?,
 )

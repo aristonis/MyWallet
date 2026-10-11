@@ -35,10 +35,15 @@ object DebtGuard {
      */
     fun check(debt: Debt, remaining: Money, previousRemaining: Money? = null) {
         require(remaining.currencyCode == debt.currencyCode) {
-            "remaining currency ${remaining.currencyCode} != debt currency ${debt.currencyCode}"
+            "remaining is in ${remaining.currencyCode} but the debt is in ${debt.currencyCode}"
         }
-        if (previousRemaining != null) require(previousRemaining.currencyCode == debt.currencyCode)
-        val improvesExistingNegative = previousRemaining != null && previousRemaining.isNegative && remaining >= previousRemaining
+        if (previousRemaining != null) {
+            require(previousRemaining.currencyCode == debt.currencyCode) {
+                "previous remaining is in ${previousRemaining.currencyCode} but the debt is in ${debt.currencyCode}"
+            }
+        }
+        val improvesExistingNegative =
+            previousRemaining != null && previousRemaining.isNegative && remaining >= previousRemaining
         if (remaining.isNegative && !improvesExistingNegative) {
             throw WalletException.DebtBelowZero(debt.counterparty, -remaining)
         }

@@ -24,12 +24,23 @@ class DebtEntryGuard(private val debts: DebtRepository, private val ledger: Ledg
     suspend fun remaining(ids: Set<Long>): Map<Long, DebtBalance> =
         if (ids.isEmpty()) emptyMap() else DebtRemaining.byDebt(ledger.debtLegs(ids))
 
-    /** Re-read after writing so every debt the change left behind is checked before commit. */
-    suspend fun check(ids: Set<Long>, before: Map<Long, DebtBalance> = emptyMap()): Map<Long, DebtBalance> {
+    /**
+     * Re-read after writing so every debt the change left behind is checked before commit.
+     *
+     * [restoreTo] lets an undo return a debt to the remaining it had before the delete: the baseline
+     * for that debt becomes the smaller of its current remaining and the captured one. A captured
+     * value that is not negative changes nothing, so a healthy debt stays strict.
+     */
+    suspend fun check(
+        ids: Set<Long>,
+        before: Map<Long, DebtBalance> = emptyMap(),
+        restoreTo: Map<Long, Money> = emptyMap(),
+    ): Map<Long, DebtBalance> {
         val balances = remaining(ids)
         ids.forEach { id ->
             val debt = requireDebt(id)
-            DebtGuard.check(debt, balances[id]?.remaining ?: Money.zero(debt.currencyCode), before[id]?.remaining)
+            val baseline = listOfNotNull(before[id]?.remaining, restoreTo[id]).minOrNull()
+            DebtGuard.check(debt, balances[id]?.remaining ?: Money.zero(debt.currencyCode), baseline)
         }
         return balances
     }

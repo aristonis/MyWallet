@@ -28,7 +28,8 @@ import org.aristonis.mywallet.domain.service.DebtGuard
  *
  * Debt snapshots restore only due dates and notes on rows that still exist; undo never creates a
  * person again. Each field is restored only if it is currently null, preserving newer details. Creating
- * or worsening a negative balance aborts the entries and restored details together.
+ * or worsening a negative balance aborts the entries and restored details together. A debt that was
+ * already below zero when deleted may come back to that remaining, never below it.
  */
 class RestoreEntries(
     private val runner: TransactionRunner,
@@ -47,7 +48,8 @@ class RestoreEntries(
         runner.inTransaction {
             val legs = bundle.entries.flatMap { it.toParts().legs }
             val targets = legs.map { it.target }
-            val accountCurrencies = targets.filterIsInstance<LegTarget.Account>().map { it.id }.distinct().associateWith { id ->
+            val accountIds = targets.filterIsInstance<LegTarget.Account>().map { it.id }.distinct()
+            val accountCurrencies = accountIds.associateWith { id ->
                 (accounts.findById(id) ?: throw WalletException.AccountNotFound(id)).currencyCode
             }
             legs.forEach { leg ->
@@ -68,7 +70,7 @@ class RestoreEntries(
                 val current = currentDebts.getValue(snapshot.id)
                 debts.updateDetails(snapshot.id, current.dueDate ?: snapshot.dueDate, current.note ?: snapshot.note)
             }
-            debtGuard.check(touched, before)
+            debtGuard.check(touched, before, bundle.debtRemainingAtDelete)
         }
     }
 }

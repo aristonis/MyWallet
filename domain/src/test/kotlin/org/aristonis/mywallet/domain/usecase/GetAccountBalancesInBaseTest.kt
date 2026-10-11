@@ -1,21 +1,21 @@
 package org.aristonis.mywallet.domain.usecase
 
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
-import org.aristonis.mywallet.domain.model.AccountBalanceInBase
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.model.Account
+import org.aristonis.mywallet.domain.model.AccountBalanceInBase
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
-import org.aristonis.mywallet.domain.usecase.fake.fakeFx
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
-import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
-import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
+import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeSettingsRepository
+import org.aristonis.mywallet.domain.usecase.fake.fakeFx
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

@@ -6,8 +6,11 @@ package org.aristonis.mywallet.domain.model
  *
  * @property debts Snapshots only for debts whose details the delete cleared. A single-entry delete
  *   leaves details alone and carries none, so undo preserves later changes to those details.
+ * @property debtRemainingAtDelete Each touched debt's remaining just before the delete, in memory only. Undo
+ *   may return a debt to that earlier state even when it is below zero, never below it.
  */
 data class UndoBundle(
     val entries: List<Transaction>,
     val debts: List<Debt> = emptyList(),
+    val debtRemainingAtDelete: Map<Long, Money> = emptyMap(),
 )

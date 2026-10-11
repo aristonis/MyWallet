@@ -20,8 +20,8 @@ import org.aristonis.mywallet.domain.service.DebtRemaining
  * Pocket is the non-archived accounts, except an owed-when-negative account (a card) below zero.
  * I owe is the I-owe debts still open plus every such card below zero, archived or not, because the
  * money is owed either way. Owed to me is the owed-to-me debts still open. The balance is pocket +
- * owed to me - I owe. A debt below zero is left out of every total, needs no rate, and its id stays available
- * in both summary results so Home can show a warning.
+ * owed to me - I owe. A debt below zero is left out of every total, needs no rate, and its id stays
+ * available in both summary results so Home can show a warning.
  *
  * A missing rate is a returned [HomeSummary.MissingRate], not a throw, so the flow stays live and
  * resolves once the rate is set. A rate is needed for each non-archived account, each owing card and
@@ -36,7 +36,11 @@ class ComputeHomeSummary(
             summarize(accounts, DebtRemaining.byDebt(legs), snapshot)
         }
 
-    private fun summarize(accounts: List<AccountBalance>, debts: Map<Long, DebtBalance>, snapshot: FxSnapshot): HomeSummary {
+    private fun summarize(
+        accounts: List<AccountBalance>,
+        debts: Map<Long, DebtBalance>,
+        snapshot: FxSnapshot,
+    ): HomeSummary {
         val base = snapshot.baseCurrencyCode
         val owingCards = accounts.filter { it.isOwing() }
         val inPocket = accounts.filter { !it.account.archived && !it.isOwing() }
@@ -53,7 +57,9 @@ class ComputeHomeSummary(
 
         val pocket = total(inPocket.map { it.balance })
         val owedToMe = total(open.filter { it.side == DebtSide.OWED_TO_ME }.map { it.remaining })
-        val iOwe = total(open.filter { it.side == DebtSide.I_OWE }.map { it.remaining } + owingCards.map { -it.balance })
+        val iOwe = total(
+            open.filter { it.side == DebtSide.I_OWE }.map { it.remaining } + owingCards.map { -it.balance },
+        )
         return HomeSummary.Amounts(pocket, owedToMe, iOwe, pocket + owedToMe - iOwe, belowZero)
     }
 

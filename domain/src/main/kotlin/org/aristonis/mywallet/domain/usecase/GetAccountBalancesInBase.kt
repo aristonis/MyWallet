@@ -3,9 +3,9 @@ package org.aristonis.mywallet.domain.usecase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import org.aristonis.mywallet.domain.error.WalletException
-import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.model.AccountBalance
 import org.aristonis.mywallet.domain.model.AccountBalanceInBase
+import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.service.CurrencyConverter
 
 /**

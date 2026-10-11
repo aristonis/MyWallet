@@ -37,6 +37,10 @@ class DeleteDebt(
         ownEntries.forEach { entries.delete(it.id) }
         debts.updateDetails(debtId, dueDate = null, note = null)
         debtGuard.check(touched, before)
-        UndoBundle(entries = ownEntries, debts = listOf(debt))
+        UndoBundle(
+            entries = ownEntries,
+            debts = listOf(debt),
+            debtRemainingAtDelete = before.mapValues { it.value.remaining },
+        )
     }
 }
