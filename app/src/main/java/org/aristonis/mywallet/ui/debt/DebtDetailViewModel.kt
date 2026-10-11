@@ -19,18 +19,18 @@ import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.DebtDetail
+import org.aristonis.mywallet.domain.model.UndoBundle
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CategoryRoleRepository
-import org.aristonis.mywallet.domain.model.UndoBundle
-import org.aristonis.mywallet.domain.usecase.DeleteDebt
-import org.aristonis.mywallet.domain.usecase.PreviewDebtDeletion
-import org.aristonis.mywallet.domain.usecase.RestoreEntries
-import org.aristonis.mywallet.domain.usecase.WriteOffDebt
 import org.aristonis.mywallet.domain.port.CurrencyRepository
+import org.aristonis.mywallet.domain.usecase.DeleteDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebt
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
+import org.aristonis.mywallet.domain.usecase.PreviewDebtDeletion
 import org.aristonis.mywallet.domain.usecase.RenameDebt
+import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.UpdateDebtDetails
+import org.aristonis.mywallet.domain.usecase.WriteOffDebt
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.load.ReadAttempts
 import org.aristonis.mywallet.ui.load.toLoadFailure
@@ -57,7 +57,15 @@ data class DebtDetailUiState(
     val deleteDialog: DeleteDebtDialogUiState? = null,
     val undoableDelete: UndoBundle? = null,
     val deleted: Boolean = false,
-)
+) {
+    /** A restore was refused: the undo snackbar is the one place that says so, and it offers a retry. */
+    val undoFailed: Boolean get() = undoableDelete != null && error != null
+
+    /** The error the page body shows; name errors sit on the name field and a failed undo uses the snackbar. */
+    val inlineError: UiMessage? get() = error?.takeUnless { undoFailed || it.isNameError() }
+}
+
+internal fun UiMessage.isNameError(): Boolean = this is UiMessage.DebtNameTaken || this == UiMessage.NameBlank
 
 /** Reads one debt and serializes metadata edits, write-offs, deletion and recoverable undo. */
 @HiltViewModel

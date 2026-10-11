@@ -270,8 +270,9 @@ class EditTransactionViewModel @Inject constructor(
     /**
      * Undo the just-completed delete: put the removed entry back at its own id, then finish. Balances
      * revert via the reactive read path; `deleted` fires so the screen leaves, and the restored entry
-     * is visible where it returns to. The undoable state is cleared up front so a repeated trigger
-     * can't restore twice. Submission stays locked until restore finishes, so Delete cannot race it.
+     * is visible where it returns to. Submission stays locked until restore finishes, so a repeated
+     * trigger can't restore twice and Delete cannot race it. The undoable bundle is dropped only once
+     * the restore succeeded (or found the entry already back); a refusal keeps it so the owner can retry.
      *
      * An [WalletException.EntryIdTaken] means the entry is already back at its id (an earlier undo
      * got there first), so the undo is done, not failed. Restore never overwrites, so whatever holds
@@ -279,15 +280,16 @@ class EditTransactionViewModel @Inject constructor(
      */
     fun undoDelete() {
         val removed = _state.value.undoableDelete ?: return
-        _state.update { it.copy(undoableDelete = null, isSubmitting = true, error = null) }
+        if (_state.value.isSubmitting) return
+        _state.update { it.copy(isSubmitting = true, error = null) }
         viewModelScope.launch {
             try {
                 restoreEntries(removed)
-                _state.update { it.copy(deleted = true) }
+                _state.update { it.copy(undoableDelete = null, deleted = true) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: WalletException.EntryIdTaken) {
-                _state.update { it.copy(deleted = true, error = null) }
+                _state.update { it.copy(undoableDelete = null, deleted = true, error = null) }
             } catch (e: WalletException) {
                 _state.update { it.copy(error = e.toUiMessage()) }
             } catch (e: Exception) {

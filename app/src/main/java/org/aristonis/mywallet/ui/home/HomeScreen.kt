@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.home
 // Amounts arrive pre-formatted from the view-model (per currency + locale), so this screen never
 // formats money itself — it only decides how the finished text is drawn.
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -41,6 +43,7 @@ import org.aristonis.mywallet.ui.components.StatusCard
 import org.aristonis.mywallet.ui.components.StatusTone
 import org.aristonis.mywallet.ui.components.WalletListRow
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
+import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.icons.accountTypeIcon
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
@@ -145,8 +148,7 @@ internal fun HomeContent(
                 }
 
                 // Before the first read an empty list means "unknown", not "no accounts", so no prompt
-                // yet. The balance figure above already shows the screen is loading; one spinner is
-                // enough.
+                // yet. The summary above already shows the screen is loading; one spinner is enough.
                 !state.isLoading && state.accounts.isEmpty() -> item(key = "accounts-empty") {
                     EmptyState(
                         message = stringResource(R.string.home_no_accounts),
@@ -164,6 +166,11 @@ internal fun HomeContent(
     }
 }
 
+/**
+ * The summary the screen exists to show. The balance gets the full width and the display type size;
+ * the pocket, owed-to-me and I-owe figures below it are the working detail behind that number. A
+ * missing rate is recoverable and the card is the way to recover it: tapping opens the rates screen.
+ */
 @Composable
 private fun HomeSummaryHero(summary: HomeSummaryState, onManageRates: () -> Unit, onDebts: () -> Unit) {
     when (summary) {
@@ -180,20 +187,17 @@ private fun HomeSummaryHero(summary: HomeSummaryState, onManageRates: () -> Unit
                 Text(stringResource(R.string.home_balance), style = MaterialTheme.typography.labelMedium)
                 MoneyText(summary.balanceDisplay, style = MaterialTheme.typography.displaySmall)
                 SummaryAmount(stringResource(R.string.home_in_my_pocket), summary.pocketDisplay)
-                TextButton(onClick = onDebts, modifier = Modifier.fillMaxWidth()) {
-                    SummaryAmount(stringResource(R.string.home_owed_to_me), summary.owedToMeDisplay)
-                }
-                TextButton(onClick = onDebts, modifier = Modifier.fillMaxWidth()) {
-                    SummaryAmount(stringResource(R.string.home_i_owe), summary.iOweDisplay)
-                }
+                SummaryAmount(stringResource(R.string.home_owed_to_me), summary.owedToMeDisplay, onDebts)
+                SummaryAmount(stringResource(R.string.home_i_owe), summary.iOweDisplay, onDebts)
             }
         }
     }
 }
 
 @Composable
-private fun SummaryAmount(label: String, amount: String) {
-    Column(Modifier.fillMaxWidth()) {
+private fun SummaryAmount(label: String, amount: String, onClick: (() -> Unit)? = null) {
+    val tappable = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier
+    Column(Modifier.fillMaxWidth().then(tappable)) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         MoneyText(amount, style = MaterialTheme.typography.titleMedium)
     }
@@ -201,32 +205,43 @@ private fun SummaryAmount(label: String, amount: String) {
 
 @Composable
 private fun AccountCard(row: AccountRow, onManageRates: () -> Unit) {
-    val base = row.base
+    val base = row.base // local val so Kotlin can smart-cast after the null check
     Card(modifier = Modifier.fillMaxWidth()) {
         WalletListRow(headline = row.account.name,
             supporting = stringResource(R.string.account_type_and_currency,
                 accountTypeLabel(row.account.typeKey), row.account.currencyCode),
             leadingIcon = accountTypeIcon(row.account.typeKey),
+            // Only tappable when there is something to fix; otherwise the row is a read-only figure.
             onClick = if (base == null) onManageRates else null)
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             MoneyText(row.nativeDisplay, style = MaterialTheme.typography.titleMedium)
             when {
+                // A missing rate shows a prompt, never a fabricated number.
                 base == null -> TextButton(onClick = onManageRates) {
                     Text(stringResource(R.string.home_account_missing_rate, row.native.currencyCode),
                         color = WalletTheme.colors.warning)
                 }
+                // Held in another currency: show what it is worth in the base one too. When it is already
+                // in the base currency a second line would repeat, so there is none.
                 base.currencyCode != row.native.currencyCode -> MoneyText(
                     stringResource(R.string.home_account_converted, row.baseDisplay.orEmpty()),
                     style = MaterialTheme.typography.bodySmall)
             }
-            row.owedDisplay?.let { Text(stringResource(R.string.home_credit_owed, "\u2066$it\u2069")) }
-            row.availableDisplay?.let { Text(stringResource(R.string.home_credit_available, "\u2066$it\u2069")) }
-            if (row.credit?.overLimit == true) {
-                StatusCard(StatusTone.WARNING, stringResource(R.string.home_credit_over_limit, "\u2066${row.overLimitDisplay.orEmpty()}\u2069"),
-                    iconDescription = stringResource(R.string.cd_warning))
-            }
+            CreditLines(row)
         }
+    }
+}
+
+/** The credit card lines: what is owed, what is still available, and a warning when over the limit. */
+@Composable
+private fun CreditLines(row: AccountRow) {
+    row.owedDisplay?.let { Text(stringResource(R.string.home_credit_owed, bidiIsolate(it))) }
+    row.availableDisplay?.let { Text(stringResource(R.string.home_credit_available, bidiIsolate(it))) }
+    if (row.credit?.overLimit == true) {
+        StatusCard(StatusTone.WARNING,
+            stringResource(R.string.home_credit_over_limit, bidiIsolate(row.overLimitDisplay.orEmpty())),
+            iconDescription = stringResource(R.string.cd_warning))
     }
 }
 

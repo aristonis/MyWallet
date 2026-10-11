@@ -3,9 +3,6 @@ package org.aristonis.mywallet.ui.rates
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.math.BigDecimal
-import javax.inject.Inject
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +18,9 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.ui.load.ReadAttempts
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.toUiMessage
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.port.CurrencyRepository
@@ -31,9 +31,9 @@ import org.aristonis.mywallet.domain.service.DebtRemaining
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
-import org.aristonis.mywallet.ui.load.ReadAttempts
-import org.aristonis.mywallet.ui.message.UiMessage
-import org.aristonis.mywallet.ui.message.toUiMessage
+import java.math.BigDecimal
+import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 /** One editable rate line: a non-base currency, its saved rate (if any), and the field the user types in. */
 data class RateRow(
@@ -79,8 +79,9 @@ class ManageRatesViewModel @Inject constructor(
 
     init {
         attempts.reading<ReadResult>(loading = { ReadResult.Loading }) {
-            combine<Snapshot, Unit, ReadResult>(snapshotFlow(getAccountBalances, ledger, currencies, rates, settings), observeLedgerHealth()) {
-                snapshot, _ -> ReadResult.Ready(snapshot)
+            val snapshots = snapshotFlow(getAccountBalances, ledger, currencies, rates, settings)
+            combine<Snapshot, Unit, ReadResult>(snapshots, observeLedgerHealth()) { snapshot, _ ->
+                ReadResult.Ready(snapshot)
             }.flowOn(defaultDispatcher).catch { error ->
                 if (error is CancellationException) throw error
                 errors.report("Rates could not read the wallet", IllegalStateException(error.javaClass.simpleName))
@@ -106,12 +107,17 @@ class ManageRatesViewModel @Inject constructor(
         settings: SettingsRepository,
     ) = combine(balances(), ledger.observeDebtLegs(), currencies.observeAll(), rates.observeAll(), settings.observe()) {
         accounts, debtLegs, currencyList, rateList, currentSettings ->
-        val used = accounts.filter { !it.account.archived || (it.credit != null && it.balance.amount.signum() < 0) }
-            .map { it.balance.currencyCode } + DebtRemaining.byDebt(debtLegs).values
-            .filter { it.remaining.amount.signum() > 0 }.map { it.remaining.currencyCode }
-        Snapshot(currentSettings.baseCurrencyCode, used.toSet(), currencyList, rateList)
+        // An archived account still needs a rate while a credit card on it owes money.
+        val accountCodes = accounts
+            .filter { !it.account.archived || (it.credit != null && it.balance.amount.signum() < 0) }
+            .map { it.balance.currencyCode }
+        val debtCodes = DebtRemaining.byDebt(debtLegs).values
+            .filter { it.remaining.amount.signum() > 0 }
+            .map { it.remaining.currencyCode }
+        Snapshot(currentSettings.baseCurrencyCode, (accountCodes + debtCodes).toSet(), currencyList, rateList)
     }
 
+    /** Reads the wallet again after a failed read, showing loading until the new read answers. */
     fun retry() = attempts.retry()
 
     fun setRateInput(currencyCode: String, text: String) = updateRow(currencyCode) {
@@ -135,9 +141,12 @@ class ManageRatesViewModel @Inject constructor(
     }
 
     private fun updateRow(currencyCode: String, transform: (RateRow) -> RateRow) {
-        carriedRows = carriedRows.map { if (it.currencyCode == currencyCode) transform(it) else it }
-        _state.update { s -> s.copy(rows = s.rows.map { if (it.currencyCode == currencyCode) transform(it) else it }) }
+        carriedRows = carriedRows.transformRow(currencyCode, transform)
+        _state.update { it.copy(rows = it.rows.transformRow(currencyCode, transform)) }
     }
+
+    private fun List<RateRow>.transformRow(currencyCode: String, transform: (RateRow) -> RateRow) =
+        map { if (it.currencyCode == currencyCode) transform(it) else it }
 
     /**
      * The base the rows currently on screen were typed against. A rate means "so many units of THE

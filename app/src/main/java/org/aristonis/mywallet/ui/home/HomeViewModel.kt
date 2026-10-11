@@ -34,6 +34,11 @@ import org.aristonis.mywallet.ui.load.ReadAttempts
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * The Home hero. A missing rate becomes a warning, never a silently wrong total: [MissingRate] names
+ * the currency whose rate is needed, and [Amounts] carries the finished figures (pocket, owed to me,
+ * I owe, and the balance they add up to).
+ */
 sealed interface HomeSummaryState {
     data object Loading : HomeSummaryState
     data class Amounts(val pocketDisplay: String, val owedToMeDisplay: String, val iOweDisplay: String,
@@ -41,6 +46,12 @@ sealed interface HomeSummaryState {
     data class MissingRate(val currencyCode: String) : HomeSummaryState
 }
 
+/**
+ * One account card. Keeps the native/base [Money] so the screen can still decide which line to show
+ * (missing rate vs. a converted line vs. same currency); the `*Display` strings are the amounts
+ * pre-formatted per currency + locale so no formatting happens in Compose. A credit card also carries
+ * its [credit] status with the owed, available and over-limit amounts.
+ */
 data class AccountRow(
     val account: Account,
     val native: Money,
@@ -53,15 +64,36 @@ data class AccountRow(
     val overLimitDisplay: String? = null,
 )
 
+/**
+ * Home renders from this. Amounts arrive pre-formatted; the screen never touches a formatter.
+ *
+ * [isLoading] is true until the first read arrives, so the empty initial list is not mistaken for a
+ * wallet with no accounts (a slow start would flash the "needs an account" prompt). [loadFailed] means
+ * stored data could not be read: the screen says so instead of showing an empty wallet, which would
+ * invite the user to create a first account they already have.
+ */
 data class HomeUiState(
     val summary: HomeSummaryState = HomeSummaryState.Loading,
     val accounts: List<AccountRow> = emptyList(),
     val baseCurrencyCode: String? = null,
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
+    /** Ids of debts whose remaining went below zero; Home warns and points at the Debts screen. */
     val debtsBelowZero: List<Long> = emptyList(),
 )
 
+/**
+ * Home: the summary (pocket, owed to me, I owe, balance; warns on a missing rate) plus per-account
+ * native balances.
+ *
+ * Balances are summed from leg projections, which never open a whole entry, so an entry of a kind
+ * the app cannot read would simply be left out of them. Home therefore also reads the ledger's
+ * health, and a failure there shows the cannot-be-read state instead of totals that miss a row.
+ *
+ * A read that throws (a stored row that cannot be decoded) becomes a failed state instead of
+ * crashing the app. The catch ends that attempt's reads; [retry] starts a fresh attempt, and so does
+ * the next start of the screen (once the reads have stopped while it was hidden).
+ */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     getAccountBalances: GetAccountBalances,
@@ -81,9 +113,14 @@ class HomeViewModel @Inject constructor(
             // Sharing belongs to this read attempt, so a retry or failed read cancels its producer.
             coroutineScope {
                 val balances = getAccountBalances().shareIn(this, SharingStarted.Lazily, replay = 1)
+                // The summary emits a live sealed result: a missing rate is a value, not a thrown error, so
+                // this flow stays alive and re-resolves the moment the rate is set. The ledger-health
+                // read emits while every entry can be read and fails the attempt the moment one cannot.
                 emitAll(combine(getAccountBalancesInBase(balances), computeHomeSummary(balances),
                     currencies.observeAll(), settings.observe(), observeLedgerHealth()) {
                     accounts, summary, currencyList, currentSettings, _ ->
+                    // Archived accounts drop out of the active list (and out of the summary); they stay
+                    // reachable and unarchivable on the Manage Accounts screen.
                     HomeUiState(
                         summary = summary.toUi(currencyList),
                         accounts = accounts.filterNot { it.account.archived }.map { it.toRow(currencyList) },
@@ -96,13 +133,17 @@ class HomeViewModel @Inject constructor(
                     )
                 })
             }
-        }.flowOn(defaultDispatcher).catch { error ->
+        }
+            // Balances are summed over the whole history and converted again on every write; that
+            // belongs off the main thread, where the other screens already build theirs.
+            .flowOn(defaultDispatcher).catch { error ->
             if (error is CancellationException) throw error
             errors.report("Home could not read the wallet", error)
             emit(HomeUiState(isLoading = false, loadFailed = true))
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HomeUiState())
 
+    /** Reads the wallet again after a failed read, showing loading until the new read answers. */
     fun retry() = attempts.retry()
 
     private fun HomeSummary.toUi(currencies: List<Currency>): HomeSummaryState = when (this) {

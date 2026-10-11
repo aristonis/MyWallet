@@ -256,6 +256,31 @@ class DebtDetailActionsTest {
         }
     }
 
+    @Test fun aFailedUndoSurfacesExactlyOneMessageThroughTheUndoSnackbar() = runTest(work) {
+        withFixture { f ->
+            f.vm.openDeleteDebt()
+            runCurrent()
+            f.vm.confirmDeleteDebt()
+            runCurrent()
+            assertFalse(f.vm.state.value.undoFailed) // a clean delete shows only the "deleted" snackbar
+            f.entries.beforeInsert = { throw WalletException.AccountNotFound(1) }
+            f.vm.undoDeleteDebt()
+            runCurrent()
+
+            val state = f.vm.state.value
+            assertTrue(state.undoFailed) // the snackbar is the one message: "Undo failed" with Undo to retry
+            assertNull(state.inlineError) // no generic error row beside it
+        }
+    }
+
+    @Test fun aMetadataFailureStillShowsItsInlineErrorWhenNoUndoIsPending() = runTest(work) {
+        withFixture { _ ->
+            val state = DebtDetailUiState(error = UiMessage.AccountNotFound)
+            assertFalse(state.undoFailed)
+            assertEquals(UiMessage.AccountNotFound, state.inlineError)
+        }
+    }
+
     @Test fun aPendingWriteOffBlocksAllCompetingWritesAndDialogActions() = runTest(work) {
         withFixture { f ->
             val gate = CompletableDeferred<Unit>()

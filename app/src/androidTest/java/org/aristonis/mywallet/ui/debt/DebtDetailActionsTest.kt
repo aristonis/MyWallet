@@ -1,5 +1,7 @@
 package org.aristonis.mywallet.ui.debt
 
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -57,7 +59,8 @@ class DebtDetailActionsTest {
             MyWalletTheme(dynamicColor = false) {
                 DebtDetailContent(current, onDone = {}, onEditEntry = {}, onCounterpartyChange = {},
                     onRename = {}, onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {},
-                    today = { LocalDate.of(2026, 10, 12) }, onWriteOff = writeOff, onDeleteDebt = {})
+                    today = { LocalDate.of(2026, 10, 12) }, onWriteOff = writeOff, onDeleteDebt = {},
+                    snackbar = remember { SnackbarHostState() })
             }
         }
     }

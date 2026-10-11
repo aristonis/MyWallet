@@ -14,6 +14,7 @@ import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.CategoryRole
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
@@ -53,29 +54,32 @@ internal class DebtDetailActions(
         job = null
     }
 
-    fun canSaveMetadata(): Boolean = canStart() && !hasDialog() && state.value.undoableDelete == null
+    fun canStartFromIdle(): Boolean = canStart() && !hasDialog() && state.value.undoableDelete == null
 
     fun saveMetadata(write: suspend (Long) -> Unit) {
-        if (!canSaveMetadata()) return
+        if (!canStartFromIdle()) return
         launchAction(write, onSuccess = {})
     }
 
     fun openWriteOff() {
         val detail = state.value.detail ?: return
-        if (!canSaveMetadata() || !detail.summary.remaining.isPositive) return
+        if (!canStartFromIdle() || !detail.summary.remaining.isPositive) return
         val remainingDisplay = state.value.remainingDisplay
-        launchAction(write = {
-            val role = if (detail.summary.debt.side == org.aristonis.mywallet.domain.model.DebtSide.I_OWE) {
-                CategoryRole.DEBT_FORGIVEN
-            } else {
-                CategoryRole.LOST_DEBT
-            }
-            val bound = roles.categoryFor(role)
-            val choices = categories.observeAll().first().filter { it.kind == role.kind && !it.isSubCategory }
-            WriteOffDialogUiState(choices, bound?.takeIf { id -> choices.any { it.id == id } },
-                today.now(), remainingDisplay)
-        }, onSuccess = { dialog -> state.update { it.copy(writeOffDialog = dialog) } })
+        launchAction(write = { loadWriteOffDialog(detail.summary.debt.side, remainingDisplay) },
+            onSuccess = { dialog -> state.update { it.copy(writeOffDialog = dialog) } })
     }
+
+    private suspend fun loadWriteOffDialog(side: DebtSide, remainingDisplay: String): WriteOffDialogUiState {
+        val role = writeOffRole(side)
+        val bound = roles.categoryFor(role)
+        val choices = categories.observeAll().first().filter { it.kind == role.kind && !it.isSubCategory }
+        return WriteOffDialogUiState(choices, bound?.takeIf { id -> choices.any { it.id == id } },
+            today.now(), remainingDisplay)
+    }
+
+    /** Writing off a debt I owe is forgiveness; writing off one I am owed is a loss. */
+    private fun writeOffRole(side: DebtSide) =
+        if (side == DebtSide.I_OWE) CategoryRole.DEBT_FORGIVEN else CategoryRole.LOST_DEBT
 
     fun selectWriteOffCategory(id: Long) {
         if (state.value.isSubmitting) return
@@ -108,7 +112,7 @@ internal class DebtDetailActions(
     }
 
     fun openDeleteDebt() {
-        if (!canSaveMetadata()) return
+        if (!canStartFromIdle()) return
         launchAction(write = { id ->
             val preview = previewDeletion(id)
             DeleteDebtDialogUiState(preview, formatter.display(preview.remainingAfter, currencies.observeAll().first()))

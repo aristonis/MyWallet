@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.debt
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +51,8 @@ class DebtDetailScreenTest {
                 DebtDetailContent(current, onDone = {}, onEditEntry = {},
                     onCounterpartyChange = { current = current.copy(counterpartyInput = it) },
                     onRename = { current = current.copy(error = UiMessage.DebtNameTaken(current.counterpartyInput)) },
-                    onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {}, today = { LocalDate.of(2026, 10, 10) })
+                    onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {}, today = { LocalDate.of(2026, 10, 10) },
+                    onWriteOff = {}, onDeleteDebt = {}, snackbar = SnackbarHostState())
             }
         }
         compose.onNodeWithText("Counterparty").performScrollTo().performTextReplacement("Omar")
@@ -67,7 +69,8 @@ class DebtDetailScreenTest {
             MyWalletTheme(dynamicColor = false) {
                 DebtDetailContent(current, onDone = {}, onEditEntry = { opened = it }, onCounterpartyChange = {},
                     onRename = {}, onDueDateChange = {}, onNoteChange = { current = current.copy(noteInput = it) },
-                    onSaveDetails = { saved = current.noteInput }, onRetry = {}, today = { LocalDate.of(2026, 10, 10) })
+                    onSaveDetails = { saved = current.noteInput }, onRetry = {}, today = { LocalDate.of(2026, 10, 10) },
+                    onWriteOff = {}, onDeleteDebt = {}, snackbar = SnackbarHostState())
             }
         }
         compose.onNodeWithText("Note").performScrollTo().performTextReplacement("rent reminder")
@@ -86,7 +89,8 @@ class DebtDetailScreenTest {
                 LocalDensity provides Density(density.density, 2f)) {
                 MyWalletTheme(darkTheme = true, dynamicColor = false) {
                     DebtDetailContent(state((1L..30L).map(::entry)), onDone = {}, onEditEntry = { opened = it },
-                        onCounterpartyChange = {}, onRename = {}, onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {}, today = { LocalDate.of(2026, 10, 10) })
+                        onCounterpartyChange = {}, onRename = {}, onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {}, today = { LocalDate.of(2026, 10, 10) },
+                    onWriteOff = {}, onDeleteDebt = {}, snackbar = SnackbarHostState())
                 }
             }
         }

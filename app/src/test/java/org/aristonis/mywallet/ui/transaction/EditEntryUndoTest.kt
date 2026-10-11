@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
+import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -16,6 +17,7 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -134,5 +136,43 @@ class EditEntryUndoTest {
         assertTrue(f.state.deleted)
         assertNull(f.state.undoableDelete)
         assertNull(f.use.entries.findById(5))
+    }
+
+    @Test
+    fun aRefusedUndoKeepsItsBundleSoTheOwnerCanRetry() = runTest {
+        val f = deleted()
+        val removed = requireNotNull(f.state.undoableDelete)
+        f.use.entries.beforeInsert = { throw WalletException.AccountNotFound(1) }
+
+        f.viewModel.undoDelete()
+        advanceUntilIdle()
+
+        assertEquals(removed, f.state.undoableDelete)
+        assertEquals(UiMessage.AccountNotFound, f.state.error)
+        assertFalse(f.state.deleted)
+        assertFalse(f.state.isSubmitting)
+        assertNull(f.use.entries.findById(5))
+
+        f.use.entries.beforeInsert = {}
+        f.viewModel.undoDelete()
+        advanceUntilIdle()
+
+        assertEquals(expense, f.use.entries.findById(5))
+        assertNull(f.state.undoableDelete)
+        assertNull(f.state.error)
+        assertTrue(f.state.deleted)
+    }
+
+    @Test
+    fun anUnexpectedUndoFailureAlsoKeepsTheBundle() = runTest {
+        val f = deleted()
+        f.use.entries.beforeInsert = { error("disk gone") }
+
+        f.viewModel.undoDelete()
+        advanceUntilIdle()
+
+        assertNotNull(f.state.undoableDelete)
+        assertEquals(UiMessage.TransactionRestoreFailed, f.state.error)
+        assertFalse(f.state.isSubmitting)
     }
 }

@@ -10,14 +10,14 @@ import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.usecase.DeleteDebt
-import org.aristonis.mywallet.domain.usecase.PreviewDebtDeletion
-import org.aristonis.mywallet.domain.usecase.SaveEntry
-import org.aristonis.mywallet.domain.usecase.WriteOffDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebts
+import org.aristonis.mywallet.domain.usecase.PreviewDebtDeletion
 import org.aristonis.mywallet.domain.usecase.RenameDebt
+import org.aristonis.mywallet.domain.usecase.SaveEntry
 import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
 import org.aristonis.mywallet.domain.usecase.UpdateDebtDetails
+import org.aristonis.mywallet.domain.usecase.WriteOffDebt
 import org.aristonis.mywallet.ui.debt.TodaySource
 import javax.inject.Singleton
 

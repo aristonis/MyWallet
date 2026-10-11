@@ -10,18 +10,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -91,9 +91,9 @@ internal fun DebtDetailContent(
     onSaveDetails: () -> Unit,
     onRetry: () -> Unit,
     today: () -> LocalDate,
-    onWriteOff: () -> Unit = {},
-    onDeleteDebt: () -> Unit = {},
-    snackbar: SnackbarHostState = remember { SnackbarHostState() },
+    onWriteOff: () -> Unit,
+    onDeleteDebt: () -> Unit,
+    snackbar: SnackbarHostState,
 ) {
     BackHandler(onBack = onDone)
     val dateDisplay = rememberDateFormatter()
@@ -131,16 +131,13 @@ internal fun DebtDetailContent(
                             Text(stringResource(R.string.debt_save_details))
                         }
                     }
-                    if (state.error != null && !state.error.isNameError()) {
-                        item { Text(state.error.text(), Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                    state.inlineError?.let { error ->
+                        item { Text(error.text(), Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
                     }
                     if (state.detail.summary.remaining.isPositive) item {
                         TextButton(onClick = onWriteOff, enabled = state.canEditMetadata) {
                             Text(stringResource(R.string.debt_write_off_rest))
                         }
-                    }
-                    if (state.undoableDelete != null && state.error != null) item {
-                        Text(stringResource(R.string.debt_undo_failed))
                     }
                     item { Text(stringResource(R.string.debt_history)) }
                     items(state.detail.entries, key = { it.id }) { entry ->
@@ -178,8 +175,6 @@ private val DebtDetailUiState.canEditMetadata: Boolean
     get() = detail != null && !loadFailed && !deleted && !isSubmitting && undoableDelete == null &&
         writeOffDialog == null && deleteDialog == null
 
-private fun UiMessage.isNameError(): Boolean = this is UiMessage.DebtNameTaken || this == UiMessage.NameBlank
-
 @Composable
 private fun DebtOverflow(state: DebtDetailUiState, onDelete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
@@ -203,9 +198,9 @@ private fun DebtDeletionUndo(state: DebtDetailUiState, snackbar: SnackbarHostSta
     val failed = stringResource(R.string.debt_undo_failed)
     LaunchedEffect(state.deleted) { if (state.deleted) onDone() }
     val isReady = state.detail != null && !state.isLoading && !state.loadFailed
-    LaunchedEffect(state.undoableDelete, state.error, state.isSubmitting, isReady) {
+    LaunchedEffect(state.undoableDelete, state.undoFailed, state.isSubmitting, isReady) {
         if (state.undoableDelete == null || state.isSubmitting || !isReady) return@LaunchedEffect
-        val retrying = state.error != null
+        val retrying = state.undoFailed
         val result = snackbar.showSnackbar(if (retrying) failed else deleted, actionLabel = undo,
             duration = if (retrying) SnackbarDuration.Indefinite else SnackbarDuration.Short)
         when (result) {
