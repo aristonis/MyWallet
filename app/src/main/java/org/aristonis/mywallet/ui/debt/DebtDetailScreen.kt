@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.WalletListRow
@@ -58,6 +59,8 @@ fun DebtDetailScreen(
     debtId: Long,
     onDone: () -> Unit,
     onEditEntry: (Long) -> Unit,
+    onRecordRepayment: (Long) -> Unit,
+    onEditRepayment: (debtId: Long, repaymentId: Long) -> Unit,
     viewModel: DebtDetailViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(debtId) { viewModel.load(debtId) }
@@ -68,7 +71,7 @@ fun DebtDetailScreen(
     DebtDetailContent(
         state, onDone, onEditEntry, viewModel::setCounterparty, viewModel::rename,
         viewModel::setDueDate, viewModel::setNote, viewModel::saveDetails, viewModel::retry, viewModel::today,
-        viewModel::openWriteOff, viewModel::openDeleteDebt, snackbar,
+        viewModel::openWriteOff, viewModel::openDeleteDebt, onRecordRepayment, onEditRepayment, snackbar,
     )
     state.writeOffDialog?.let { dialog ->
         WriteOffDialog(dialog, state.isSubmitting, viewModel::selectWriteOffCategory, viewModel::setWriteOffDate,
@@ -93,6 +96,8 @@ internal fun DebtDetailContent(
     today: () -> LocalDate,
     onWriteOff: () -> Unit,
     onDeleteDebt: () -> Unit,
+    onRecordRepayment: (Long) -> Unit,
+    onEditRepayment: (debtId: Long, repaymentId: Long) -> Unit,
     snackbar: SnackbarHostState,
 ) {
     BackHandler(onBack = onDone)
@@ -135,6 +140,12 @@ internal fun DebtDetailContent(
                         item { Text(error.text(), Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
                     }
                     if (state.detail.summary.remaining.isPositive) item {
+                        Button(onClick = { onRecordRepayment(state.detail.summary.debt.id) },
+                            enabled = state.canEditMetadata) {
+                            Text(stringResource(R.string.debt_record_repayment))
+                        }
+                    }
+                    if (state.detail.summary.remaining.isPositive) item {
                         TextButton(onClick = onWriteOff, enabled = state.canEditMetadata) {
                             Text(stringResource(R.string.debt_write_off_rest))
                         }
@@ -146,13 +157,28 @@ internal fun DebtDetailContent(
                             supporting = debtHistorySupporting(
                                 kindLabel(entry.rowType()), dateDisplay(entry.date), state.historyAmounts[entry.id],
                             ),
-                            onClick = { onEditEntry(entry.id) },
+                            onClick = {
+                                openHistoryEntry(entry, state.detail.summary.debt.id, onEditEntry, onEditRepayment)
+                            },
                         )
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * A repayment opens its own form, which edits the payment as one piece; every other entry opens the
+ * ordinary entry editor.
+ */
+internal fun openHistoryEntry(
+    entry: Transaction,
+    debtId: Long,
+    onEditEntry: (Long) -> Unit,
+    onEditRepayment: (debtId: Long, repaymentId: Long) -> Unit,
+) {
+    if (entry is Transaction.Repayment) onEditRepayment(debtId, entry.id) else onEditEntry(entry.id)
 }
 
 @Composable

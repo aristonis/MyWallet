@@ -25,6 +25,7 @@ import org.aristonis.mywallet.ui.category.ManageCategoriesScreen
 import org.aristonis.mywallet.ui.currency.ChangeBaseCurrencyScreen
 import org.aristonis.mywallet.ui.debt.DebtDetailScreen
 import org.aristonis.mywallet.ui.debt.DebtsScreen
+import org.aristonis.mywallet.ui.debt.RecordRepaymentScreen
 import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen
@@ -161,6 +162,26 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
                 debtId = id,
                 onDone = { nav.popBackStack() },
                 onEditEntry = { entryId -> nav.navigate(tab.child(Leaf.EDIT_TRANSACTION, entryId)) },
+                onRecordRepayment = { debtId -> nav.navigate(tab.repaymentRoute(debtId)) },
+                onEditRepayment = { debtId, repaymentId -> nav.navigate(tab.repaymentRoute(debtId, repaymentId)) },
+            )
+        }
+        composable(
+            route = tab.repaymentPattern(),
+            arguments = listOf(
+                navArgument(ARG_ID) { type = NavType.LongType },
+                navArgument(ARG_REPAYMENT_ID) { type = NavType.LongType; defaultValue = NO_REPAYMENT_ID },
+            ),
+        ) { entry ->
+            RecordRepaymentScreen(
+                debtId = entry.requireId(),
+                repaymentId = entry.arguments?.getLong(ARG_REPAYMENT_ID)?.takeIf { it != NO_REPAYMENT_ID },
+                onDone = { nav.popBackStack() },
+                onOpenEntry = { entryId ->
+                    // The form is stale once the entry changes, so leave it and land back on the debt.
+                    nav.popBackStack()
+                    nav.navigate(tab.child(Leaf.EDIT_TRANSACTION, entryId))
+                },
             )
         }
         editorRoute(tab, Leaf.EDIT_TRANSACTION) { id ->

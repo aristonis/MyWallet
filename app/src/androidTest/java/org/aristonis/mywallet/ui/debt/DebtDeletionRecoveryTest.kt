@@ -90,7 +90,8 @@ class DebtDeletionRecoveryTest {
     @Test fun undoReappearsAfterAnUnreadableWalletIsRepairedAndRestoresTheActualEntry() {
         compose.setContent {
             MyWalletTheme(dynamicColor = false) {
-                DebtDetailScreen(debtId, onDone = {}, onEditEntry = {}, viewModel = vm)
+                DebtDetailScreen(debtId, onDone = {}, onEditEntry = {}, onRecordRepayment = {},
+                    onEditRepayment = { _, _ -> }, viewModel = vm)
             }
         }
         compose.waitUntil(WAIT_MS) { vm.state.value.detail != null && !vm.state.value.isLoading }
@@ -119,7 +120,8 @@ class DebtDeletionRecoveryTest {
         var doneCalls = 0
         compose.setContent {
             MyWalletTheme(dynamicColor = false) {
-                DebtDetailScreen(debtId, onDone = { doneCalls++ }, onEditEntry = {}, viewModel = vm)
+                DebtDetailScreen(debtId, onDone = { doneCalls++ }, onEditEntry = {}, onRecordRepayment = {},
+                    onEditRepayment = { _, _ -> }, viewModel = vm)
             }
         }
         compose.waitUntil(WAIT_MS) { vm.state.value.detail != null && !vm.state.value.isLoading }

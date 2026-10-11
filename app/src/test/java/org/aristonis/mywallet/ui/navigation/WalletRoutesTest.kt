@@ -150,4 +150,37 @@ class WalletRoutesTest {
         assertEquals(route, pattern.replace("{$ARG_ID}", id.toString()))
         assertTrue(!showsNavigationBar(WalletTab.HOME.child(Leaf.EDIT_TRANSACTION, id)))
     }
+
+    @Test
+    fun `repayment form is an id route under Home and gives up the navigation bar`() {
+        val id = 4_294_967_296L
+        val pattern = WalletTab.HOME.childPattern(Leaf.RECORD_REPAYMENT)
+        val route = WalletTab.HOME.child(Leaf.RECORD_REPAYMENT, id)
+
+        assertEquals("home/recordRepayment/{$ARG_ID}", pattern)
+        assertEquals("home/recordRepayment/$id", route)
+        assertEquals(route, pattern.replace("{$ARG_ID}", id.toString()))
+        assertTrue(Leaf.RECORD_REPAYMENT in Leaf.withId)
+        assertTrue(Leaf.RECORD_REPAYMENT in Leaf.forms)
+        assertTrue(!showsNavigationBar(route))
+    }
+
+    @Test
+    fun `repayment edit rides the query argument and a new repayment leaves it out`() {
+        val pattern = WalletTab.HOME.repaymentPattern()
+
+        assertEquals("home/recordRepayment/{$ARG_ID}?$ARG_REPAYMENT_ID={$ARG_REPAYMENT_ID}", pattern)
+        assertEquals("home/recordRepayment/9", WalletTab.HOME.repaymentRoute(9))
+        assertEquals("home/recordRepayment/9?repaymentId=4", WalletTab.HOME.repaymentRoute(9, repaymentId = 4))
+        assertEquals(
+            WalletTab.HOME.repaymentRoute(9, 4),
+            pattern.replace("{$ARG_ID}", "9").replace("{$ARG_REPAYMENT_ID}", "4"),
+        )
+        assertTrue(!showsNavigationBar(WalletTab.HOME.repaymentRoute(9, 4)))
+    }
+
+    @Test
+    fun `the no-repayment value is not a real row id`() {
+        assertEquals(0L, NO_REPAYMENT_ID)
+    }
 }

@@ -46,6 +46,19 @@
     <string name="debt_note">Note</string>
     <string name="debt_save_details">Save details</string>
     <string name="debt_history">Debt history</string>
+    <string name="debt_record_repayment">Record repayment</string>
+    <string name="repayment_title">Record repayment</string>
+    <string name="repayment_principal">Principal (%1$s)</string>
+    <string name="repayment_account_principal">Account principal (%1$s)</string>
+    <string name="repayment_interest">Interest (%1$s, optional)</string>
+    <string name="repayment_interest_category">Interest category (optional)</string>
+    <string name="repayment_pay_rest">Pay the rest</string>
+    <string name="repayment_save">Save repayment</string>
+    <string name="repayment_title_edit">Edit repayment</string>
+    <string name="repayment_save_edit">Save changes</string>
+    <string name="repayment_open_entry">Open entry</string>
+    <string name="repayment_remaining">Remaining: %1$s</string>
+    <string name="repayment_account_moves">The account moves by %1$s</string>
     <!-- Write-off and whole-debt deletion -->
     <string name="debt_write_off_rest">Write off the rest</string>
     <string name="debt_write_off">Write off</string>

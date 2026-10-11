@@ -14,10 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -28,7 +25,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,15 +51,11 @@ import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
-import org.aristonis.mywallet.ui.format.rememberDateFormatter
-import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.label
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 
 /**
  * Edit-transaction screen. The type is fixed at load and shown read-only: income/expense may change
@@ -371,45 +363,6 @@ private fun LockedField(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.labelMedium)
         OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
             Text(value, modifier = Modifier.weight(1f))
-        }
-    }
-}
-
-/** A labelled button showing the chosen date; tapping it opens the Material date picker. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DateField(date: LocalDate, onDateSelected: (LocalDate) -> Unit) {
-    var showPicker by remember { mutableStateOf(false) }
-    Column {
-        Text(stringResource(R.string.field_date), style = MaterialTheme.typography.labelMedium)
-        // Written the way the reader's locale writes dates; the ISO form is for storage, not for people.
-        val formatDate = rememberDateFormatter()
-        OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(formatDate(date), modifier = Modifier.weight(1f))
-            Icon(imageVector = WalletIcons.Date, contentDescription = null)
-        }
-    }
-    if (showPicker) {
-        // The picker works in UTC-midnight millis; convert in UTC both ways so the calendar day never
-        // shifts by one (using the system zone would drift in negative offsets).
-        val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-        )
-        DatePickerDialog(
-            onDismissRequest = { showPicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { millis ->
-                        onDateSelected(Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate())
-                    }
-                    showPicker = false
-                }) { Text(stringResource(R.string.action_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text(stringResource(R.string.action_cancel)) }
-            },
-        ) {
-            DatePicker(state = pickerState)
         }
     }
 }

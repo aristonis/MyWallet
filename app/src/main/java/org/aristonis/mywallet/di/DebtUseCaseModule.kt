@@ -4,6 +4,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
@@ -13,6 +14,7 @@ import org.aristonis.mywallet.domain.usecase.DeleteDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebts
 import org.aristonis.mywallet.domain.usecase.PreviewDebtDeletion
+import org.aristonis.mywallet.domain.usecase.RecordRepayment
 import org.aristonis.mywallet.domain.usecase.RenameDebt
 import org.aristonis.mywallet.domain.usecase.SaveEntry
 import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
@@ -51,6 +53,17 @@ object DebtUseCaseModule {
     @Provides @Singleton
     fun provideWriteOffDebt(runner: TransactionRunner, debts: DebtRepository,
         ledger: LedgerQueries, saveEntry: SaveEntry): WriteOffDebt = WriteOffDebt(runner, debts, ledger, saveEntry)
+
+    @Provides @Singleton
+    fun provideRecordRepayment(
+        runner: TransactionRunner,
+        debts: DebtRepository,
+        ledger: LedgerQueries,
+        entries: EntryRepository,
+        accounts: AccountRepository,
+        fx: FxRepository,
+        saveEntry: SaveEntry,
+    ): RecordRepayment = RecordRepayment(runner, debts, ledger, entries, accounts, fx, saveEntry)
 
     @Provides @Singleton
     fun providePreviewDebtDeletion(runner: TransactionRunner, debts: DebtRepository,

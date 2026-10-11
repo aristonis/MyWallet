@@ -44,6 +44,11 @@ class DebtDetailScreenTest {
         counterpartyInput = "Ali", remainingDisplay = "10.00 USD", isLoading = false,
     )
 
+    private fun stateWithRemaining(remaining: String, debtState: DebtState) = DebtDetailUiState(
+        detail = DebtDetail(DebtSummary(debt, Money.of(remaining, "USD"), debtState), listOf(entry(1))),
+        counterpartyInput = "Ali", remainingDisplay = "$remaining USD", isLoading = false,
+    )
+
     @Test fun renameCollisionStaysInlineAndKeepsTheTypedName() {
         var current by mutableStateOf(state())
         compose.setContent {
@@ -52,7 +57,8 @@ class DebtDetailScreenTest {
                     onCounterpartyChange = { current = current.copy(counterpartyInput = it) },
                     onRename = { current = current.copy(error = UiMessage.DebtNameTaken(current.counterpartyInput)) },
                     onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {}, today = { LocalDate.of(2026, 10, 10) },
-                    onWriteOff = {}, onDeleteDebt = {}, snackbar = SnackbarHostState())
+                    onWriteOff = {}, onDeleteDebt = {},
+                    onRecordRepayment = {}, onEditRepayment = { _, _ -> }, snackbar = SnackbarHostState())
             }
         }
         compose.onNodeWithText("Counterparty").performScrollTo().performTextReplacement("Omar")
@@ -70,7 +76,8 @@ class DebtDetailScreenTest {
                 DebtDetailContent(current, onDone = {}, onEditEntry = { opened = it }, onCounterpartyChange = {},
                     onRename = {}, onDueDateChange = {}, onNoteChange = { current = current.copy(noteInput = it) },
                     onSaveDetails = { saved = current.noteInput }, onRetry = {}, today = { LocalDate.of(2026, 10, 10) },
-                    onWriteOff = {}, onDeleteDebt = {}, snackbar = SnackbarHostState())
+                    onWriteOff = {}, onDeleteDebt = {},
+                    onRecordRepayment = {}, onEditRepayment = { _, _ -> }, snackbar = SnackbarHostState())
             }
         }
         compose.onNodeWithText("Note").performScrollTo().performTextReplacement("rent reminder")
@@ -90,12 +97,36 @@ class DebtDetailScreenTest {
                 MyWalletTheme(darkTheme = true, dynamicColor = false) {
                     DebtDetailContent(state((1L..30L).map(::entry)), onDone = {}, onEditEntry = { opened = it },
                         onCounterpartyChange = {}, onRename = {}, onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {}, today = { LocalDate.of(2026, 10, 10) },
-                    onWriteOff = {}, onDeleteDebt = {}, snackbar = SnackbarHostState())
+                    onWriteOff = {}, onDeleteDebt = {},
+                    onRecordRepayment = {}, onEditRepayment = { _, _ -> }, snackbar = SnackbarHostState())
                 }
             }
         }
         compose.reachDebtRow("History receipt 30")
         compose.onNodeWithText("History receipt 30").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(30L, opened) }
+    }
+
+    @Test fun onlyAPositiveDebtExposesRecordRepaymentAndPassesItsDebtId() {
+        var current by mutableStateOf(state())
+        var openedDebtId: Long? = null
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                DebtDetailContent(current, onDone = {}, onEditEntry = {}, onCounterpartyChange = {},
+                    onRename = {}, onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {},
+                    today = { day }, onWriteOff = {}, onDeleteDebt = {},
+                    onRecordRepayment = { openedDebtId = it }, onEditRepayment = { _, _ -> },
+                    snackbar = SnackbarHostState())
+            }
+        }
+
+        compose.onNodeWithText("Record repayment").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(debt.id, openedDebtId) }
+
+        current = stateWithRemaining("0", DebtState.SETTLED)
+        compose.onNodeWithText("Record repayment").assertDoesNotExist()
+
+        current = stateWithRemaining("-1", DebtState.OPEN)
+        compose.onNodeWithText("Record repayment").assertDoesNotExist()
     }
 }

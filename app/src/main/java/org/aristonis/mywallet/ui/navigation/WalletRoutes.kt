@@ -9,6 +9,15 @@ import org.aristonis.mywallet.ui.icons.WalletIcons
 const val ARG_ID = "id"
 
 /**
+ * Optional query argument of the repayment form: the repayment being edited. Left out, the form
+ * records a new one.
+ */
+const val ARG_REPAYMENT_ID = "repaymentId"
+
+/** The value [ARG_REPAYMENT_ID] takes when no repayment is being edited; ids start at 1. */
+const val NO_REPAYMENT_ID = 0L
+
+/**
  * The four places the navigation bar goes. Each is a nested graph, not a single screen — that is
  * what gives a tab a history of its own, so leaving Home part-way through managing accounts and
  * coming back returns you to where you were rather than to the top.
@@ -35,6 +44,14 @@ enum class WalletTab(
 
     /** The pattern the graph registers for [child] with an id. */
     fun childPattern(leaf: String): String = "$route/$leaf/{$ARG_ID}"
+
+    /** The repayment form's pattern: the debt id in the path, the repayment being edited as a query. */
+    fun repaymentPattern(): String =
+        "${childPattern(Leaf.RECORD_REPAYMENT)}?$ARG_REPAYMENT_ID={$ARG_REPAYMENT_ID}"
+
+    /** Opens the repayment form for [debtId]; a non-null [repaymentId] edits that repayment. */
+    fun repaymentRoute(debtId: Long, repaymentId: Long? = null): String =
+        child(Leaf.RECORD_REPAYMENT, debtId) + (repaymentId?.let { "?$ARG_REPAYMENT_ID=$it" } ?: "")
 }
 
 /**
@@ -55,18 +72,19 @@ object Leaf {
     const val ABOUT = "about"
     const val DEBTS = "debts"
     const val DEBT_DETAIL = "debtDetail"
+    const val RECORD_REPAYMENT = "recordRepayment"
 
     /** Every supporting screen a tab can push that needs no argument. [ROOT] is the tab itself. */
     val all = listOf(ADD_TRANSACTION, ADD_ACCOUNT, MANAGE_ACCOUNTS, RATES, CATEGORIES, BASE_CURRENCY, ABOUT, DEBTS)
 
     /** Every leaf that edits one row. */
-    val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL)
+    val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL, RECORD_REPAYMENT)
 
     /**
      * Leaves that end in one committing action. These give up the navigation bar so nothing sits
      * under their primary button.
      */
-    val forms = setOf(ADD_TRANSACTION, EDIT_TRANSACTION, ADD_ACCOUNT, EDIT_ACCOUNT, BASE_CURRENCY)
+    val forms = setOf(ADD_TRANSACTION, EDIT_TRANSACTION, ADD_ACCOUNT, EDIT_ACCOUNT, BASE_CURRENCY, RECORD_REPAYMENT)
 }
 
 /** Which tab a destination belongs to, or null if it is outside the tabbed shell. */

@@ -8,9 +8,13 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.toParts
+import org.aristonis.mywallet.domain.model.Account
+import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryRole
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Debt
@@ -37,6 +41,7 @@ import org.aristonis.mywallet.domain.usecase.WriteOffDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebts
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
+import org.aristonis.mywallet.domain.usecase.RecordRepayment
 import org.aristonis.mywallet.domain.usecase.RenameDebt
 import org.aristonis.mywallet.domain.usecase.UpdateDebtDetails
 import org.aristonis.mywallet.ui.transaction.FakeAccountRepository
@@ -59,7 +64,14 @@ internal fun screenDebt(id: Long, name: String, side: DebtSide = DebtSide.I_OWE,
 internal fun screenOpening(debt: Debt, amount: String = "10", id: Long = debt.id) =
     Transaction.OwedBefore(id, debt.id, debt.side, Money.of(amount, debt.currencyCode), screenDay)
 
-internal class DebtScreenRig(initialDebts: List<Debt>, initialEntries: List<Transaction>, private val work: CoroutineDispatcher) {
+internal class DebtScreenRig(
+    initialDebts: List<Debt>,
+    initialEntries: List<Transaction>,
+    private val work: CoroutineDispatcher,
+    initialAccounts: List<Account> = emptyList(),
+    initialCategories: List<Category> = emptyList(),
+    private val roleBindings: Map<CategoryRole, Long> = emptyMap(),
+) {
     val debtStore = FakeDebtRepository(initialDebts)
     val entries = FakeEntryRepository(initialEntries)
     val unknown = MutableStateFlow<UnreadableRowRef?>(null)
@@ -116,12 +128,12 @@ internal class DebtScreenRig(initialDebts: List<Debt>, initialEntries: List<Tran
     }
     fun list() = DebtsViewModel(ObserveDebts(debtPort, ledger, fx, today.dates), ObserveLedgerHealth(ledger),
         currencies, MoneyFormatter(Locale.US), today, work, errors)
-    private val categories = FakeCategoryRepository()
-    private val accounts = FakeAccountRepository()
+    private val categories = FakeCategoryRepository(initialCategories)
+    private val accounts = FakeAccountRepository(initialAccounts)
     private val rates = FakeRateRepository()
     private val settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
     private val roles = object : CategoryRoleRepository {
-        override suspend fun categoryFor(role: org.aristonis.mywallet.domain.model.CategoryRole): Long? = null
+        override suspend fun categoryFor(role: CategoryRole): Long? = roleBindings[role]
     }
     private val save = SaveEntry(runner, accounts, categories, entryPort, fx, settings,
         SetExchangeRate(currencies, rates, ledger, runner, settings), debtPort, ledger, RoleCategories(roles, categories))
@@ -131,4 +143,17 @@ internal class DebtScreenRig(initialDebts: List<Debt>, initialEntries: List<Tran
         WriteOffDebt(runner, debtPort, ledger, save), PreviewDebtDeletion(runner, debtPort, entryPort, ledger),
         DeleteDebt(runner, debtPort, entryPort, ledger),
         RestoreEntries(runner, entryPort, categories, accounts, debtPort, ledger))
+
+    fun repayment() = RecordRepaymentViewModel(
+        observeDebt = ObserveDebt(debtPort, ledger, entryPort, today.dates),
+        accounts = accounts,
+        categories = categories,
+        fx = fx,
+        recordRepayment = RecordRepayment(runner, debtPort, ledger, entryPort, accounts, fx, save),
+        parser = MoneyParser(Locale.US),
+        today = today,
+        formatter = MoneyFormatter(Locale.US),
+        errors = errors,
+        roles = roles,
+    )
 }

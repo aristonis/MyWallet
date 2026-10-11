@@ -60,6 +60,7 @@ class DebtDetailActionsTest {
                 DebtDetailContent(current, onDone = {}, onEditEntry = {}, onCounterpartyChange = {},
                     onRename = {}, onDueDateChange = {}, onNoteChange = {}, onSaveDetails = {}, onRetry = {},
                     today = { LocalDate.of(2026, 10, 12) }, onWriteOff = writeOff, onDeleteDebt = {},
+                    onRecordRepayment = {}, onEditRepayment = { _, _ -> },
                     snackbar = remember { SnackbarHostState() })
             }
         }

@@ -245,7 +245,7 @@ internal fun AddTransactionContent(
 /** A labelled button showing the chosen date; tapping it opens the Material date picker. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateField(date: LocalDate, onDateSelected: (LocalDate) -> Unit) {
+internal fun DateField(date: LocalDate, onDateSelected: (LocalDate) -> Unit) {
     var showPicker by remember { mutableStateOf(false) }
     Column {
         Text(stringResource(R.string.field_date), style = MaterialTheme.typography.labelMedium)
