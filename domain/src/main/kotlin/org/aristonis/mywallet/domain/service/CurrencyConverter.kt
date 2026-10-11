@@ -18,6 +18,10 @@ class CurrencyConverter(
     private val ratesToBase: Map<String, BigDecimal>,
     private val decimalPlaces: Map<String, Int>,
 ) {
+    /** The configured storage precision for [currencyCode], using the app default when absent. */
+    fun decimalPlacesFor(currencyCode: String): Int =
+        decimalPlaces[currencyCode] ?: DEFAULT_DECIMALS
+
     /** value of 1 unit of [code] in the base currency; base = 1; missing non-base = fail loud. */
     fun rateToBase(code: String): BigDecimal =
         if (code == baseCurrencyCode) BigDecimal.ONE
@@ -27,7 +31,7 @@ class CurrencyConverter(
     fun convert(amount: Money, toCurrency: String): Money {
         if (amount.currencyCode == toCurrency) return amount
         val inBase = amount.amount.multiply(rateToBase(amount.currencyCode))
-        val decimals = decimalPlaces[toCurrency] ?: DEFAULT_DECIMALS
+        val decimals = decimalPlacesFor(toCurrency)
         val result = inBase.divide(rateToBase(toCurrency), decimals, ROUNDING)
         return Money.of(result, toCurrency)
     }

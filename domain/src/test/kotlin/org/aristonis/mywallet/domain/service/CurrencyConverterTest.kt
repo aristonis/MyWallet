@@ -46,4 +46,18 @@ class CurrencyConverterTest {
     fun missingRate_failsLoud() {
         converter().convert(Money.of("1", "EUR"), "USD") // no EUR rate configured
     }
+
+    @Test
+    fun decimalPlacesFor_returnsTheConfiguredPrecision() {
+        val c = converter(decimals = mapOf("SYP" to 0, "KWD" to 3))
+
+        assertEquals(0, c.decimalPlacesFor("SYP"))
+        assertEquals(3, c.decimalPlacesFor("KWD"))
+    }
+
+    @Test
+    fun decimalPlacesFor_fallsBackToTheDefaultWhenTheCurrencyIsNotConfigured() {
+        assertEquals(CurrencyConverter.DEFAULT_DECIMALS, converter().decimalPlacesFor("XYZ"))
+        assertEquals(2, converter().decimalPlacesFor("USD"))
+    }
 }

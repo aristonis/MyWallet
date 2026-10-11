@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.domain.error
 
 import org.aristonis.mywallet.domain.model.Money
+import java.math.BigDecimal
 
 /**
  * Typed, fail-loud domain errors. Sealed so callers/tests can exhaustively react to each
@@ -105,6 +106,26 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     /** A cross-currency conversion rounded the amount down to zero in the target currency — enter more. */
     class AmountRoundsToZero(val currencyCode: String) :
         WalletException("The amount is too small to convert to $currencyCode; it rounds to zero")
+
+    /** A percentage deduction must be more than 0 and at most 100. */
+    class DeductionOutOfRange(val value: BigDecimal) :
+        WalletException("Deduction percentage $value must be more than 0 and at most 100")
+
+    /** A fixed deduction amount must be more than zero. */
+    class DeductionValueNotPositive(val value: BigDecimal) :
+        WalletException("Deduction amount $value must be more than 0")
+
+    /** Rounded deductions cannot take more than the income that contains them. */
+    class DeductionsExceedIncome(val gross: Money, val total: Money) :
+        WalletException("Deductions $total exceed income $gross")
+
+    /** A saved income line still snapshots this item, so it is kept for historical integrity. */
+    class DeductionItemInUse(val id: Long) :
+        WalletException("Deduction item $id is used by saved income and cannot be deleted")
+
+    /** A saved deduction line refers to an item that is no longer available. */
+    class DeductionItemNotFound(val id: Long) :
+        WalletException("Deduction item $id not found")
 
     /** A name that is empty once trimmed. A debt is found by its person's name, so it can't be blank. */
     class NameBlank :

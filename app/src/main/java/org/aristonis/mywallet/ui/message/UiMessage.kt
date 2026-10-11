@@ -59,6 +59,14 @@ sealed interface UiMessage {
     data class RateUnderflow(val code: String) : UiMessage
     data class AmountRoundsToZero(val currencyCode: String) : UiMessage
 
+    // -- Deductions ------------------------------------------------------------------------------
+
+    data object DeductionOutOfRange : UiMessage
+    data object DeductionValueNotPositive : UiMessage
+    data object DeductionsExceedIncome : UiMessage
+    data object DeductionItemInUse : UiMessage
+    data object DeductionItemNotFound : UiMessage
+
     // -- Debts ------------------------------------------------------------------------------------
 
     data object NameBlank : UiMessage

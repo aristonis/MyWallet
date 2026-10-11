@@ -49,6 +49,12 @@ fun UiMessage.text(): String = when (this) {
     is UiMessage.RateUnderflow -> stringResource(R.string.msg_rate_underflow, code)
     is UiMessage.AmountRoundsToZero -> stringResource(R.string.msg_amount_rounds_to_zero, currencyCode)
 
+    UiMessage.DeductionOutOfRange -> stringResource(R.string.msg_deduction_out_of_range)
+    UiMessage.DeductionValueNotPositive -> stringResource(R.string.msg_deduction_value_not_positive)
+    UiMessage.DeductionsExceedIncome -> stringResource(R.string.msg_deductions_exceed_income)
+    UiMessage.DeductionItemInUse -> stringResource(R.string.msg_deduction_item_in_use)
+    UiMessage.DeductionItemNotFound -> stringResource(R.string.msg_deduction_item_not_found)
+
     UiMessage.NameBlank -> stringResource(R.string.msg_name_blank)
     UiMessage.DebtNotFound -> stringResource(R.string.msg_debt_not_found)
     UiMessage.DebtSideMismatch -> stringResource(R.string.msg_debt_side_mismatch)

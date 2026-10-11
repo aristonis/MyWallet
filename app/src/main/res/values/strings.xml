@@ -324,6 +324,12 @@
     <string name="msg_rate_underflow">The rate for %1$s is too small to express against the new base currency.</string>
     <string name="msg_amount_rounds_to_zero">That amount is too small to convert to %1$s. Enter a larger one.</string>
 
+    <string name="msg_deduction_out_of_range">Enter a percentage more than 0 and at most 100.</string>
+    <string name="msg_deduction_value_not_positive">Enter an amount more than 0.</string>
+    <string name="msg_deductions_exceed_income">Deductions cannot be more than the income.</string>
+    <string name="msg_deduction_item_in_use">This deduction is used by saved income and can\'t be deleted.</string>
+    <string name="msg_deduction_item_not_found">That deduction no longer exists.</string>
+
     <string name="msg_name_blank">Enter a name.</string>
     <string name="msg_debt_below_zero">That would take %1$s %2$s below zero.</string>
     <string name="msg_debt_name_taken">A debt named %1$s already exists on this side and currency.</string>
