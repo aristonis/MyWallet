@@ -30,7 +30,7 @@ class RecipeContractTest {
     fun theRegistryHoldsEveryKind() {
         assertEquals(
             setOf(
-                "INCOME", "EXPENSE", "TRANSFER", "BORROW", "LEND", "OWED_BEFORE",
+                "INCOME", "EXPENSE", "REFUND", "TRANSFER", "BORROW", "LEND", "OWED_BEFORE",
                 "CREDIT_PURCHASE", "EARNED_UNPAID", "REPAYMENT", "WRITE_OFF",
             ),
             EntryRecipes.all.map { it.kind }.toSet(),

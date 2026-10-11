@@ -7,6 +7,7 @@ import org.aristonis.mywallet.domain.ledger.recipe.ExpenseRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.IncomeRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.LendRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.OwedBeforeRecipe
+import org.aristonis.mywallet.domain.ledger.recipe.RefundRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.RepaymentRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.TransferRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.WriteOffRecipe
@@ -22,6 +23,7 @@ object EntryRecipes {
     val all: List<EntryRecipe<out Transaction>> = listOf(
         IncomeRecipe,
         ExpenseRecipe,
+        RefundRecipe,
         TransferRecipe,
         BorrowRecipe,
         LendRecipe,
@@ -55,6 +57,7 @@ fun Transaction.recipe(): EntryRecipe<Transaction> {
     val recipe: EntryRecipe<out Transaction> = when (this) {
         is Transaction.Income -> IncomeRecipe
         is Transaction.Expense -> ExpenseRecipe
+        is Transaction.Refund -> RefundRecipe
         is Transaction.Transfer -> TransferRecipe
         is Transaction.Borrow -> BorrowRecipe
         is Transaction.Lend -> LendRecipe

@@ -76,6 +76,7 @@ private fun headline(row: TransactionRow): String {
             )
         TransactionRowType.INCOME,
         TransactionRowType.EXPENSE,
+        TransactionRowType.REFUND,
         TransactionRowType.CREDIT_PURCHASE,
         TransactionRowType.EARNED_UNPAID,
         TransactionRowType.WRITE_OFF_LOSS,
@@ -100,6 +101,7 @@ private fun headline(row: TransactionRow): String {
 private fun supporting(row: TransactionRow): String? = when (row.type) {
     TransactionRowType.INCOME,
     TransactionRowType.EXPENSE,
+    TransactionRowType.REFUND,
     TransactionRowType.BORROW,
     TransactionRowType.LEND,
     TransactionRowType.REPAYMENT_PAID,
@@ -117,6 +119,7 @@ private fun supporting(row: TransactionRow): String? = when (row.type) {
 private fun TransactionRowType.icon(): ImageVector = when (this) {
     TransactionRowType.INCOME -> WalletIcons.Income
     TransactionRowType.EXPENSE -> WalletIcons.Expense
+    TransactionRowType.REFUND -> WalletIcons.Income
     TransactionRowType.TRANSFER -> WalletIcons.Transfer
     TransactionRowType.BORROW -> WalletIcons.Borrow
     TransactionRowType.LEND -> WalletIcons.Lend
@@ -134,6 +137,7 @@ internal fun kindLabel(type: TransactionRowType): String = stringResource(
     when (type) {
         TransactionRowType.INCOME -> R.string.cd_income
         TransactionRowType.EXPENSE -> R.string.cd_expense
+        TransactionRowType.REFUND -> R.string.transaction_type_refund
         TransactionRowType.TRANSFER -> R.string.cd_transfer
         TransactionRowType.BORROW -> R.string.transaction_type_borrow
         TransactionRowType.LEND -> R.string.transaction_type_lend

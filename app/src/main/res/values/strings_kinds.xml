@@ -3,6 +3,7 @@
     <!-- The "more kinds" entry on the add form and the fields the debt kinds add -->
     <string name="kind_more">More</string>
     <string name="kind_more_title">More transaction kinds</string>
+    <string name="transaction_type_refund">Refund</string>
     <string name="kind_counterparty">Person or business</string>
     <string name="kind_debt_side">Who owes?</string>
 </resources>

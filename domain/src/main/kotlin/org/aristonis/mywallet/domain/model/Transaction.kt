@@ -44,6 +44,24 @@ sealed interface Transaction {
         init { require(amount.isPositive) { "expense amount must be > 0" } }
     }
 
+    /**
+     * Money returned after an expense. The account receives [amount], while the expense category is
+     * reduced by the same exact amount. It is deliberately its own kind: a refund is not income.
+     */
+    data class Refund(
+        override val id: Long = 0,
+        val accountId: Long,
+        val amount: Money,
+        val categoryId: Long,
+        val subCategoryId: Long? = null,
+        override val date: LocalDate,
+        override val note: String? = null,
+        /** The rate to the base currency this refund was recorded with; null means none is stored yet. */
+        val rateToBase: BigDecimal? = null,
+    ) : Transaction {
+        init { require(amount.isPositive) { "refund amount must be > 0" } }
+    }
+
     data class Transfer(
         override val id: Long = 0,
         val sourceAccountId: Long,

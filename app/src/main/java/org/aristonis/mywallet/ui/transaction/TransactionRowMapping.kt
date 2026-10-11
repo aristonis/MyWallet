@@ -68,6 +68,7 @@ internal fun Transaction.toRow(lookups: RowLookups, moneyFormatter: MoneyFormatt
 internal fun Transaction.rowType(): TransactionRowType = when (this) {
     is Transaction.Income -> TransactionRowType.INCOME
     is Transaction.Expense -> TransactionRowType.EXPENSE
+    is Transaction.Refund -> TransactionRowType.REFUND
     is Transaction.Transfer -> TransactionRowType.TRANSFER
     is Transaction.Borrow -> TransactionRowType.BORROW
     is Transaction.Lend -> TransactionRowType.LEND
@@ -87,6 +88,7 @@ internal fun Transaction.rowType(): TransactionRowType = when (this) {
 private fun Transaction.rowShape(lookups: RowLookups): RowShape = when (this) { // exhaustive — no `else`
     is Transaction.Income -> RowShape(lookups.accountName(accountId), lookups.categoryLabel(categoryId))
     is Transaction.Expense -> RowShape(lookups.accountName(accountId), lookups.categoryLabel(categoryId))
+    is Transaction.Refund -> RowShape(lookups.accountName(accountId), lookups.categoryLabel(categoryId))
     is Transaction.Transfer -> RowShape(
         lookups.accountName(sourceAccountId), categoryLabel = null,
         destAccountName = lookups.accountName(destAccountId), destAmount = destAmount,

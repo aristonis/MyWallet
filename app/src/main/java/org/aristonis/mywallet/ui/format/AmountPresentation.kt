@@ -30,6 +30,8 @@ fun signedAmount(role: AmountRole, display: String): String = when (role) {
  */
 fun TransactionRowType.amountRole(): AmountRole = when (this) {
     TransactionRowType.INCOME,
+    // It returns money to the account. Its distinct REFUND kind keeps it out of income reporting.
+    TransactionRowType.REFUND,
     TransactionRowType.EARNED_UNPAID,
     TransactionRowType.WRITE_OFF_FORGIVEN,
     -> AmountRole.INCOME

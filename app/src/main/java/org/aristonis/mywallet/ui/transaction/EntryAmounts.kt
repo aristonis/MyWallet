@@ -11,6 +11,7 @@ import org.aristonis.mywallet.domain.model.Transaction
 internal fun Transaction.movedAmount(): Money = when (this) {
     is Transaction.Income -> amount
     is Transaction.Expense -> amount
+    is Transaction.Refund -> amount
     is Transaction.Transfer -> sourceAmount
     is Transaction.Borrow -> amount
     is Transaction.Lend -> amount
@@ -30,6 +31,7 @@ internal fun Transaction.movedAmount(): Money = when (this) {
 internal fun Transaction.countedAmount(): Money? = when (this) {
     is Transaction.Income -> amount
     is Transaction.Expense -> amount
+    is Transaction.Refund -> -amount
     is Transaction.Transfer -> null
     is Transaction.Borrow -> null
     is Transaction.Lend -> null

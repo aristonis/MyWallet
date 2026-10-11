@@ -264,6 +264,7 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
     private fun Transaction.withId(id: Long): Transaction = when (this) {
         is Transaction.Income -> copy(id = id)
         is Transaction.Expense -> copy(id = id)
+        is Transaction.Refund -> copy(id = id)
         is Transaction.Transfer -> copy(id = id)
         is Transaction.Borrow -> copy(id = id)
         is Transaction.Lend -> copy(id = id)

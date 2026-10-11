@@ -28,7 +28,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.Locale
 
-/** The list rows of the seven debt kinds: their type, the amount that moved and the amount that counts. */
+/** The list rows of the debt kinds plus refunds: their type, the amount that moved and the amount that counts. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TransactionsListDebtKindsTest {
 
@@ -70,6 +70,7 @@ class TransactionsListDebtKindsTest {
         assertEquals(
             setOf(
                 "INCOME", "EXPENSE", "TRANSFER", "BORROW", "LEND", "OWED_BEFORE",
+                "REFUND",
                 "CREDIT_PURCHASE", "EARNED_UNPAID", "REPAYMENT_PAID", "REPAYMENT_RECEIVED",
                 "WRITE_OFF_LOSS", "WRITE_OFF_FORGIVEN",
             ),
@@ -118,6 +119,23 @@ class TransactionsListDebtKindsTest {
         assertEquals(TransactionRowType.EARNED_UNPAID, earned.type)
         assertEquals(usd("800"), earned.countedAmount)
         assertEquals(CategoryLabel.Named("Salary"), earned.categoryLabel)
+    }
+
+    @Test
+    fun aRefundHasItsOwnRowTypeAndReducesTheCountedExpense() = rowsOf(
+        listOf(
+            Transaction.Refund(
+                id = 10, accountId = 1, amount = usd("25"), categoryId = 20, date = day,
+            ),
+        ),
+    ) { rows ->
+        val refund = rows.getValue(10)
+        assertEquals(TransactionRowType.REFUND, refund.type)
+        assertEquals(usd("25"), refund.amount)
+        assertEquals("Cash", refund.accountName)
+        assertEquals(CategoryLabel.Named("Food"), refund.categoryLabel)
+        assertEquals(usd("-25"), refund.countedAmount)
+        assertEquals("-25.00 USD", refund.countedAmountDisplay)
     }
 
     @Test

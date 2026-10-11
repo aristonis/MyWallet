@@ -174,6 +174,7 @@ class DebtRecipesTest : DebtRecipeFixtures() {
     fun theRegistryAnswersTheTrackingRuleOfARoleOnAKind() {
         assertEquals(TrackingRule.EXPENSE, EntryRecipes.trackingRule("CREDIT_PURCHASE", LegRole.MAIN))
         assertEquals(TrackingRule.INCOME, EntryRecipes.trackingRule("EARNED_UNPAID", LegRole.MAIN))
+        assertEquals(TrackingRule.REDUCES_EXPENSE, EntryRecipes.trackingRule("REFUND", LegRole.MAIN))
         assertEquals(TrackingRule.EXPENSE, EntryRecipes.trackingRule("REPAYMENT", LegRole.INTEREST_PAID))
         assertEquals(TrackingRule.INCOME, EntryRecipes.trackingRule("REPAYMENT", LegRole.INTEREST_RECEIVED))
         assertEquals(TrackingRule.EXPENSE, EntryRecipes.trackingRule("WRITE_OFF", LegRole.LOSS))
@@ -185,15 +186,15 @@ class DebtRecipesTest : DebtRecipeFixtures() {
     @Test
     fun onlyOwedBeforeOpensBalances() {
         assertTrue(EntryRecipes.forKind("OWED_BEFORE")!!.opensBalances)
-        listOf("BORROW", "LEND", "CREDIT_PURCHASE", "EARNED_UNPAID", "REPAYMENT", "WRITE_OFF").forEach {
+        listOf("BORROW", "LEND", "CREDIT_PURCHASE", "EARNED_UNPAID", "REFUND", "REPAYMENT", "WRITE_OFF").forEach {
             assertFalse(it, EntryRecipes.forKind(it)!!.opensBalances)
         }
     }
 
     @Test
-    fun theRegistryHoldsAllTenKindsInAStableOrder() {
+    fun theRegistryHoldsAllElevenKindsInAStableOrder() {
         val kinds = listOf(
-            "INCOME", "EXPENSE", "TRANSFER", "BORROW", "LEND", "OWED_BEFORE",
+            "INCOME", "EXPENSE", "REFUND", "TRANSFER", "BORROW", "LEND", "OWED_BEFORE",
             "CREDIT_PURCHASE", "EARNED_UNPAID", "REPAYMENT", "WRITE_OFF",
         )
         assertEquals(kinds, EntryRecipes.all.map { it.kind })

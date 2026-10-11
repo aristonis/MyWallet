@@ -11,6 +11,7 @@ import java.time.LocalDate
 enum class TransactionRowType {
     INCOME,
     EXPENSE,
+    REFUND,
     TRANSFER,
     BORROW,
     LEND,
