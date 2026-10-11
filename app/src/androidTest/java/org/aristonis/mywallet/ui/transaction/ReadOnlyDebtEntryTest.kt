@@ -1,6 +1,10 @@
 package org.aristonis.mywallet.ui.transaction
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -73,5 +77,6 @@ class ReadOnlyDebtEntryTest {
         compose.onNodeWithText("Delete").performScrollTo().performClick()
         compose.onNode(hasText("Delete") and hasAnyAncestor(isDialog())).performClick()
         compose.onNode(hasText("That would take", substring = true) and hasText("Sara", substring = true)).assertIsDisplayed()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 }

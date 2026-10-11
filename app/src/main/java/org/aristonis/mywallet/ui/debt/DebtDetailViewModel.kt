@@ -14,12 +14,18 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.DebtDetail
+import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
+import org.aristonis.mywallet.domain.model.UndoBundle
+import org.aristonis.mywallet.domain.usecase.DeleteDebt
+import org.aristonis.mywallet.domain.usecase.PreviewDebtDeletion
+import org.aristonis.mywallet.domain.usecase.RestoreEntries
+import org.aristonis.mywallet.domain.usecase.WriteOffDebt
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.ObserveDebt
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
@@ -47,9 +53,13 @@ data class DebtDetailUiState(
     val loadFailed: Boolean = false,
     val loadError: UiMessage? = null,
     val isSubmitting: Boolean = false,
+    val writeOffDialog: WriteOffDialogUiState? = null,
+    val deleteDialog: DeleteDebtDialogUiState? = null,
+    val undoableDelete: UndoBundle? = null,
+    val deleted: Boolean = false,
 )
 
-/** Reads one debt with its entries and saves edits to its name, due date and note. */
+/** Reads one debt and serializes metadata edits, write-offs, deletion and recoverable undo. */
 @HiltViewModel
 class DebtDetailViewModel @Inject constructor(
     private val observeDebt: ObserveDebt,
@@ -61,6 +71,12 @@ class DebtDetailViewModel @Inject constructor(
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     private val errors: ErrorReporter,
     private val observeLedgerHealth: ObserveLedgerHealth,
+    categories: CategoryRepository,
+    roles: CategoryRoleRepository,
+    writeOffDebt: WriteOffDebt,
+    previewDebtDeletion: PreviewDebtDeletion,
+    deleteDebt: DeleteDebt,
+    restoreEntries: RestoreEntries,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(DebtDetailUiState())
     val state: StateFlow<DebtDetailUiState> = mutableState.asStateFlow()
@@ -69,11 +85,15 @@ class DebtDetailViewModel @Inject constructor(
     private var reads: Job? = null
     private var persistedDebt: Debt? = null
     private var actionError: UiMessage? = null
+    private val actions = DebtDetailActions(viewModelScope, defaultDispatcher, mutableState, { loadedId },
+        categories, roles, currencies, moneyFormatter, today, writeOffDebt, previewDebtDeletion, deleteDebt,
+        restoreEntries, errors, { actionError = it })
 
     /** Starts reading [debtId]; asking again for the debt already loaded does nothing. */
     fun load(debtId: Long) {
         if (loadedId == debtId) return
         reads?.cancel()
+        actions.reset()
         loadedId = debtId
         persistedDebt = null
         actionError = null
@@ -147,24 +167,28 @@ class DebtDetailViewModel @Inject constructor(
         submit { id -> updateDebtDetails(id, draft.dueDate, draft.noteInput.takeIf(String::isNotBlank)) }
     }
 
-    private fun submit(write: suspend (Long) -> Unit) {
-        val id = loadedId ?: return
-        if (state.value.isSubmitting || state.value.loadFailed || state.value.detail == null) return
-        actionError = null
-        mutableState.update { it.copy(isSubmitting = true, error = null) }
-        viewModelScope.launch {
-            try {
-                withContext(defaultDispatcher) { write(id) }
-            } catch (failure: Throwable) {
-                if (failure is CancellationException) throw failure
-                errors.report("Debt details could not be saved", failure)
-                actionError = failure.toUiMessage()
-                mutableState.update { it.copy(error = actionError) }
-            } finally {
-                mutableState.update { it.copy(isSubmitting = false) }
-            }
-        }
-    }
+    private fun submit(write: suspend (Long) -> Unit) = actions.saveMetadata(write)
+
+    /** Opens loss or forgiveness with a valid bound category, or requires the person to choose one. */
+    fun openWriteOff() = actions.openWriteOff()
+    /** Chooses one of the top-level categories offered by the write-off dialog. */
+    fun selectWriteOffCategory(id: Long) = actions.selectWriteOffCategory(id)
+    /** Changes the write-off date while the dialog is idle. */
+    fun setWriteOffDate(date: LocalDate) = actions.setWriteOffDate(date)
+    /** Writes off the remaining amount read inside the transaction, using the chosen category and date. */
+    fun confirmWriteOff() = actions.confirmWriteOff()
+    /** Closes the idle write-off dialog. */
+    fun dismissWriteOff() = actions.dismissWriteOff()
+    /** Reads a deletion preview before asking for confirmation. */
+    fun openDeleteDebt() = actions.openDeleteDebt()
+    /** Deletes current debt history by id and keeps the result available for undo. */
+    fun confirmDeleteDebt() = actions.confirmDeleteDebt()
+    /** Closes the idle deletion preview. */
+    fun dismissDeleteDebt() = actions.dismissDeleteDebt()
+    /** Restores the delete bundle; a refusal keeps it available for another attempt. */
+    fun undoDeleteDebt() = actions.undoDeleteDebt()
+    /** Finishes a deletion after its undo opportunity closes. */
+    fun confirmDeleted() = actions.confirmDeleted()
 
     fun retry() = attempts.retry()
 

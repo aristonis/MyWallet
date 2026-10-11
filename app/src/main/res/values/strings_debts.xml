@@ -46,4 +46,21 @@
     <string name="debt_note">Note</string>
     <string name="debt_save_details">Save details</string>
     <string name="debt_history">Debt history</string>
+    <!-- Write-off and whole-debt deletion -->
+    <string name="debt_write_off_rest">Write off the rest</string>
+    <string name="debt_write_off">Write off</string>
+    <string name="debt_more_options">More options</string>
+    <string name="debt_delete">Delete debt</string>
+    <string name="debt_delete_title">Delete debt for %1$s?</string>
+    <string name="debt_delete_remaining">Remaining after deletion: %1$s</string>
+    <string name="debt_deleted">Debt deleted</string>
+    <string name="debt_undo_failed">Undo failed. You can try again.</string>
+    <plurals name="debt_delete_removed">
+        <item quantity="one">%1$d entry will be removed.</item>
+        <item quantity="other">%1$d entries will be removed.</item>
+    </plurals>
+    <plurals name="debt_delete_retained">
+        <item quantity="one">%1$d income entry will stay.</item>
+        <item quantity="other">%1$d income entries will stay.</item>
+    </plurals>
 </resources>

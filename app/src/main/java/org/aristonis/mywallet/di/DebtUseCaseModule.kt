@@ -9,6 +9,10 @@ import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.TransactionRunner
+import org.aristonis.mywallet.domain.usecase.DeleteDebt
+import org.aristonis.mywallet.domain.usecase.PreviewDebtDeletion
+import org.aristonis.mywallet.domain.usecase.SaveEntry
+import org.aristonis.mywallet.domain.usecase.WriteOffDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebts
 import org.aristonis.mywallet.domain.usecase.RenameDebt
@@ -43,6 +47,19 @@ object DebtUseCaseModule {
     @Provides @Singleton
     fun provideUpdateDebtDetails(runner: TransactionRunner, debts: DebtRepository): UpdateDebtDetails =
         UpdateDebtDetails(runner, debts)
+
+    @Provides @Singleton
+    fun provideWriteOffDebt(runner: TransactionRunner, debts: DebtRepository,
+        ledger: LedgerQueries, saveEntry: SaveEntry): WriteOffDebt = WriteOffDebt(runner, debts, ledger, saveEntry)
+
+    @Provides @Singleton
+    fun providePreviewDebtDeletion(runner: TransactionRunner, debts: DebtRepository,
+        entries: EntryRepository, ledger: LedgerQueries): PreviewDebtDeletion =
+        PreviewDebtDeletion(runner, debts, entries, ledger)
+
+    @Provides @Singleton
+    fun provideDeleteDebt(runner: TransactionRunner, debts: DebtRepository,
+        entries: EntryRepository, ledger: LedgerQueries): DeleteDebt = DeleteDebt(runner, debts, entries, ledger)
 
     @Provides @Singleton
     fun provideSuggestCounterparties(debts: DebtRepository): SuggestCounterparties =

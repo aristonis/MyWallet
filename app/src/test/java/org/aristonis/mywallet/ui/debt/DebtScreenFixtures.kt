@@ -12,6 +12,7 @@ import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FxSnapshot
@@ -19,17 +20,29 @@ import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.NameKey
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.DebtLeg
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
+import org.aristonis.mywallet.domain.service.RoleCategories
+import org.aristonis.mywallet.domain.usecase.DeleteDebt
+import org.aristonis.mywallet.domain.usecase.PreviewDebtDeletion
+import org.aristonis.mywallet.domain.usecase.RestoreEntries
+import org.aristonis.mywallet.domain.usecase.SaveEntry
+import org.aristonis.mywallet.domain.usecase.SetExchangeRate
+import org.aristonis.mywallet.domain.usecase.WriteOffDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebt
 import org.aristonis.mywallet.domain.usecase.ObserveDebts
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.usecase.RenameDebt
 import org.aristonis.mywallet.domain.usecase.UpdateDebtDetails
+import org.aristonis.mywallet.ui.transaction.FakeAccountRepository
+import org.aristonis.mywallet.ui.transaction.FakeCategoryRepository
+import org.aristonis.mywallet.ui.transaction.FakeRateRepository
+import org.aristonis.mywallet.ui.transaction.FakeSettingsRepository
 import org.aristonis.mywallet.ui.transaction.FakeCurrencyRepository
 import org.aristonis.mywallet.ui.transaction.FakeDebtRepository
 import org.aristonis.mywallet.ui.transaction.FakeEntryRepository
@@ -103,7 +116,19 @@ internal class DebtScreenRig(initialDebts: List<Debt>, initialEntries: List<Tran
     }
     fun list() = DebtsViewModel(ObserveDebts(debtPort, ledger, fx, today.dates), ObserveLedgerHealth(ledger),
         currencies, MoneyFormatter(Locale.US), today, work, errors)
+    private val categories = FakeCategoryRepository()
+    private val accounts = FakeAccountRepository()
+    private val rates = FakeRateRepository()
+    private val settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
+    private val roles = object : CategoryRoleRepository {
+        override suspend fun categoryFor(role: org.aristonis.mywallet.domain.model.CategoryRole): Long? = null
+    }
+    private val save = SaveEntry(runner, accounts, categories, entryPort, fx, settings,
+        SetExchangeRate(currencies, rates, ledger, runner, settings), debtPort, ledger, RoleCategories(roles, categories))
     fun detail() = DebtDetailViewModel(ObserveDebt(debtPort, ledger, entryPort, today.dates),
         RenameDebt(runner, debtPort), UpdateDebtDetails(runner, debtPort), currencies, MoneyFormatter(Locale.US),
-        today, work, errors, ObserveLedgerHealth(ledger))
+        today, work, errors, ObserveLedgerHealth(ledger), categories, roles,
+        WriteOffDebt(runner, debtPort, ledger, save), PreviewDebtDeletion(runner, debtPort, entryPort, ledger),
+        DeleteDebt(runner, debtPort, entryPort, ledger),
+        RestoreEntries(runner, entryPort, categories, accounts, debtPort, ledger))
 }
