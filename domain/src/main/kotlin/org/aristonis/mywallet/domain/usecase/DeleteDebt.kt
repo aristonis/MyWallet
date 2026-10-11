@@ -27,15 +27,16 @@ class DeleteDebt(
      * Returns the removed entries and the debt row so the delete can be undone.
      *
      * @throws WalletException.DebtNotFound when [debtId] has no row.
-     * @throws WalletException.DebtBelowZero when the remaining entries would leave a debt owing less than nothing.
+     * @throws WalletException.DebtBelowZero when the remaining entries would create or worsen a negative debt balance.
      */
     suspend operator fun invoke(debtId: Long): UndoBundle = runner.inTransaction {
         val debt = debts.findById(debtId) ?: throw WalletException.DebtNotFound(debtId)
         val ownEntries = entries.deletableDebtEntries(debtId)
         val touched = DebtGuard.touchedDebtIds(ownEntries.flatMap { it.toParts().legs }, emptyList()) + debtId
+        val before = debtGuard.remaining(touched)
         ownEntries.forEach { entries.delete(it.id) }
         debts.updateDetails(debtId, dueDate = null, note = null)
-        debtGuard.check(touched)
+        debtGuard.check(touched, before)
         UndoBundle(entries = ownEntries, debts = listOf(debt))
     }
 }

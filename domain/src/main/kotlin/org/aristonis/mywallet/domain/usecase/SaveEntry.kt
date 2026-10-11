@@ -33,8 +33,9 @@ data class SavedEntry(val id: Long, val date: LocalDate)
 /**
  * Saves a new entry (id 0) or rewrites an existing one, of any kind, as one database transaction.
  *
- * References and rates are checked inside the runner. Each debt's remaining is checked after the
- * write, including a debt an edit moved away from. Refusal rolls back the entry, newly resolved debts,
+ * References and rates are checked inside the runner. Each touched debt is compared before and after
+ * the write, including a debt an edit moved away from. An existing negative balance may stay unchanged
+ * or improve, but cannot worsen. Refusal rolls back the entry, newly resolved debts,
  * role fallback categories, details and typed rates together.
  *
  * The save decides every rate; any rate on the entry it is given is ignored. Rates come from
@@ -93,12 +94,12 @@ class SaveEntry(
             // Reusing a settled person starts fresh; editing their existing loan keeps its details.
             val reopenCandidates = DebtGuard.touchedDebtIds(emptyList(), parts.legs) -
                 DebtGuard.touchedDebtIds(oldLegs, emptyList())
-            val before = debtGuard.remaining(reopenCandidates)
+            val before = debtGuard.remaining(touched)
             // A new entry has no old legs, so every category leg is rated afresh.
             val stamped = recipe.fromLegs(parts.copy(legs = book.restamp(parts.legs, oldLegs)))
             val id = if (old == null) entries.insert(stamped) else stamped.id.also { entries.replace(stamped) }
 
-            val after = debtGuard.check(touched)
+            val after = debtGuard.check(touched, before)
             reopenCandidates.forEach { debtId ->
                 if (before[debtId]?.remaining?.isZero != false && after[debtId]?.remaining?.isPositive == true) {
                     debts.updateDetails(debtId, dueDate = null, note = null)

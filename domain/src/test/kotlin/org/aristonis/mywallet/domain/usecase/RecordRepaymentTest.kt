@@ -109,16 +109,26 @@ class RecordRepaymentTest {
         assertEquals(7L, rig.saved(paid.id).debtId)
     }
 
-    @Test fun movingARepaymentStillGuardsACorruptOldDebtBelowZero() = runTest {
+    @Test fun movingARepaymentCanImproveACorruptOldDebtWithoutFullyRepairingIt() = runTest {
         val other = DebtEntryWorld.ali.copy(id = 9, counterparty = "Omar")
         val paid = Transaction.Repayment(id = 2, side = DebtSide.I_OWE, accountId = 1, debtId = 7,
             accountAmount = usd("100"), principal = usd("100"), date = day)
         val rig = RepaymentTestRig(debts = listOf(DebtEntryWorld.ali, other),
             initialEntries = listOf(opening(amount = "50"), paid, paid.copy(id = 4), opening(id = 3, debtId = 9, amount = "500")))
-        val failure = runCatching { rig.record(9, 1, usd("10"), day, id = 2) }.exceptionOrNull()
-        assertTrue("was $failure", failure is WalletException.DebtBelowZero)
-        assertEquals(paid, rig.saved(2))
-        assertEquals(usd("500"), rig.remaining(9))
+        val unchanged = rig.store.entries.rows.value.filter { it.header.id != paid.id }
+        val saved = rig.record(9, 1, usd("10"), day, id = paid.id)
+
+        assertEquals(paid.id, saved.id)
+        val moved = rig.saved(saved.id)
+        assertEquals(9L, moved.debtId)
+        assertEquals(usd("10"), moved.principal)
+        assertEquals(usd("10"), moved.accountAmount)
+        assertEquals(paid.accountId, moved.accountId)
+        assertEquals(paid.side, moved.side)
+        assertEquals(paid.date, moved.date)
+        assertEquals(usd("-50"), rig.remaining(7))
+        assertEquals(usd("490"), rig.remaining(9))
+        assertEquals(unchanged, rig.store.entries.rows.value.filter { it.header.id != paid.id })
     }
 
     @Test fun anEarlierDateDoesNotRejectAnOtherwiseValidRepayment() = runTest {

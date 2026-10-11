@@ -25,11 +25,11 @@ class DebtEntryGuard(private val debts: DebtRepository, private val ledger: Ledg
         if (ids.isEmpty()) emptyMap() else DebtRemaining.byDebt(ledger.debtLegs(ids))
 
     /** Re-read after writing so every debt the change left behind is checked before commit. */
-    suspend fun check(ids: Set<Long>): Map<Long, DebtBalance> {
+    suspend fun check(ids: Set<Long>, before: Map<Long, DebtBalance> = emptyMap()): Map<Long, DebtBalance> {
         val balances = remaining(ids)
         ids.forEach { id ->
             val debt = requireDebt(id)
-            DebtGuard.check(debt, balances[id]?.remaining ?: Money.zero(debt.currencyCode))
+            DebtGuard.check(debt, balances[id]?.remaining ?: Money.zero(debt.currencyCode), before[id]?.remaining)
         }
         return balances
     }

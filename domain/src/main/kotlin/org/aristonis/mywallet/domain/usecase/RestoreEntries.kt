@@ -27,7 +27,7 @@ import org.aristonis.mywallet.domain.service.DebtGuard
  * instead of overwriting that entry.
  *
  * Debt snapshots restore only due dates and notes on rows that still exist; undo never creates a
- * person again. A below-zero remaining aborts the entries and restored details together.
+ * person again. Creating or worsening a negative balance aborts the entries and restored details together.
  */
 class RestoreEntries(
     private val runner: TransactionRunner,
@@ -60,9 +60,11 @@ class RestoreEntries(
                 .forEach { categories.requireTransactionCategories(it.id, it.subId) }
             debtGuard.requireReferences(legs)
             bundle.debts.forEach { debtGuard.requireDebt(it.id) }
+            val touched = DebtGuard.touchedDebtIds(emptyList(), legs) + bundle.debts.map { it.id }
+            val before = debtGuard.remaining(touched)
             bundle.entries.forEach { entries.insert(it) }
             bundle.debts.forEach { debts.updateDetails(it.id, it.dueDate, it.note) }
-            debtGuard.check(DebtGuard.touchedDebtIds(emptyList(), legs) + bundle.debts.map { it.id })
+            debtGuard.check(touched, before)
         }
     }
 }

@@ -13,7 +13,7 @@ import org.aristonis.mywallet.domain.service.DebtGuard
 /**
  * Removes an entry with all its legs and hands back what was removed, so [RestoreEntries] can undo
  * it. The entry is read inside the same transaction as the delete, so the bundle holds exactly the
- * row that went, not one read a moment earlier. Balances recompute through the reactive read path.
+ * row that went, not one read a moment earlier. A negative debt balance may stay unchanged or improve, but cannot worsen.
  */
 class DeleteEntry(
     private val runner: TransactionRunner,
@@ -26,8 +26,9 @@ class DeleteEntry(
     suspend operator fun invoke(id: Long): UndoBundle = runner.inTransaction {
         val entry = entries.findById(id) ?: throw WalletException.TransactionNotFound(id)
         val touched = DebtGuard.touchedDebtIds(entry.toParts().legs, emptyList())
+        val before = debtGuard.remaining(touched)
         entries.delete(id)
-        debtGuard.check(touched)
+        debtGuard.check(touched, before)
         UndoBundle(entries = listOf(entry))
     }
 }

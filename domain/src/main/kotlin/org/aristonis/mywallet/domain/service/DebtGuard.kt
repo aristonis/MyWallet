@@ -7,12 +7,10 @@ import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.Money
 
 /**
- * The rule that no debt is ever left owing less than nothing.
- *
- * It is pure: it reads no storage. The save path asks [touchedDebtIds] which debts an entry's old and
- * new legs reach, re-sums each of those inside the runner transaction once the legs are written, and
- * calls [check] on each. A throw there rolls the whole save back, so a refused payment leaves nothing
- * behind. Reading a debt's remaining is added to the ledger port by the first save that needs it.
+ * Prevents debt writes from creating or worsening a negative remaining balance.
+ * Existing invalid balances may stay unchanged or improve so their history can be repaired.
+ * Writers read the touched debts before and after the write inside the same transaction;
+ * a refusal rolls back the whole write.
  */
 object DebtGuard {
 
@@ -30,15 +28,19 @@ object DebtGuard {
             .toSet()
 
     /**
-     * Refuses a [remaining] below zero on [debt].
+     * Refuses a [remaining] below zero unless an already negative balance stays the same or improves.
      *
      * @throws IllegalArgumentException when [remaining] is not in the debt's currency.
      * @throws WalletException.DebtBelowZero naming the counterparty as typed and how far below zero.
      */
-    fun check(debt: Debt, remaining: Money) {
+    fun check(debt: Debt, remaining: Money, previousRemaining: Money? = null) {
         require(remaining.currencyCode == debt.currencyCode) {
             "remaining currency ${remaining.currencyCode} != debt currency ${debt.currencyCode}"
         }
-        if (remaining.isNegative) throw WalletException.DebtBelowZero(debt.counterparty, -remaining)
+        if (previousRemaining != null) require(previousRemaining.currencyCode == debt.currencyCode)
+        val improvesExistingNegative = previousRemaining != null && previousRemaining.isNegative && remaining >= previousRemaining
+        if (remaining.isNegative && !improvesExistingNegative) {
+            throw WalletException.DebtBelowZero(debt.counterparty, -remaining)
+        }
     }
 }
