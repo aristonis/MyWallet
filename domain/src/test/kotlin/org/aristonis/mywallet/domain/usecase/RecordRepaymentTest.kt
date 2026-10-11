@@ -98,6 +98,24 @@ class RecordRepaymentTest {
         assertEquals(usd("400"), rig.saved(paid.id).principal)
     }
 
+    @Test fun editingARepaymentCanImproveAnAlreadyNegativeDebt() = runTest {
+        val original = Transaction.Repayment(
+            id = 2,
+            side = DebtSide.I_OWE,
+            accountId = 1,
+            debtId = 7,
+            accountAmount = usd("100"),
+            principal = usd("100"),
+            date = day,
+        )
+        val rig = RepaymentTestRig(initialEntries = listOf(opening(amount = "50"), original))
+
+        rig.record(7, 1, usd("75"), day, id = original.id)
+
+        assertEquals(usd("75"), rig.saved(original.id).principal)
+        assertEquals(usd("-25"), rig.remaining())
+    }
+
     @Test fun movingARepaymentDoesNotAddItsOldPrincipalToTheNewDebtAllowance() = runTest {
         val other = DebtEntryWorld.ali.copy(id = 9, counterparty = "Omar")
         val rig = RepaymentTestRig(debts = listOf(DebtEntryWorld.ali, other),

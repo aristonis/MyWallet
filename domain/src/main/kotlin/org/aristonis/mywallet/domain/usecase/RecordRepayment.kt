@@ -92,8 +92,12 @@ class RecordRepayment(
     ): Money {
         val current = debtGuard.remaining(setOf(debt.id))[debt.id]?.remaining ?: Money.zero(debt.currencyCode)
         val available = if (old?.debtId == debt.id) current + old.principal else current
+        // Editing the repayment of an overpaid debt may pay it down, so the up-front check is skipped.
+        // SaveEntry's check inside the transaction refuses any edit that leaves the debt worse off.
+        val repairingExistingNegative = old?.debtId == debt.id && current.isNegative
         if (principal == null) {
-            DebtGuard.check(debt, available)
+            // Pay the rest needs a balance of zero or more once the old principal is put back.
+            if (!repairingExistingNegative || available.isNegative) DebtGuard.check(debt, available)
             if (available.isZero && interest == null) throw WalletException.DebtHasNoRemaining(debt.counterparty)
         }
         val resolved = principal ?: available
@@ -101,7 +105,9 @@ class RecordRepayment(
             throw WalletException.CurrencyMismatch(resolved.currencyCode, debt.currencyCode)
         }
         require(!resolved.isNegative) { "repayment principal must not be negative" }
-        if (resolved > available) throw WalletException.RepaymentExceedsRemaining(available)
+        if (!repairingExistingNegative && resolved > available) {
+            throw WalletException.RepaymentExceedsRemaining(available)
+        }
         return resolved
     }
 
