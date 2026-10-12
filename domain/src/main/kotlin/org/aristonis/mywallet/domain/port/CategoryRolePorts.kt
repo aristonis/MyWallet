@@ -9,4 +9,7 @@ interface CategoryRoleRepository {
      * binding goes with it, so a null means "use the kind's Uncategorized bucket".
      */
     suspend fun categoryFor(role: CategoryRole): Long?
+
+    /** Binds only a role without a valid category; an existing valid binding is preserved. */
+    suspend fun bindIfMissing(role: CategoryRole, categoryId: Long): Boolean
 }

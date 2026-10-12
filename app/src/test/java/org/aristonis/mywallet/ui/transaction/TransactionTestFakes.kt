@@ -331,6 +331,8 @@ internal class EntryUseCases(
         FakeFxRepository(currencies, rates, settings), settings, SetExchangeRate(currencies, rates, ledger, runner, settings),
         debts, ledger, RoleCategories(object : CategoryRoleRepository {
             override suspend fun categoryFor(role: CategoryRole): Long? = null
+            override suspend fun bindIfMissing(role: CategoryRole, categoryId: Long): Boolean =
+                error("role binding is not exercised by this fixture")
         }, categories),
     )
     val deleteEntry = DeleteEntry(runner, entries, debts, ledger)

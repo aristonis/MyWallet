@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
@@ -78,7 +79,11 @@ object UseCaseModule {
     fun provideSetAccountArchived(accounts: AccountRepository): SetAccountArchived = SetAccountArchived(accounts)
 
     @Provides @Singleton
-    fun provideCreateCategory(categories: CategoryRepository): CreateCategory = CreateCategory(categories)
+    fun provideCreateCategory(
+        categories: CategoryRepository,
+        roles: CategoryRoleRepository,
+        runner: TransactionRunner,
+    ): CreateCategory = CreateCategory(categories, roles, runner)
 
     @Provides @Singleton
     fun provideRenameCategory(categories: CategoryRepository): RenameCategory = RenameCategory(categories)

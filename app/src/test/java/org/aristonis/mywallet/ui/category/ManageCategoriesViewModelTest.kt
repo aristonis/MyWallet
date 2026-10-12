@@ -12,7 +12,6 @@ import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.usecase.CreateCategory
 import org.aristonis.mywallet.domain.usecase.DeleteCategory
 import org.aristonis.mywallet.domain.usecase.ObserveCategoryUsage
 import org.aristonis.mywallet.domain.usecase.RenameCategory
@@ -88,7 +87,7 @@ class ManageCategoriesViewModelTest {
             categories = categories,
             observeCategoryUsage = ObserveCategoryUsage(ledger),
             observeLedgerHealth = ledger.health(),
-            createCategory = CreateCategory(categories),
+            createCategory = categoryCreator(categories),
             renameCategory = RenameCategory(categories),
             deleteCategory = DeleteCategory(categories),
             errors = errors,

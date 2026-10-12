@@ -12,7 +12,6 @@ import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
-import org.aristonis.mywallet.domain.usecase.CreateCategory
 import org.aristonis.mywallet.domain.usecase.DeleteCategory
 import org.aristonis.mywallet.domain.usecase.ObserveCategoryUsage
 import org.aristonis.mywallet.domain.usecase.RenameCategory
@@ -56,7 +55,7 @@ class ManageCategoriesLedgerTest {
         categories = categories,
         observeCategoryUsage = ObserveCategoryUsage(ledger),
         observeLedgerHealth = ledger.health(),
-        createCategory = CreateCategory(categories),
+        createCategory = categoryCreator(categories),
         renameCategory = RenameCategory(categories),
         deleteCategory = DeleteCategory(categories),
         errors = errors,

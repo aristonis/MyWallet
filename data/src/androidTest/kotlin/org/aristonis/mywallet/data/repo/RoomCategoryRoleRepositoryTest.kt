@@ -11,10 +11,13 @@ import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.CategoryRole
+import org.aristonis.mywallet.domain.usecase.CreateCategory
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -56,6 +59,50 @@ class RoomCategoryRoleRepositoryTest {
                 CategoryRoleEntity(CategoryRole.FEES.name, fees.id),
             ),
         )
+    }
+
+    @Test
+    fun aMissingRoleBindsOnceAndKeepsItsRenamedCategory() = runTest {
+        db.categoryDao().insertAll(listOf(fees, fees.copy(id = 4, name = "Service costs")))
+        assertTrue(roles.bindIfMissing(CategoryRole.FEES, 4))
+        assertFalse(roles.bindIfMissing(CategoryRole.FEES, fees.id))
+        assertEquals(4L, roles.categoryFor(CategoryRole.FEES))
+        assertEquals(1, db.categoryRoleDao().getAll().size)
+    }
+
+    @Test
+    fun creatingAMatchingCategoryRepairsAnInvalidRestoredBinding() = runTest {
+        db.categoryDao().insertAll(listOf(interestIn))
+        db.categoryRoleDao().insertAll(listOf(CategoryRoleEntity(CategoryRole.FEES.name, interestIn.id)))
+        val create = CreateCategory(categories, roles, RoomTransactionRunner(db))
+        val created = create("  fEeS  ", CategoryKind.EXPENSE)
+        assertEquals(created, roles.categoryFor(CategoryRole.FEES))
+        assertEquals(1, db.categoryRoleDao().getAll().size)
+    }
+
+    @Test
+    fun bindingRejectsAWrongKindWithoutDiscardingTheInvalidRestoredRow() = runTest {
+        db.categoryDao().insertAll(listOf(interestIn))
+        val invalid = CategoryRoleEntity(CategoryRole.FEES.name, interestIn.id)
+        db.categoryRoleDao().insertAll(listOf(invalid))
+        val failure = runCatching { roles.bindIfMissing(CategoryRole.FEES, interestIn.id) }.exceptionOrNull()
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals(listOf(invalid), db.categoryRoleDao().getAll())
+    }
+
+    @Test
+    fun creatingAndBindingRollBackTogetherWhenTheOuterTransactionFails() = runTest {
+        val runner = RoomTransactionRunner(db)
+        val create = CreateCategory(categories, roles, runner)
+        val failure = runCatching {
+            runner.inTransaction {
+                create("Fees", CategoryKind.EXPENSE)
+                error("injected failure after binding")
+            }
+        }.exceptionOrNull()
+        assertTrue(failure is IllegalStateException)
+        assertTrue(db.categoryDao().getAll().isEmpty())
+        assertTrue(db.categoryRoleDao().getAll().isEmpty())
     }
 
     @Test

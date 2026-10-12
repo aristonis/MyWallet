@@ -4,7 +4,11 @@ import kotlinx.coroutines.flow.first
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.model.CategoryRole
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
+import org.aristonis.mywallet.domain.port.TransactionRunner
+import java.util.Locale
 
 /**
  * Creates a category, or a sub-category when [parentId] is given. Returns the new id.
@@ -15,8 +19,13 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
  */
 class CreateCategory(
     private val categories: CategoryRepository,
+    private val roles: CategoryRoleRepository,
+    private val runner: TransactionRunner,
 ) {
-    suspend operator fun invoke(name: String, kind: CategoryKind, parentId: Long? = null): Long {
+    suspend operator fun invoke(name: String, kind: CategoryKind, parentId: Long? = null): Long =
+        runner.inTransaction { create(name, kind, parentId) }
+
+    private suspend fun create(name: String, kind: CategoryKind, parentId: Long?): Long {
         val trimmed = name.trim()
         require(trimmed.isNotBlank()) { "category name must not be blank" }
 
@@ -33,6 +42,13 @@ class CreateCategory(
         requireNameNotReserved(trimmed)
         categories.observeAll().first().requireNameFreeAmongSiblings(trimmed, kind, parentId)
 
-        return categories.upsert(Category(name = trimmed, kind = kind, parentId = parentId))
+        val id = categories.upsert(Category(name = trimmed, kind = kind, parentId = parentId))
+        if (parentId == null) {
+            val normalized = trimmed.lowercase(Locale.ROOT)
+            CategoryRole.entries.firstOrNull {
+                it.kind == kind && it.literalName.lowercase(Locale.ROOT) == normalized
+            }?.let { roles.bindIfMissing(it, id) }
+        }
+        return id
     }
 }

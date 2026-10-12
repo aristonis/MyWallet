@@ -76,6 +76,8 @@ internal class DebtActionFixture(work: CoroutineDispatcher, val debt: Debt = scr
     var detailsCalls = 0
     private val roles = object : CategoryRoleRepository {
         override suspend fun categoryFor(role: CategoryRole): Long? = roleLookup(role)
+        override suspend fun bindIfMissing(role: CategoryRole, categoryId: Long): Boolean =
+            error("role binding is not exercised by this fixture")
     }
     private val runner = object : TransactionRunner {
         override suspend fun <T> inTransaction(block: suspend () -> T): T {

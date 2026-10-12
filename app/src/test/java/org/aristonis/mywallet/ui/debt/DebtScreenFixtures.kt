@@ -134,6 +134,8 @@ internal class DebtScreenRig(
     private val settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
     private val roles = object : CategoryRoleRepository {
         override suspend fun categoryFor(role: CategoryRole): Long? = roleBindings[role]
+        override suspend fun bindIfMissing(role: CategoryRole, categoryId: Long): Boolean =
+            error("role binding is not exercised by this fixture")
     }
     private val save = SaveEntry(runner, accounts, categories, entryPort, fx, settings,
         SetExchangeRate(currencies, rates, ledger, runner, settings), debtPort, ledger, RoleCategories(roles, categories))

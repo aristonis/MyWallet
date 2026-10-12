@@ -3,12 +3,16 @@ package org.aristonis.mywallet.ui.category
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.model.CategoryRole
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
+import org.aristonis.mywallet.domain.port.TransactionRunner
+import org.aristonis.mywallet.domain.usecase.CreateCategory
 
 /**
  * A writable category store for the manage screen. The reassignment itself belongs to Room, so the
@@ -61,4 +65,20 @@ internal class FakeManageCategoryRepository(initial: List<Category> = emptyList(
         items.value.firstOrNull { it.systemKey == key }?.let { return it.id }
         return upsert(Category(name = key, kind = kind, systemKey = key))
     }
+}
+
+internal fun categoryCreator(categories: CategoryRepository): CreateCategory {
+    val roles = object : CategoryRoleRepository {
+        private var bindings = emptyMap<CategoryRole, Long>()
+        override suspend fun categoryFor(role: CategoryRole): Long? = bindings[role]
+        override suspend fun bindIfMissing(role: CategoryRole, categoryId: Long): Boolean {
+            if (role in bindings) return false
+            bindings = bindings + (role to categoryId)
+            return true
+        }
+    }
+    val runner = object : TransactionRunner {
+        override suspend fun <T> inTransaction(block: suspend () -> T): T = block()
+    }
+    return CreateCategory(categories, roles, runner)
 }
