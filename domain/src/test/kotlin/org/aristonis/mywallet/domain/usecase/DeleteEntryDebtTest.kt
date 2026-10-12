@@ -3,6 +3,9 @@ package org.aristonis.mywallet.domain.usecase
 import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.DeductionLine
+import org.aristonis.mywallet.domain.model.DeductionMode
+import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.service.DebtRemaining
 import org.aristonis.mywallet.domain.usecase.fake.DebtEntryWorld.ali
@@ -35,6 +38,41 @@ class DeleteEntryDebtTest {
         assertTrue("was $failure", failure is WalletException.DebtBelowZero)
         assertEquals(income, rig.entries.findById(1))
         assertEquals(paid, rig.entries.findById(2))
+    }
+
+    @Test fun deletingIncomeWithARepaidOwedLaterDeductionIsRefusedAndKeepsItsRecordedLines() = runTest {
+        val income = Transaction.Income(
+            id = 10,
+            accountId = 1,
+            amount = usd("1000"),
+            categoryId = 5,
+            date = EntryWorld.day,
+            deductions = listOf(
+                DeductionLine(
+                    itemId = 20,
+                    position = 0,
+                    name = "Family",
+                    mode = DeductionMode.FIXED,
+                    value = java.math.BigDecimal("100"),
+                    valueCurrencyCode = "USD",
+                    timing = DeductionTiming.LATER,
+                    categoryId = 21,
+                    amount = usd("100"),
+                    debtId = 7,
+                ),
+            ),
+        )
+        val paid = repayment(id = 11, debtId = 7, amount = "100")
+        val rig = SaveEntryRig(initialDebts = listOf(ali), initialEntries = listOf(income, paid), atomic = true)
+        val beforeDebtLegs = rig.ledger.debtLegs(setOf(7))
+
+        val failure = runCatching { rig.deleteEntry(10) }.exceptionOrNull()
+
+        assertTrue("was $failure", failure is WalletException.DebtBelowZero)
+        assertEquals(income, rig.entries.findById(10))
+        assertEquals(income.deductions, (rig.entries.findById(10) as Transaction.Income).deductions)
+        assertEquals(paid, rig.entries.findById(11))
+        assertEquals(beforeDebtLegs, rig.ledger.debtLegs(setOf(7)))
     }
 
     @Test fun deletingARepaymentRaisesTheRemainingAndUndoSettlesItAgain() = runTest {

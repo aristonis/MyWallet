@@ -196,6 +196,7 @@ class SaveEntryRig(
     atomic: Boolean = false,
     initialDebts: List<Debt> = emptyList(),
     roleBindings: Map<CategoryRole, Long> = emptyMap(),
+    private val currencies: List<Currency> = EntryWorld.currencies,
 ) {
     val debts = FakeDebtRepository(initialDebts)
     val roles = FakeCategoryRoleRepository(roleBindings)
@@ -208,7 +209,7 @@ class SaveEntryRig(
 
     private val entryPort: EntryRepository = FaultyEntryRepository(entries, faultAfterWrite)
     val accountRepository = FakeAccountRepository(accounts)
-    private val currencyRepository = FakeCurrencyRepository(EntryWorld.currencies)
+    private val currencyRepository = FakeCurrencyRepository(currencies)
     private val settingsRepository = FakeSettingsRepository(Settings(baseCurrencyCode = base, saveTransactionRates = saveRates))
 
     /** The one ledger the save and the rate use case both write through, so a fault reaches both. */
@@ -222,7 +223,7 @@ class SaveEntryRig(
         accounts = accountRepository,
         categories = categoryRepository,
         entries = entryPort,
-        fx = fakeFx(EntryWorld.currencies, initialRates, base),
+        fx = fakeFx(currencies, initialRates, base),
         settings = settingsRepository,
         setExchangeRate = SetExchangeRate(currencyRepository, rates, ledger, runner, settingsRepository),
         debts = debts,

@@ -22,7 +22,11 @@ import java.math.BigDecimal
  */
 
 /** An entry header with its legs, as read from or written to the tables in one go. */
-data class StoredEntry(val entry: EntryEntity, val legs: List<EntryLegEntity>)
+data class StoredEntry(
+    val entry: EntryEntity,
+    val legs: List<EntryLegEntity>,
+    val deductionLines: List<IncomeDeductionLineEntity> = emptyList(),
+)
 
 /**
  * The entries of a range read, in the order of [EntryRangeRows.headers]. The legs come in the same
@@ -31,17 +35,19 @@ data class StoredEntry(val entry: EntryEntity, val legs: List<EntryLegEntity>)
  * @throws WalletException.UnreadableRow for the first entry whose kind or legs cannot be read.
  */
 fun EntryRangeRows.toTransactions(): List<Transaction> {
+    val deductionLinesByEntry = deductionLines.groupBy { it.entryId }
     val transactions = ArrayList<Transaction>(headers.size)
     var next = 0
     for (header in headers) {
         val first = next
         while (next < legs.size && legs[next].entryId == header.id) next++
         val until = next
-        transactions += header.read {
+        val parts = header.parts {
             val entryLegs = ArrayList<Leg>(until - first)
             for (index in first until until) entryLegs += legs[index].toLeg()
             entryLegs
         }
+        transactions += header.read(parts, deductionLinesByEntry[header.id].orEmpty())
     }
     // Both lists come from one snapshot in the same order, so a leg left over is a bug in the read.
     check(next == legs.size) { "leg ${legs[next].legId} of entry ${legs[next].entryId} matches no header" }
@@ -54,12 +60,17 @@ fun EntryRangeRows.toTransactions(): List<Transaction> {
  *
  * @throws WalletException.UnreadableRow for the first entry whose kind or legs cannot be read.
  */
-fun List<EntryLegRow>.toTransactions(): List<Transaction> =
-    groupBy { it.entryId }.values.map { rows ->
+fun List<EntryLegRow>.toTransactions(
+    deductionLines: List<IncomeDeductionLineEntity> = emptyList(),
+): List<Transaction> {
+    val linesByEntry = deductionLines.groupBy { it.entryId }
+    return groupBy { it.entryId }.values.map { rows ->
         val first = rows.first()
+        val header = EntryHeader(first.entryId, first.kind, first.date, first.note, first.pairRate?.let(::BigDecimal))
         EntryEntity(first.entryId, first.kind, first.date, first.note, first.pairRate)
-            .read { rows.mapNotNull { it.toLegOrNull() } }
+            .read(EntryParts(header, rows.mapNotNull { it.toLegOrNull() }), linesByEntry[first.entryId].orEmpty())
     }
+}
 
 /**
  * Role, position, amount and currency are NOT NULL columns, so a leg row that has an id has them.
@@ -108,6 +119,7 @@ fun EntryParts.toRows(): StoredEntry = StoredEntry(
         pairRate = header.pairRate?.toPlainString(),
     ),
     legs = legs.map { it.toRow(entryId = header.id) },
+    deductionLines = deductionLines.map { it.toEntity(entryId = header.id) },
 )
 
 /**
@@ -118,7 +130,13 @@ fun EntryParts.toRows(): StoredEntry = StoredEntry(
  *   target or on more than one, or a debt leg's debt is missing from [debtSides].
  */
 fun StoredEntry.toParts(debtSides: Map<Long, DebtSide>): EntryParts =
-    entry.parts { legs.map { it.toLeg(debtSides) } }
+    entry.parts { legs.map { it.toLeg(debtSides) } }.let { parts ->
+        try {
+            parts.copy(deductionLines = deductionLines.toSnapshots(parts))
+        } catch (e: IllegalArgumentException) {
+            throw WalletException.UnreadableRow(entry.id, entry.kind, e)
+        }
+    }
 
 /**
  * These rows as the entry they store, read by the recipe for the stored kind.
@@ -127,23 +145,36 @@ fun StoredEntry.toParts(debtSides: Map<Long, DebtSide>): EntryParts =
  *   recipe rejects the legs.
  */
 fun StoredEntry.toTransaction(debtSides: Map<Long, DebtSide>): Transaction =
-    entry.read { legs.map { it.toLeg(debtSides) } }
+    entry.read(toParts(debtSides), deductionLines)
 
 /**
  * The entry this header and the legs from [readLegs] store. The recipe is looked up first, so an
  * unknown kind is reported as such before any leg is parsed.
  */
-private inline fun EntryEntity.read(readLegs: () -> List<Leg>): Transaction {
+private inline fun EntryEntity.read(readLegs: () -> List<Leg>): Transaction = read(parts(readLegs))
+
+private inline fun EntryEntity.read(
+    parts: EntryParts,
+    storedLines: List<IncomeDeductionLineEntity> = emptyList(),
+): Transaction {
     val recipe = EntryRecipes.forKind(kind)
         ?: throw WalletException.UnreadableRow(id, kind, IllegalArgumentException("no recipe reads kind $kind"))
-    return recipe.fromLegs(parts(readLegs))
+    val withSnapshots = try {
+        require(kind == "INCOME" || storedLines.isEmpty()) { "$kind entry has deduction snapshots" }
+        parts.copy(deductionLines = storedLines.toSnapshots(parts))
+    } catch (e: IllegalArgumentException) {
+        throw WalletException.UnreadableRow(id, kind, e)
+    }
+    return recipe.fromLegs(withSnapshots)
 }
 
 /** This header with the legs from [readLegs], any value this build cannot read naming the row. */
 private inline fun EntryEntity.parts(readLegs: () -> List<Leg>): EntryParts =
     try {
         EntryParts(
-            header = EntryHeader(id = id, kind = kind, date = date, note = note, pairRate = pairRate?.let(::BigDecimal)),
+            header = EntryHeader(
+                id = id, kind = kind, date = date, note = note, pairRate = pairRate?.let(::BigDecimal),
+            ),
             legs = readLegs(),
         )
     } catch (e: IllegalArgumentException) {

@@ -26,6 +26,8 @@ sealed interface Transaction {
         override val note: String? = null,
         /** The rate to the base currency this entry was recorded with; null means none is stored yet. */
         val rateToBase: BigDecimal? = null,
+        /** The immutable deduction snapshots recorded with this income. */
+        val deductions: List<DeductionLine> = emptyList(),
     ) : Transaction {
         init { require(amount.isPositive) { "income amount must be > 0" } }
     }
@@ -40,8 +42,14 @@ sealed interface Transaction {
         override val note: String? = null,
         /** The rate to the base currency this entry was recorded with; null means none is stored yet. */
         val rateToBase: BigDecimal? = null,
+        /** Optional fee included in the account outflow. */
+        val fee: Money? = null,
+        val feeCategoryId: Long? = null,
     ) : Transaction {
-        init { require(amount.isPositive) { "expense amount must be > 0" } }
+        init {
+            require(amount.isPositive) { "expense amount must be > 0" }
+            requireFee(fee, feeCategoryId, amount.currencyCode)
+        }
     }
 
     /**
@@ -71,12 +79,19 @@ sealed interface Transaction {
         val rateUsed: BigDecimal,
         override val date: LocalDate,
         override val note: String? = null,
+        /** Optional fee removed from the source amount before conversion. */
+        val fee: Money? = null,
+        val feeCategoryId: Long? = null,
+        /** The rate to the base currency the fee was recorded with; null means none is stored yet. */
+        val feeRateToBase: BigDecimal? = null,
     ) : Transaction {
         init {
             require(sourceAccountId != destAccountId) { "cannot transfer to the same account" }
             require(sourceAmount.isPositive) { "transfer sourceAmount must be > 0" }
             require(destAmount.isPositive) { "transfer destAmount must be > 0" }
             require(rateUsed.signum() > 0) { "transfer rateUsed must be > 0" }
+            requireFee(fee, feeCategoryId, sourceAmount.currencyCode)
+            require(fee == null || fee < sourceAmount) { "transfer fee must be less than source amount" }
         }
     }
 
@@ -203,5 +218,13 @@ sealed interface Transaction {
         override val note: String? = null,
     ) : Transaction {
         init { require(amount.isPositive) { "write-off amount must be > 0" } }
+    }
+}
+
+private fun requireFee(fee: Money?, categoryId: Long?, currencyCode: String) {
+    require((fee == null) == (categoryId == null)) { "fee and fee category must be provided together" }
+    fee?.let {
+        require(it.isPositive) { "fee amount must be > 0" }
+        require(it.currencyCode == currencyCode) { "fee currency must match $currencyCode" }
     }
 }

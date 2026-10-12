@@ -3,6 +3,7 @@ package org.aristonis.mywallet.domain.model
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.math.BigDecimal
 
 class AccountTest {
 
@@ -64,5 +65,37 @@ class AccountTest {
     @Test(expected = IllegalArgumentException::class)
     fun negativeCreditLimitIsRefused() {
         creditAccount(money("-100"))
+    }
+
+    @Test
+    fun defaultFeeIsAbsentByDefault() {
+        val account = Account(
+            name = "Wallet",
+            typeKey = "cash",
+            currencyCode = "USD",
+            openingBalance = money("0"),
+        )
+
+        assertNull(account.defaultFee)
+    }
+
+    @Test
+    fun defaultFeeSurvivesAccountCopiesForRenameAndArchiveChanges() {
+        val fee = FeeRule(FeeMode.PERCENT, BigDecimal("2"))
+        val account = Account(
+            name = "Wallet",
+            typeKey = "cash",
+            currencyCode = "USD",
+            openingBalance = money("0"),
+            defaultFee = fee,
+        )
+
+        val renamed = account.copy(name = "Travel wallet")
+        val archived = renamed.copy(archived = true)
+        val unarchived = archived.copy(archived = false)
+
+        assertEquals(fee, renamed.defaultFee)
+        assertEquals(fee, archived.defaultFee)
+        assertEquals(fee, unarchived.defaultFee)
     }
 }

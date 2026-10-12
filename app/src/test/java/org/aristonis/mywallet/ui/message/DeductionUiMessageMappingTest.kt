@@ -34,6 +34,13 @@ class DeductionUiMessageMappingTest {
         )
     }
 
+    @Test fun aDeductionOverrideInAnotherCurrencyHasAGenericMessage() {
+        assertEquals(
+            UiMessage.DeductionOverrideCurrencyMismatch,
+            WalletException.DeductionOverrideCurrencyMismatch("EUR", "USD").toUiMessage(),
+        )
+    }
+
     @Test fun anItemInUseAndAMissingItemHaveNamedMessagesWithoutTheirIds() {
         assertEquals(UiMessage.DeductionItemInUse, WalletException.DeductionItemInUse(3).toUiMessage())
         assertEquals(UiMessage.DeductionItemNotFound, WalletException.DeductionItemNotFound(3).toUiMessage())
@@ -41,5 +48,12 @@ class DeductionUiMessageMappingTest {
 
     @Test fun aDuplicateDeductionItemNameHasANamedMessageWithoutTheName() {
         assertEquals(UiMessage.DeductionItemNameTaken, WalletException.DeductionItemNameTaken("Tax").toUiMessage())
+    }
+
+    @Test fun aFeeThatConsumesTheSentAmountHasANamedMessage() {
+        assertEquals(
+            UiMessage.FeeNotBelowAmount,
+            WalletException.FeeNotBelowAmount(Money.of("10", "USD"), Money.of("10", "USD")).toUiMessage(),
+        )
     }
 }

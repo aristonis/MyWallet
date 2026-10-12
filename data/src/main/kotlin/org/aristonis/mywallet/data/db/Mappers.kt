@@ -1,10 +1,13 @@
 package org.aristonis.mywallet.data.db
 
+import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
+import org.aristonis.mywallet.domain.model.FeeMode
+import org.aristonis.mywallet.domain.model.FeeRule
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.ThemePreference
@@ -17,8 +20,8 @@ import java.math.BigDecimal
  */
 
 // --- Account ---
-// The credit limit is stored as exact text in the account currency, null when no limit is set. The
-// default fee columns have no domain field yet, so they read as nothing and are written empty.
+// The credit limit is stored as exact text in the account currency, null when no limit is set. A
+// default fee value is exact decimal text and must have its mode alongside it.
 fun AccountEntity.toDomain(): Account = Account(
     id = id,
     name = name,
@@ -28,7 +31,23 @@ fun AccountEntity.toDomain(): Account = Account(
     archived = archived,
     sortOrder = sortOrder,
     creditLimit = creditLimit?.let { Money.of(it, currencyCode) },
+    defaultFee = readDefaultFee(),
 )
+
+/** Both fee columns are null or both are valid; any other stored shape makes the account row unreadable. */
+private fun AccountEntity.readDefaultFee(): FeeRule? {
+    if (defaultFeeMode == null && defaultFeeValue == null) return null
+    return try {
+        FeeRule(
+            mode = FeeMode.valueOf(requireNotNull(defaultFeeMode) { "default fee mode missing" }),
+            value = BigDecimal(requireNotNull(defaultFeeValue) { "default fee value missing" }),
+        )
+    } catch (e: IllegalArgumentException) {
+        throw WalletException.UnreadableRow(id, ACCOUNT_KIND, e)
+    }
+}
+
+private const val ACCOUNT_KIND = "account"
 
 fun Account.toEntity(): AccountEntity = AccountEntity(
     id = id,
@@ -39,8 +58,8 @@ fun Account.toEntity(): AccountEntity = AccountEntity(
     archived = archived,
     sortOrder = sortOrder,
     creditLimit = creditLimit?.amount?.toPlainString(),
-    defaultFeeMode = null,
-    defaultFeeValue = null,
+    defaultFeeMode = defaultFee?.mode?.name,
+    defaultFeeValue = defaultFee?.value?.toPlainString(),
 )
 
 // --- Category ---

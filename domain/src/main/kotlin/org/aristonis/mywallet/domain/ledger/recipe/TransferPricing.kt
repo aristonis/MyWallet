@@ -19,13 +19,20 @@ import java.math.BigDecimal
  */
 internal fun Transaction.Transfer.pricedAsNew(destCurrency: String, book: RateBook): Transaction.Transfer {
     val from = sourceAmount.currencyCode
+    val net = netSourceAmount()
     if (from == destCurrency) {
-        return copy(destAmount = Money.of(sourceAmount.amount, destCurrency), rateUsed = BigDecimal.ONE)
+        return copy(destAmount = Money.of(net.amount, destCurrency), rateUsed = BigDecimal.ONE)
     }
     val converter = book.converter()
-    val destAmount = converter.convert(sourceAmount, destCurrency)
+    // Price through the pair rate that will be persisted. Using the converter's full precision
+    // here and the stored 12-place rate on read can disagree by a minor unit for large transfers.
+    val pairRate = converter.sourceToDestRate(from, destCurrency)
+    val destAmount = Money.of(
+        net.amount.multiply(pairRate).setScale(converter.decimalPlacesFor(destCurrency), CurrencyConverter.ROUNDING),
+        destCurrency,
+    )
     if (destAmount.isZero) throw WalletException.AmountRoundsToZero(destCurrency)
-    return copy(destAmount = destAmount, rateUsed = converter.sourceToDestRate(from, destCurrency))
+    return copy(destAmount = destAmount, rateUsed = pairRate)
 }
 
 /**
@@ -49,8 +56,13 @@ internal fun Transaction.Transfer.pricedAsEditOf(
         throw WalletException.TransferCurrencyPairChanged(old.id)
     }
     val storedRate = checkNotNull(stored).rateUsed
-    return copy(destAmount = convertAtStoredRate(sourceAmount, storedRate, destCurrency, fx), rateUsed = storedRate)
+    val destAmount = convertAtStoredRate(netSourceAmount(), storedRate, destCurrency, fx)
+    return copy(destAmount = destAmount, rateUsed = storedRate)
 }
+
+/** Source account outflow includes the fee; only the remainder is transferred. */
+internal fun Transaction.Transfer.netSourceAmount(): Money =
+    sourceAmount - (fee ?: Money.zero(sourceAmount.currencyCode))
 
 /** [source] at [rate], rounded to [destCurrency]'s decimals; a same-currency amount copies 1:1. */
 private fun convertAtStoredRate(source: Money, rate: BigDecimal, destCurrency: String, fx: FxSnapshot): Money {

@@ -36,6 +36,54 @@ class BackupDecodeValidatedTest {
     }
 
     @Test
+    fun aTransferDestinationWithMoreDecimalsThanItsCurrencyIsRestorableAsStored() {
+        val malformed = sample.copy(legs = sample.legs.map { leg ->
+            if (leg.entryId == BackupV2Samples.TRANSFER_ENTRY && leg.role == "DEST") {
+                leg.copy(amount = "18.400")
+            } else leg
+        })
+
+        assertEquals(malformed, decodeValidated(BackupCodec.encode(malformed)))
+    }
+
+    @Test
+    fun aTransferStoredByVersion111IsRestorableAsStored() {
+        // EUR 265.01 -> USD 286.44: 1.1.1 priced through the base at full precision and stored the
+        // pair rate at 12 places, which re-prices to 286.43.
+        val shipped = sample.copy(
+            entries = sample.entries.map {
+                if (it.id == BackupV2Samples.TRANSFER_ENTRY) it.copy(pairRate = "1.080846005811") else it
+            },
+            legs = sample.legs.filterNot { it.entryId == BackupV2Samples.TRANSFER_ENTRY } + listOf(
+                BackupV2Samples.account(BackupV2Samples.TRANSFER_ENTRY, "SOURCE", BackupV2Samples.BANK, "-265.01", "EUR"),
+                BackupV2Samples.account(BackupV2Samples.TRANSFER_ENTRY, "DEST", BackupV2Samples.CASH, "286.44", "USD"),
+            ),
+        )
+
+        assertEquals(shipped, decodeValidated(BackupCodec.encode(shipped)))
+    }
+
+    @Test
+    fun aReadableIncomeBackupKeepsItsDeductionSnapshots() {
+        val withDeduction = sample.copy(
+            deductionItems = listOf(
+                DeductionItemDto(5, "Tax", "tax", "FIXED", "12.34", "USD", "NOW", BackupV2Samples.TAX, true, 0),
+            ),
+            deductionLines = listOf(
+                DeductionLineDto(1, BackupV2Samples.INCOME_ENTRY, 5, 0, "Tax", "FIXED", "12.34", "USD", "NOW"),
+            ),
+            legs = sample.legs.map { leg ->
+                if (leg.entryId == BackupV2Samples.INCOME_ENTRY && leg.role == "ACCOUNT") leg.copy(amount = "1221.66") else leg
+            } + LegDto(
+                BackupV2Samples.INCOME_ENTRY, "DEDUCTION", 0, null, null, BackupV2Samples.TAX, null,
+                "12.34", "USD", "1",
+            ),
+        )
+
+        assertEquals(withDeduction, decodeValidated(BackupCodec.encode(withDeduction)))
+    }
+
+    @Test
     fun aFormatOneFileGoesThroughTheConverterAndComesOutAsFormatTwo() {
         val decoded = decodeValidated(BackupV2Samples.versionOneText())
 

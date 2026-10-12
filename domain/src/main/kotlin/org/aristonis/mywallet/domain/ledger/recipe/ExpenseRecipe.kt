@@ -20,27 +20,48 @@ object ExpenseRecipe : EntryRecipe<Transaction.Expense> {
 
     override val kind: String = "EXPENSE"
 
-    private val shape = LegShape(required = setOf(LegRole.ACCOUNT, LegRole.MAIN))
-    override val trackingRuleByRole: Map<LegRole, TrackingRule> = mapOf(LegRole.MAIN to TrackingRule.EXPENSE)
+    private val shape = LegShape(
+        required = setOf(LegRole.ACCOUNT, LegRole.MAIN),
+        optional = setOf(LegRole.FEE),
+    )
+    override val trackingRuleByRole: Map<LegRole, TrackingRule> = mapOf(
+        LegRole.MAIN to TrackingRule.EXPENSE,
+        LegRole.FEE to TrackingRule.EXPENSE,
+    )
 
     override fun toLegs(entry: Transaction.Expense): EntryParts = EntryParts(
         header = EntryHeader(entry.id, kind, entry.date, entry.note),
         legs = listOf(
             // Unary minus negates the BigDecimal, so the stored text keeps the amount's scale.
-            Leg(LegRole.ACCOUNT, 0, LegTarget.Account(entry.accountId), -entry.amount),
+            Leg(
+                LegRole.ACCOUNT, 0, LegTarget.Account(entry.accountId),
+                -(entry.amount + feeOrZero(entry.fee, entry.amount)),
+            ),
             Leg(
                 LegRole.MAIN, 0, LegTarget.Category(entry.categoryId, entry.subCategoryId),
                 entry.amount, entry.rateToBase,
             ),
-        ),
+        ) + entry.fee?.let { fee ->
+            val category = LegTarget.Category(requireNotNull(entry.feeCategoryId), null)
+            listOf(Leg(LegRole.FEE, 0, category, fee, entry.rateToBase))
+        }.orEmpty(),
     )
+
+    private fun feeOrZero(fee: Money?, amount: Money): Money = fee ?: Money.zero(amount.currencyCode)
 
     override fun fromLegs(parts: EntryParts): Transaction.Expense = readParts(parts, kind, shape) { legs ->
         val account = legs.getValue(LegRole.ACCOUNT).single()
         val main = legs.getValue(LegRole.MAIN).single()
+        val fee = legs[LegRole.FEE]?.singleOrNull()
         require(parts.header.pairRate == null) { "an expense has no pair rate" }
-        require(account.amount == -main.amount) { "expense ${main.amount} differs from money out ${account.amount}" }
+        require(fee == null || fee.amount.isPositive) { "expense fee is not positive" }
+        val expectedOutflow = main.amount + feeOrZero(fee?.amount, main.amount)
+        require(account.amount == -expectedOutflow) {
+            "expense categories $expectedOutflow differ from money out ${account.amount}"
+        }
         val category = main.categoryTarget()
+        val feeCategory = fee?.categoryTarget()
+        require(feeCategory?.subId == null) { "expense fee cannot have a sub-category" }
         Transaction.Expense(
             id = parts.header.id,
             accountId = account.accountId(),
@@ -50,6 +71,8 @@ object ExpenseRecipe : EntryRecipe<Transaction.Expense> {
             date = parts.header.date,
             note = parts.header.note,
             rateToBase = main.rateToBase,
+            fee = fee?.amount,
+            feeCategoryId = feeCategory?.id,
         )
     }
 

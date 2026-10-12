@@ -131,7 +131,7 @@ class TrackingFromLegsTest {
     @Test
     fun aCategoryLegInARoleItsKindHasNoRuleForIsUnreadable() = runTest {
         val entries = FakeEntryRepository()
-        entries.seedRaw(rawEntry(2, "TRANSFER", categoryLeg(LegRole.FEE, 7, sar("6"), "1")))
+        entries.seedRaw(rawEntry(2, "TRANSFER", categoryLeg(LegRole.MAIN, 7, sar("6"), "1")))
 
         val failure = runCatching { breakdown(entries)(july).first() }.exceptionOrNull()
 

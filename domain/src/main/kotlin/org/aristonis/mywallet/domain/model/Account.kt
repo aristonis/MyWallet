@@ -7,6 +7,9 @@ package org.aristonis.mywallet.domain.model
  *
  * [creditLimit] is the most a credit account may owe before it reads as over the limit; null means
  * no limit is set. When present it is positive and in the account currency.
+ *
+ * [defaultFee] is the optional fee suggested when recording an entry from this account. A fixed
+ * fee uses the account currency; a zero value means no fee.
  */
 data class Account(
     val id: Long = 0,
@@ -17,6 +20,7 @@ data class Account(
     val archived: Boolean = false,
     val sortOrder: Int = 0,
     val creditLimit: Money? = null,
+    val defaultFee: FeeRule? = null,
 ) {
     init {
         require(name.isNotBlank()) { "account name must not be blank" }

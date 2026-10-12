@@ -66,7 +66,11 @@ class RoomEntryRepository(
         }
     }
 
-    override suspend fun findById(id: Long): Transaction? = dao.findById(id).toTransactions().singleOrNull()
+    override suspend fun findById(id: Long): Transaction? = database.withTransaction {
+        val rows = dao.findById(id)
+        if (rows.isEmpty()) return@withTransaction null
+        rows.toTransactions(dao.deductionLinesForEntry(id)).singleOrNull()
+    }
 
     /**
      * @throws WalletException.EntryIdTaken when [entry] asks for an id another entry already holds.
@@ -79,6 +83,9 @@ class RoomEntryRepository(
         return database.withTransaction {
             val id = insertHeader(stored.entry)
             dao.insertLegs(stored.legs.map { it.copy(entryId = id) })
+            if (stored.deductionLines.isNotEmpty()) {
+                database.deductionDao().insertLines(stored.deductionLines.map { it.copy(entryId = id, id = 0) })
+            }
             id
         }
     }
@@ -98,9 +105,8 @@ class RoomEntryRepository(
     /**
      * Rewrites the header and legs of an existing entry.
      *
-     * The entry's deduction lines are deleted here and not written back: they are not part of a
-     * [Transaction], so the use case that owns deductions writes them again after this call, in the
-     * same transaction.
+     * The entry's deduction lines are replaced with the snapshots carried by [entry], in the same
+     * transaction as its header and legs.
      *
      * @throws WalletException.TransactionNotFound when no entry has that id.
      */
@@ -113,6 +119,9 @@ class RoomEntryRepository(
             dao.deleteDeductionLinesOf(entry.id)
             dao.deleteLegsOf(entry.id)
             dao.insertLegs(stored.legs)
+            if (stored.deductionLines.isNotEmpty()) {
+                database.deductionDao().insertLines(stored.deductionLines.map { it.copy(entryId = entry.id, id = 0) })
+            }
         }
     }
 
@@ -120,6 +129,6 @@ class RoomEntryRepository(
 
     private companion object {
         /** The tables a range read touches; a change to any of them re-runs it. */
-        val ENTRY_READ_TABLES = arrayOf("entries", "entry_legs", "debts")
+        val ENTRY_READ_TABLES = arrayOf("entries", "entry_legs", "debts", "income_deduction_lines")
     }
 }

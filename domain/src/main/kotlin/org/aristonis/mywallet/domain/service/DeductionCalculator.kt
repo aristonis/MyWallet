@@ -56,7 +56,12 @@ object DeductionCalculator {
     }
 
     private fun exactShare(input: DeductionInput, gross: Money, converter: CurrencyConverter): BigDecimal {
-        input.amountOverride?.let { return it.amount }
+        input.amountOverride?.let {
+            if (it.currencyCode != gross.currencyCode) {
+                throw WalletException.DeductionOverrideCurrencyMismatch(it.currencyCode, gross.currencyCode)
+            }
+            return it.amount
+        }
         return when (input.mode) {
             DeductionMode.PERCENT -> gross.amount.multiply(input.value).divide(ONE_HUNDRED)
             DeductionMode.FIXED -> converter.convert(

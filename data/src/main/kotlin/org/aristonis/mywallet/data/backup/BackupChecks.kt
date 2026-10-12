@@ -1,8 +1,10 @@
 package org.aristonis.mywallet.data.backup
 
 import org.aristonis.mywallet.data.db.StoredEntry
+import org.aristonis.mywallet.data.db.IncomeDeductionLineEntity
 import org.aristonis.mywallet.data.db.TOP_LEVEL_PARENT_ID
 import org.aristonis.mywallet.data.db.toDomain
+import org.aristonis.mywallet.data.db.toEntity
 import org.aristonis.mywallet.data.db.toTransaction
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.LegRole
@@ -173,6 +175,7 @@ private fun requireReadableEntries(backup: WalletBackupV2) {
     val legsByEntry = backup.legs.groupBy { it.entryId }
     val rawCopyById = backup.legacyRows.associateBy { it.id }
     val debtSides = backup.debts.associate { debt -> debt.id to DebtSide.entries.first { it.name == debt.side } }
+    val deductionLinesByEntry = backup.deductionLines.groupBy { it.entryId }
 
     backup.entries.forEach { entry ->
         val legs = legsByEntry[entry.id].orEmpty()
@@ -183,7 +186,7 @@ private fun requireReadableEntries(backup: WalletBackupV2) {
             }
             require(legs.isEmpty()) { "unreadable entry ${entry.id} has legs" }
         } else {
-            requireReadable(entry, legs, debtSides)
+            requireReadable(entry, legs, deductionLinesByEntry[entry.id].orEmpty().map { it.toEntity() }, debtSides)
         }
     }
 }
@@ -192,9 +195,11 @@ private fun requireReadableEntries(backup: WalletBackupV2) {
 private fun requireReadable(
     entry: EntryDto,
     legs: List<LegDto>,
+    deductionLines: List<IncomeDeductionLineEntity>,
     debtSides: Map<Long, DebtSide>,
 ) {
-    val transaction = StoredEntry(entry.toEntity(), legs.map { it.toEntity() }).toTransaction(debtSides)
+    val transaction = StoredEntry(entry.toEntity(), legs.map { it.toEntity() }, deductionLines)
+        .toTransaction(debtSides)
     val rules = transaction.recipe().trackingRules(transaction)
     legs.forEach { leg ->
         val categoryId = leg.categoryId ?: return@forEach

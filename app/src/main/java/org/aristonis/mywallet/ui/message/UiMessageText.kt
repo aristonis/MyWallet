@@ -52,9 +52,11 @@ fun UiMessage.text(): String = when (this) {
     UiMessage.DeductionOutOfRange -> stringResource(R.string.msg_deduction_out_of_range)
     UiMessage.DeductionValueNotPositive -> stringResource(R.string.msg_deduction_value_not_positive)
     UiMessage.DeductionsExceedIncome -> stringResource(R.string.msg_deductions_exceed_income)
+    UiMessage.DeductionOverrideCurrencyMismatch -> stringResource(R.string.msg_deduction_override_currency_mismatch)
     UiMessage.DeductionItemInUse -> stringResource(R.string.msg_deduction_item_in_use)
     UiMessage.DeductionItemNotFound -> stringResource(R.string.msg_deduction_item_not_found)
     UiMessage.DeductionItemNameTaken -> stringResource(R.string.msg_deduction_item_name_taken)
+    UiMessage.FeeNotBelowAmount -> stringResource(R.string.msg_fee_not_below_amount)
 
     UiMessage.NameBlank -> stringResource(R.string.msg_name_blank)
     UiMessage.DebtNotFound -> stringResource(R.string.msg_debt_not_found)

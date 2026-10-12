@@ -155,6 +155,15 @@ class DeductionCalculatorTest {
     }
 
     @Test
+    fun anAmountOverrideInAnotherCurrencyIsRefused() {
+        val error = assertThrows(WalletException.DeductionOverrideCurrencyMismatch::class.java) {
+            calculate(usd("100.00"), listOf(fixed("10.00", "EUR", NOW, override = Money.of("12.00", "EUR"))))
+        }
+        assertEquals("EUR", error.overrideCurrency)
+        assertEquals("USD", error.incomeCurrency)
+    }
+
+    @Test
     fun anAmountOverrideNeedsNoRateForTheFixedCurrency() {
         val result = calculate(
             usd("100.00"),

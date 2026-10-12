@@ -12,10 +12,14 @@ import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.DeductionLine
+import org.aristonis.mywallet.domain.model.DeductionMode
+import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.domain.model.Money
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import java.time.LocalDate
+import java.math.BigDecimal
 import org.junit.Test
 
 /**
@@ -35,6 +39,76 @@ class EntryMapperRoundTripTest {
             val sides = parts.legs.mapNotNull { it.target as? LegTarget.Debt }.associate { it.id to it.side }
             assertEquals(entry, parts.toRows().toTransaction(debtSides = sides))
         }
+    }
+
+    @Test
+    fun incomeDeductionSnapshotsRoundTripBesideTheirJournalLegs() {
+        val income = Transaction.Income(
+            id = 401,
+            accountId = 2,
+            amount = Money.of("100", "USD"),
+            categoryId = 3,
+            date = LocalDate.of(2026, 10, 12),
+            deductions = listOf(
+                DeductionLine(
+                    itemId = 9,
+                    position = 0,
+                    name = "Tax",
+                    mode = DeductionMode.PERCENT,
+                    value = BigDecimal("10"),
+                    valueCurrencyCode = null,
+                    timing = DeductionTiming.LATER,
+                    categoryId = 5,
+                    amount = Money.of("10", "USD"),
+                    debtId = 22,
+                ),
+            ),
+        )
+        val parts = income.toParts()
+        val stored = parts.toRows().copy(
+            deductionLines = parts.deductionLines.map { it.toEntity(income.id) },
+        )
+
+        assertEquals(listOf(9L to "10"), stored.deductionLines.map { it.itemId to it.value })
+        assertEquals(income, stored.toTransaction(debtSides = mapOf(22L to DebtSide.I_OWE)))
+    }
+
+    @Test
+    fun aTransferStoredByVersion111ReadsBackAsStored() {
+        // Base SYP, EUR 14321.75, USD 13250.5: 1.1.1 stored 286.44 with the pair rate rounded to 12 places,
+        // which re-prices to 286.43. The stored row is read as it is.
+        val transfer = Transaction.Transfer(
+            id = 402,
+            sourceAccountId = 1,
+            destAccountId = 2,
+            sourceAmount = Money.of("265.01", "EUR"),
+            destAmount = Money.of("286.44", "USD"),
+            rateUsed = BigDecimal("1.080846005811"),
+            date = LocalDate.of(2026, 10, 12),
+        )
+        val stored = transfer.toParts().toRows()
+
+        assertEquals(transfer, stored.toTransaction(emptyMap()))
+    }
+
+    @Test
+    fun aTransferFeeKeepsItsRateInTheRows() {
+        val transfer = Transaction.Transfer(
+            id = 403,
+            sourceAccountId = 1,
+            destAccountId = 2,
+            sourceAmount = Money.of("100000", "SYP"),
+            destAmount = Money.of("9.4", "USD"),
+            rateUsed = BigDecimal("0.0001"),
+            date = LocalDate.of(2026, 10, 12),
+            fee = Money.of("6000", "SYP"),
+            feeCategoryId = 8,
+            feeRateToBase = BigDecimal("0.0001"),
+        )
+        val stored = transfer.toParts().toRows()
+
+        assertEquals("0.0001", stored.legs.single { it.role == "FEE" }.rateToBase)
+        assertEquals(transfer, stored.toTransaction(emptyMap()))
     }
 
     @Test

@@ -61,6 +61,7 @@ data class LegRow(
 data class EntryRangeRows(
     val headers: List<EntryEntity>,
     val legs: List<LegRow>,
+    val deductionLines: List<IncomeDeductionLineEntity> = emptyList(),
 )
 
 /**
@@ -109,10 +110,20 @@ interface EntryDao {
     )
     suspend fun legsOnDebt(debtId: Long): List<LegRow>
 
+    @Query(
+        "SELECT * FROM income_deduction_lines WHERE entryId IN " +
+            "(SELECT DISTINCT entryId FROM entry_legs WHERE debtId = :debtId) ORDER BY entryId, position",
+    )
+    suspend fun deductionLinesOnDebt(debtId: Long): List<IncomeDeductionLineEntity>
+
     /** Headers and complete legs share a snapshot even when an entry changes debt while reading. */
     @Transaction
     suspend fun readOnDebt(debtId: Long): EntryRangeRows =
-        EntryRangeRows(headers = headersOnDebt(debtId), legs = legsOnDebt(debtId))
+        EntryRangeRows(
+            headers = headersOnDebt(debtId),
+            legs = legsOnDebt(debtId),
+            deductionLines = deductionLinesOnDebt(debtId),
+        )
 
     /**
      * Entries dated inside the inclusive [start]..[end], newest first (date desc, then id desc), each
@@ -158,6 +169,12 @@ interface EntryDao {
     )
     suspend fun legsBetween(start: LocalDate, end: LocalDate): List<LegRow>
 
+    @Query(
+        "SELECT l.* FROM income_deduction_lines l JOIN entries e ON e.id = l.entryId " +
+            "WHERE e.date BETWEEN :start AND :end ORDER BY e.date DESC, e.id DESC, l.position",
+    )
+    suspend fun deductionLinesBetween(start: LocalDate, end: LocalDate): List<IncomeDeductionLineEntity>
+
     /**
      * [headersBetween] and [legsBetween] as one snapshot. The header columns come once per entry
      * instead of once per leg, which keeps the leg rows narrow enough to be read in far fewer
@@ -165,7 +182,11 @@ interface EntryDao {
      */
     @Transaction
     suspend fun readBetween(start: LocalDate, end: LocalDate): EntryRangeRows =
-        EntryRangeRows(headers = headersBetween(start, end), legs = legsBetween(start, end))
+        EntryRangeRows(
+            headers = headersBetween(start, end),
+            legs = legsBetween(start, end),
+            deductionLines = deductionLinesBetween(start, end),
+        )
 
     /**
      * At most [limit] headers dated [start]..[upper], newest first, that come strictly after the key
@@ -208,6 +229,16 @@ interface EntryDao {
         lowestId: Long,
     ): List<LegRow>
 
+    @Query("SELECT l.* FROM income_deduction_lines l JOIN entries e ON e.id = l.entryId " +
+        "WHERE e.date BETWEEN :lowest AND :upper AND (+e.date < :upper OR +e.id < :beforeId) " +
+        "AND (+e.date > :lowest OR +e.id >= :lowestId) ORDER BY e.date DESC, e.id DESC, l.position")
+    suspend fun deductionLinesOfPage(
+        upper: LocalDate,
+        beforeId: Long,
+        lowest: LocalDate,
+        lowestId: Long,
+    ): List<IncomeDeductionLineEntity>
+
     /**
      * [headersPage] and the legs of exactly those entries as one snapshot, so a write between the two
      * statements cannot hand a header someone else's legs.
@@ -216,12 +247,19 @@ interface EntryDao {
     suspend fun readPage(start: LocalDate, upper: LocalDate, beforeId: Long, limit: Int): EntryRangeRows {
         val headers = headersPage(start, upper, beforeId, limit)
         val last = headers.lastOrNull() ?: return EntryRangeRows(headers = emptyList(), legs = emptyList())
-        return EntryRangeRows(headers = headers, legs = legsOfPage(upper, beforeId, last.date, last.id))
+        return EntryRangeRows(
+            headers = headers,
+            legs = legsOfPage(upper, beforeId, last.date, last.id),
+            deductionLines = deductionLinesOfPage(upper, beforeId, last.date, last.id),
+        )
     }
 
     /** The rows of the entry with [id], its legs by position then id; empty when there is none. */
     @Query("$ENTRY_ROWS_SQL WHERE e.id = :id ORDER BY l.position, l.id")
     suspend fun findById(id: Long): List<EntryLegRow>
+
+    @Query("SELECT * FROM income_deduction_lines WHERE entryId = :id ORDER BY position")
+    suspend fun deductionLinesForEntry(id: Long): List<IncomeDeductionLineEntity>
 
     /**
      * A plain insert: id 0 gets a fresh id, any other id is kept. A taken id fails the primary key

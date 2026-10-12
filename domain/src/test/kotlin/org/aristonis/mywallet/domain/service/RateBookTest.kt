@@ -127,6 +127,48 @@ class RateBookTest {
     }
 
     @Test
+    fun anAddedCategoryRoleReusesTheOldRateForItsCurrency() {
+        val oldMain = Leg(LegRole.MAIN, 0, LegTarget.Category(3, null), Money.of("100", "USD"), BigDecimal("12900"))
+        val addedFee = Leg(LegRole.FEE, 0, LegTarget.Category(4, null), Money.of("2", "USD"))
+
+        assertEquals(BigDecimal("12900"), RateBook(fx).restamp(listOf(addedFee), listOf(oldMain)).single().rateToBase)
+    }
+
+    @Test
+    fun editingPreservesDistinctRatesForExistingCategoryLegPositions() {
+        val old = listOf(
+            Leg(LegRole.MAIN, 0, LegTarget.Category(3, null), Money.of("100", "USD"), BigDecimal("12900")),
+            Leg(LegRole.FEE, 0, LegTarget.Category(4, null), Money.of("2", "USD"), BigDecimal("13100")),
+        )
+
+        val updated = RateBook(fx).restamp(old.map { it.copy(amount = it.amount + Money.of("1", "USD")) }, old)
+
+        assertEquals(listOf(BigDecimal("12900"), BigDecimal("13100")), updated.map { it.rateToBase })
+    }
+
+    @Test
+    fun aNewRoleInACurrencyWithTwoOldRatesTakesTheMainLegRateWhateverTheOrder() {
+        val oldFee = Leg(LegRole.FEE, 0, LegTarget.Category(4, null), Money.of("2", "USD"), BigDecimal("13100"))
+        val oldMain = Leg(LegRole.MAIN, 0, LegTarget.Category(3, null), Money.of("100", "USD"), BigDecimal("12900"))
+        val addedDeduction = Leg(LegRole.DEDUCTION, 0, LegTarget.Category(5, null), Money.of("10", "USD"))
+
+        val restamped = RateBook(fx).restamp(listOf(addedDeduction), old = listOf(oldFee, oldMain))
+
+        assertEquals(BigDecimal("12900"), restamped.single().rateToBase)
+    }
+
+    @Test
+    fun aNewRoleInACurrencyWithTwoOldRatesAndNoMainLegTakesTheFirstOldRate() {
+        val oldFee = Leg(LegRole.FEE, 0, LegTarget.Category(4, null), Money.of("2", "USD"), BigDecimal("13100"))
+        val oldInterest = Leg(LegRole.INTEREST_PAID, 0, LegTarget.Category(7, null), Money.of("3", "USD"), BigDecimal("12800"))
+        val addedDeduction = Leg(LegRole.DEDUCTION, 0, LegTarget.Category(5, null), Money.of("10", "USD"))
+
+        val restamped = RateBook(fx).restamp(listOf(addedDeduction), old = listOf(oldFee, oldInterest))
+
+        assertEquals(BigDecimal("13100"), restamped.single().rateToBase)
+    }
+
+    @Test
     fun aTypedRateOfZeroOrLessIsRefused() {
         assertThrows(IllegalArgumentException::class.java) { RateBook(fx, overrides = mapOf("USD" to BigDecimal.ZERO)) }
         assertThrows(IllegalArgumentException::class.java) { RateBook(fx, overrides = mapOf("USD" to BigDecimal("-1"))) }

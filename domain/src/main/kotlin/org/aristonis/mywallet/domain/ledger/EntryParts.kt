@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.domain.ledger
 
+import org.aristonis.mywallet.domain.model.DeductionLine
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -21,4 +22,6 @@ data class EntryHeader(
 data class EntryParts(
     val header: EntryHeader,
     val legs: List<Leg>,
+    /** Income deductions retain their editable and debt-link snapshots beside the journal legs. */
+    val deductionLines: List<DeductionLine> = emptyList(),
 )

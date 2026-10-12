@@ -119,6 +119,10 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class DeductionsExceedIncome(val gross: Money, val total: Money) :
         WalletException("Deductions $total exceed income $gross")
 
+    /** A hand-edited deduction amount must use the income's currency. */
+    class DeductionOverrideCurrencyMismatch(val overrideCurrency: String, val incomeCurrency: String) :
+        WalletException("Deduction override currency $overrideCurrency differs from income currency $incomeCurrency")
+
     /** A saved income line still snapshots this item, so it is kept for historical integrity. */
     class DeductionItemInUse(val id: Long) :
         WalletException("Deduction item $id is used by saved income and cannot be deleted")
@@ -130,6 +134,10 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     /** A deduction item with the same normalized name already exists. */
     class DeductionItemNameTaken(val name: String, cause: Throwable? = null) :
         WalletException("A deduction item named \"$name\" already exists", cause)
+
+    /** The rounded fee would consume the amount being sent. */
+    class FeeNotBelowAmount(val sent: Money, val fee: Money) :
+        WalletException("Fee $fee must be less than amount sent $sent")
 
     /** A name that is empty once trimmed. A debt is found by its person's name, so it can't be blank. */
     class NameBlank :

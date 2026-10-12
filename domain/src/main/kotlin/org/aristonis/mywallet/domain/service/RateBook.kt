@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.domain.service
 
 import org.aristonis.mywallet.domain.ledger.Leg
+import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import java.math.BigDecimal
@@ -80,25 +81,37 @@ class RateBook(
      * Returns new legs for an edited entry, rated against the legs it had before the edit ([old]).
      *
      * This is the one place the edit-time rate rule lives, so no caller can carry an old currency's
-     * rate onto a leg that is now in another currency. A category leg keeps the rate STORED on the
-     * old leg (not whatever rate the caller sent) only when the old entry had a leg with the same
-     * role and position, in the same currency, and no rate was typed for that currency on this edit.
+     * rate onto a leg that is now in another currency. A category leg keeps the rate stored on an
+     * old category leg in the same currency when no rate was typed for that currency. Matching by
+     * currency lets newly added fee and deduction legs inherit the entry's historical rate.
+     * When several old category legs of that currency carry different rates, a leg with no leg of its own
+     * at the same role and position takes the old MAIN leg's rate first, and otherwise the first old
+     * rate in the order of [old].
      * Otherwise it gets [rateToBase] for its currency: base 1, then typed, then saved, else null.
      * With [old] empty, as for a new entry, every category leg is rated afresh and any rate the
      * caller sent is ignored. Account and debt legs come back unchanged.
      */
     fun restamp(legs: List<Leg>, old: List<Leg>): List<Leg> {
-        val oldBySlot = old.associateBy { it.role to it.position }
-        return legs.map { leg -> restampLeg(leg, oldBySlot[leg.role to leg.position]) }
+        val oldRatesByPosition = old.asSequence()
+            .filter { it.target is LegTarget.Category && it.rateToBase != null }
+            .associate { RateKey(it.role, it.position, it.amount.currencyCode) to it.rateToBase!! }
+        val oldRatesByCurrency = old.asSequence()
+            .filter { it.target is LegTarget.Category && it.rateToBase != null }
+            .sortedByDescending { it.role == LegRole.MAIN }
+            .distinctBy { it.amount.currencyCode }
+            .associate { it.amount.currencyCode to it.rateToBase!! }
+        return legs.map { leg ->
+            val sameLegRate = oldRatesByPosition[RateKey(leg.role, leg.position, leg.amount.currencyCode)]
+            restampLeg(leg, sameLegRate ?: oldRatesByCurrency[leg.amount.currencyCode])
+        }
     }
 
-    private fun restampLeg(leg: Leg, oldLeg: Leg?): Leg {
+    private data class RateKey(val role: LegRole, val position: Int, val currencyCode: String)
+
+    private fun restampLeg(leg: Leg, oldRate: BigDecimal?): Leg {
         if (leg.target !is LegTarget.Category) return leg
         val currency = leg.amount.currencyCode
-        val keepsOldRate = oldLeg != null &&
-            oldLeg.amount.currencyCode == currency &&
-            currency !in overrides
-        if (keepsOldRate) return leg.copy(rateToBase = oldLeg?.rateToBase)
+        if (oldRate != null && currency !in overrides) return leg.copy(rateToBase = oldRate)
         return leg.copy(rateToBase = rateToBase(currency))
     }
 
