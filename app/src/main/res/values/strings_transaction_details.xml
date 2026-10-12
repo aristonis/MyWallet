@@ -1,0 +1,7 @@
+<resources>
+    <string name="transaction_deduction_now">%1$s: %2$s · Paid now</string>
+    <string name="transaction_deduction_later">%1$s: %2$s · Owed later</string>
+    <string name="transaction_fee">Fee: %1$s</string>
+    <string name="transaction_interest">Interest: %1$s</string>
+    <string name="transaction_base_amount">≈ %1$s</string>
+</resources>

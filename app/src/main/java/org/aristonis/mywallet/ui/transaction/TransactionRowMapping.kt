@@ -8,8 +8,11 @@ import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.CategoryLabel
+import org.aristonis.mywallet.ui.format.AmountRole
+import org.aristonis.mywallet.ui.format.amountRole
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.label
+import java.math.BigDecimal
 
 /**
  * The names and currencies the rows are dressed in; the same for every window. Accounts and
@@ -20,6 +23,7 @@ internal data class RowLookups(
     val accountsById: Map<Long, Account>,
     val categoriesById: Map<Long, Category>,
     val currencies: List<Currency>,
+    val baseCurrencyCode: String?,
 ) {
     // A deleted/unknown id degrades to a gap instead of crashing the whole list (defensive read).
     // Nothing here decides what a gap looks like — that would be copy, and copy lives in the UI.
@@ -57,6 +61,19 @@ internal fun Transaction.toRow(lookups: RowLookups, moneyFormatter: MoneyFormatt
         amountDisplay = amountDisplay, destAmountDisplay = shape.destAmount?.let(display),
         note = note,
         countedAmount = counted, countedAmountDisplay = countedDisplay,
+        countedAmountRole = counted?.let { countedRole() },
+        countedBaseAmountDisplay = counted?.let { baseDisplay(it, countedRate(), lookups, moneyFormatter) },
+        deductions = (this as? Transaction.Income)?.deductions.orEmpty().map { line ->
+            TransactionDeductionRow(
+                name = line.name, timing = line.timing, amount = line.amount,
+                amountDisplay = display(line.amount),
+                baseAmountDisplay = baseDisplay(line.amount, countedRate(), lookups, moneyFormatter),
+            )
+        },
+        feeDisplay = feeAmount()?.takeIf { it.isPositive }?.let(display),
+        feeBaseAmountDisplay = feeAmount()?.takeIf { it.isPositive }?.let {
+            baseDisplay(it, feeRate(), lookups, moneyFormatter)
+        },
     )
 }
 
@@ -101,4 +118,44 @@ private fun Transaction.rowShape(lookups: RowLookups): RowShape = when (this) { 
     is Transaction.Repayment ->
         RowShape(lookups.accountName(accountId), categoryLabel = interestCategoryId?.let(lookups::categoryLabel))
     is Transaction.WriteOff -> RowShape(accountName = null, lookups.categoryLabel(categoryId))
+}
+
+/** Counted values use receipt rates; missing rates never fall back to a current quote. */
+private fun baseDisplay(
+    amount: Money,
+    rate: BigDecimal?,
+    lookups: RowLookups,
+    formatter: MoneyFormatter,
+): String? {
+    val base = lookups.baseCurrencyCode ?: return null
+    if (amount.currencyCode == base || rate == null) return null
+    return formatter.display(Money.of(amount.amount.abs().multiply(rate), base), lookups.currencies)
+}
+
+private fun Transaction.countedRole(): AmountRole = when (this) {
+    is Transaction.Repayment -> if (side == DebtSide.I_OWE) AmountRole.EXPENSE else AmountRole.INCOME
+    else -> rowType().amountRole()
+}
+
+private fun Transaction.countedRate(): BigDecimal? = when (this) {
+    is Transaction.Income -> rateToBase
+    is Transaction.Expense -> rateToBase
+    is Transaction.Refund -> rateToBase
+    is Transaction.CreditPurchase -> rateToBase
+    is Transaction.EarnedUnpaid -> rateToBase
+    is Transaction.Repayment -> interestRateToBase
+    is Transaction.WriteOff -> rateToBase
+    else -> null
+}
+
+private fun Transaction.feeAmount(): Money? = when (this) {
+    is Transaction.Expense -> fee
+    is Transaction.Transfer -> fee
+    else -> null
+}
+
+private fun Transaction.feeRate(): BigDecimal? = when (this) {
+    is Transaction.Expense -> rateToBase
+    is Transaction.Transfer -> feeRateToBase
+    else -> null
 }

@@ -11,9 +11,6 @@
     <string name="transaction_type_write_off_loss">Written off</string>
     <string name="transaction_type_write_off_forgiven">Forgiven</string>
 
-    <!-- Under a row whose amount is not all income or expense: the part that counts in Tracking -->
-    <string name="transaction_counted_amount">In Tracking: %1$s</string>
-
     <!-- Edit screen, for a kind of entry the form cannot change yet -->
     <string name="edit_transaction_read_only">This kind of entry can\'t be edited here yet.</string>
 

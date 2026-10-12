@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.WalletListRow
 import org.aristonis.mywallet.ui.format.AmountRole
@@ -33,29 +34,53 @@ internal fun TransactionRowItem(row: TransactionRow, onClick: () -> Unit) {
     )
 }
 
-/**
- * The amount, and under it the part that counts in Tracking when the amount itself does not say so:
- * a repayment moves principal and interest but only the interest counts. A row with nothing counted,
- * or whose amount already counts in full, shows no such line.
- */
+/** The main movement and its receipt details retain their separate accounting meanings. */
 @Composable
 private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
-    val counted = row.countedAmountDisplay?.takeIf { role == AmountRole.NEUTRAL }
-    val amount = @Composable {
-        MoneyText(amount = amountLine(row), style = MaterialTheme.typography.titleMedium, color = amountColor(role))
-    }
-    if (counted == null) {
-        amount()
-        return
-    }
     Column(horizontalAlignment = Alignment.End) {
-        amount()
-        Text(
-            text = stringResource(R.string.transaction_counted_amount, bidiIsolate(counted)),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        MoneyText(amount = amountLine(row), style = MaterialTheme.typography.titleMedium, color = amountColor(role))
+        if (role != AmountRole.NEUTRAL) BaseAmount(row.countedBaseAmountDisplay)
+        if (role == AmountRole.NEUTRAL) {
+            row.countedAmountDisplay?.let { interest ->
+                DetailAmount(
+                    stringResource(R.string.transaction_interest, bidiIsolate(interest)),
+                    row.countedAmountRole ?: AmountRole.NEUTRAL,
+                )
+                BaseAmount(row.countedBaseAmountDisplay)
+            }
+        }
+        row.deductions.forEach { line ->
+            val label = if (line.timing == DeductionTiming.NOW) {
+                R.string.transaction_deduction_now
+            } else {
+                R.string.transaction_deduction_later
+            }
+            DetailAmount(
+                stringResource(label, bidiIsolate(line.name), bidiIsolate(line.amountDisplay)),
+                AmountRole.EXPENSE,
+            )
+            BaseAmount(line.baseAmountDisplay)
+        }
+        row.feeDisplay?.let { fee ->
+            DetailAmount(stringResource(R.string.transaction_fee, bidiIsolate(fee)), AmountRole.EXPENSE)
+            BaseAmount(row.feeBaseAmountDisplay)
+        }
     }
+}
+
+@Composable
+private fun DetailAmount(text: String, role: AmountRole) {
+    Text(text = text, style = MaterialTheme.typography.bodySmall, color = amountColor(role))
+}
+
+@Composable
+private fun BaseAmount(display: String?) {
+    if (display == null) return
+    Text(
+        text = stringResource(R.string.transaction_base_amount, bidiIsolate(display)),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /**

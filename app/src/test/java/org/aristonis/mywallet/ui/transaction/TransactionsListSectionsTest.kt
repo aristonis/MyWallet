@@ -53,6 +53,7 @@ class TransactionsListSectionsTest {
         accounts = FakeAccountRepository(listOf(cash)),
         categories = FakeCategoryRepository(listOf(food)),
         currencies = FakeCurrencyRepository(currencies),
+        settings = FakeSettingsRepository(org.aristonis.mywallet.domain.model.Settings("USD")),
         observeLedgerHealth = HealthLedger().health(),
         moneyFormatter = MoneyFormatter(Locale.US),
         today = { today },

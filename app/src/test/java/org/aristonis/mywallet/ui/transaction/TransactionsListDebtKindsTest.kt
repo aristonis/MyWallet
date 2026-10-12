@@ -53,6 +53,7 @@ class TransactionsListDebtKindsTest {
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(salary, food, interest, lost)),
             currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "\u20AC", 2))),
+            settings = FakeSettingsRepository(org.aristonis.mywallet.domain.model.Settings("USD")),
             observeLedgerHealth = HealthLedger().health(),
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { LocalDate.of(2026, 8, 26) },

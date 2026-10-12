@@ -66,6 +66,7 @@ class TransactionsListWindowTest {
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),
             currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2))),
+            settings = FakeSettingsRepository(org.aristonis.mywallet.domain.model.Settings("USD")),
             observeLedgerHealth = HealthLedger().health(),
             moneyFormatter = MoneyFormatter(Locale.US),
             today = { now },

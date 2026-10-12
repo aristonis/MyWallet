@@ -26,6 +26,7 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
+import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.di.DefaultDispatcher
 import org.aristonis.mywallet.di.ErrorReporter
@@ -99,6 +100,7 @@ class TransactionsListViewModel @Inject constructor(
     accounts: AccountRepository,
     categories: CategoryRepository,
     currencies: CurrencyRepository,
+    settings: SettingsRepository,
     observeLedgerHealth: ObserveLedgerHealth,
     private val moneyFormatter: MoneyFormatter,
     private val today: TodayProvider,
@@ -170,16 +172,18 @@ class TransactionsListViewModel @Inject constructor(
             accounts.observeAll(),
             categories.observeAll(),
             currencies.observeAll(),
-        ) { accountList, categoryList, currencyList ->
+            settings.observeOrNull(),
+        ) { accountList, categoryList, currencyList, currentSettings ->
             RowLookups(
                 accountsById = accountList.associateBy { it.id },
                 categoriesById = categoryList.associateBy { it.id },
                 currencies = currencyList,
+                baseCurrencyCode = currentSettings?.baseCurrencyCode,
             )
         }
             .catch<RowLookups?> { error ->
                 if (error is CancellationException) throw error
-                errors.report("Transactions could not read the accounts, categories or currencies", error)
+                errors.report("Transactions could not read the accounts, categories, currencies or settings", error)
                 emit(null)
             }
 

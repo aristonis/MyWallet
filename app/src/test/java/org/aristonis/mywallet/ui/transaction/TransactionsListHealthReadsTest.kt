@@ -76,6 +76,7 @@ class TransactionsListHealthReadsTest {
         accounts = FakeAccountRepository(listOf(cash)),
         categories = FakeCategoryRepository(listOf(food)),
         currencies = FakeCurrencyRepository(currencies),
+        settings = FakeSettingsRepository(org.aristonis.mywallet.domain.model.Settings("USD")),
         observeLedgerHealth = ledger.health(),
         moneyFormatter = MoneyFormatter(Locale.US),
         today = { day },

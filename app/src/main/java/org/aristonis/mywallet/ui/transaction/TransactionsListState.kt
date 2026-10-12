@@ -1,9 +1,11 @@
 package org.aristonis.mywallet.ui.transaction
 
+import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.CategoryLabel
+import org.aristonis.mywallet.ui.format.AmountRole
 import org.aristonis.mywallet.ui.message.UiMessage
 import java.time.LocalDate
 
@@ -32,6 +34,15 @@ enum class TransactionRowType {
     WRITE_OFF_FORGIVEN,
 }
 
+/** A deduction copied from the saved receipt, including amounts that rounded to zero. */
+data class TransactionDeductionRow(
+    val name: String,
+    val timing: DeductionTiming,
+    val amount: Money,
+    val amountDisplay: String,
+    val baseAmountDisplay: String?,
+)
+
 /**
  * A display-ready transaction row: ids already resolved to names, amounts pre-formatted per currency
  * + locale in [amountDisplay]/[destAmountDisplay]. The raw [Money] stays too so tests assert on exact
@@ -57,6 +68,11 @@ data class TransactionRow(
     val note: String?,
     val countedAmount: Money? = null,
     val countedAmountDisplay: String? = null,
+    val countedAmountRole: AmountRole? = null,
+    val countedBaseAmountDisplay: String? = null,
+    val deductions: List<TransactionDeductionRow> = emptyList(),
+    val feeDisplay: String? = null,
+    val feeBaseAmountDisplay: String? = null,
 )
 
 /** How a day reads against the device's current date. */
