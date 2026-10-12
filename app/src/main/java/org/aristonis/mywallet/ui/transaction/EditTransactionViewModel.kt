@@ -18,18 +18,15 @@ import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
-import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.DebtSide
-import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.model.UndoBundle
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
+import org.aristonis.mywallet.domain.port.DeductionItemRepository
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
@@ -38,91 +35,6 @@ import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
 import java.time.LocalDate
 import javax.inject.Inject
-
-/** Immutable snapshot the edit-transaction screen renders from. */
-data class EditTransactionUiState(
-    // The row as first loaded; kept so a save can preserve fields the form never exposes (a transfer's
-    // locked accounts + rate). Null until [EditTransactionViewModel.load] runs.
-    val loaded: Transaction? = null,
-    // The kind is derived from the loaded row and is never editable — you delete and re-add to change it.
-    val type: TransactionType? = null,
-    val accounts: List<Account> = emptyList(),
-    val allCategories: List<Category> = emptyList(),
-    val selectedAccountId: Long? = null,
-    val selectedCategoryId: Long? = null,
-    val selectedSubCategoryId: Long? = null,
-    val destAccountId: Long? = null,
-    val amountInput: String = "",
-    val counterparty: String = "",
-    val currencyCode: String? = null,
-    val debtSide: DebtSide = DebtSide.I_OWE,
-    val debtId: Long? = null,
-    val counterpartySuggestions: List<String> = emptyList(),
-    val date: LocalDate? = null,
-    val note: String = "",
-    val isSubmitting: Boolean = false,
-    val error: UiMessage? = null,
-    /** The date the save stored the entry under; set once by a save, cleared by acknowledging it. */
-    val savedOn: LocalDate? = null,
-    val deleted: Boolean = false,
-    // What [EditTransactionViewModel.delete] removed, held while the Undo affordance is up so it can be
-    // put back. Non-null means "deleted, but still undoable"; navigation waits until the user undoes or
-    // lets it go.
-    val undoableDelete: UndoBundle? = null,
-    /** Rates typed on the form, by currency code; cleared on every load. */
-    val rateInputs: Map<String, String> = emptyMap(),
-    /** The saved rates and base currency the previews are priced against; null until loaded. */
-    val fx: FxSnapshot? = null,
-    val rateFields: List<RateField> = emptyList(),
-    /** The amount in the base currency, e.g. "8.00 SYP"; null when there is nothing to convert. */
-    val baseEquivalent: String? = null,
-    /**
-     * The loaded entry is of a kind the form cannot edit yet (a debt kind). It is shown as it is, and
-     * its fields cannot be saved. Guarded deletion remains available.
-     */
-    val readOnly: Boolean = false,
-) {
-    val canEdit: Boolean get() = loaded != null && !readOnly
-
-    val canDelete: Boolean
-        get() = loaded != null && !isSubmitting && savedOn == null && undoableDelete == null
-
-    /** Children of the chosen category, filtered by kind for the reason the add form gives. */
-    val subCategoriesForSelected: List<Category>
-        get() = selectedCategoryId?.let { parent ->
-            val parentKind = allCategories.firstOrNull { it.id == parent }?.kind
-            allCategories.filter { it.parentId == parent && it.kind == parentKind }
-        }.orEmpty()
-
-    /** Categories offered for the loaded kind: income lists income, expense lists expense, transfer none. */
-    val categoriesForType: List<Category>
-        get() = type?.let { EntryFormRules.forType(it).categoriesOffered(allCategories) }.orEmpty()
-
-    /**
-     * A transfer's stored rate is bound to its currency pair, so editing a transfer may only move the
-     * amount/date/note — the account legs stay put. The screen uses this to lock (disable) both pickers.
-     */
-    val accountPickersLocked: Boolean get() = type == TransactionType.TRANSFER
-
-    /**
-     * False while a save runs, while its date waits to be acknowledged, and while a delete can still
-     * be undone, so one tap writes once and a deleted entry is never saved back. Always false on a
-     * read-only entry.
-     */
-    val canSubmit: Boolean
-        get() = canEdit && undoableDelete == null && !isSubmitting && savedOn == null &&
-            type?.let { EntryFormRules.forType(it).isSubmittable(formInputs()) } == true
-
-    /** The form's choices, in the shape the shared rule of each type reads. */
-    fun formInputs(): EntryFormInputs = EntryFormInputs(
-        accountId = selectedAccountId,
-        categoryId = selectedCategoryId,
-        subCategoryId = selectedSubCategoryId,
-        destAccountId = destAccountId,
-        amountInput = amountInput,
-        counterparty = counterparty, currencyCode = currencyCode, debtSide = debtSide, debtId = debtId,
-    )
-}
 
 /**
  * Edits or deletes one existing entry. [load] re-hydrates the form from the stored entry; [submit]
@@ -151,10 +63,12 @@ class EditTransactionViewModel @Inject constructor(
     fx: FxRepository,
     private val debts: DebtRepository,
     suggestCounterparties: SuggestCounterparties,
+    private val deductionItems: DeductionItemRepository,
     private val errors: ErrorReporter = ErrorReporter { _, _ -> },
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
+    private val deductionForm = IncomeDeductionForm(moneyParser, errors)
     private val _state = MutableStateFlow(EditTransactionUiState())
     val state: StateFlow<EditTransactionUiState> = _state.asStateFlow()
     private val suggestions = CounterpartySuggestions(viewModelScope, suggestCounterparties,
@@ -166,7 +80,21 @@ class EditTransactionViewModel @Inject constructor(
 
     private var loadJob: Job? = null
 
+    private val catalog = DeductionCatalogReader(viewModelScope, deductionItems, errors,
+        onItems = { items ->
+            mutate { it.copy(deductions = deductionForm.withCatalog(it.deductions, items,
+                it.type == TransactionType.INCOME, it.selectedCategoryId, keepHistory = true)) }
+        },
+        onFailure = { message -> mutate { it.copy(deductions = it.deductions.catalogFailed(message)) } })
+
+    /** Retries catalog loading without replacing the owner's existing entry choices. */
+    fun retryDeductions() {
+        mutate { it.copy(deductions = it.deductions.retrying()) }
+        catalog.start()
+    }
+
     init {
+        catalog.start()
         // Feed the pickers only; the selection comes from the loaded row, never an auto pre-select.
         // Archived accounts are not transactable, so they stay out of every picker (mirrors add).
         combine(accounts.observeAll(), categories.observeAll()) { accountList, categoryList ->
@@ -183,7 +111,10 @@ class EditTransactionViewModel @Inject constructor(
     private fun mutate(change: (EditTransactionUiState) -> EditTransactionUiState) = _state.update { current ->
         val next = change(current)
         val quote = quoter.quote(next.quoteInput())
-        next.copy(rateFields = quote.rateFields, baseEquivalent = quote.baseEquivalent)
+        val deductions = deductionForm.recalculated(next.deductions, next.type == TransactionType.INCOME,
+            next.amountInput, next.accounts.currencyOf(next.selectedAccountId), next.quoteInput())
+        next.copy(rateFields = (quote.rateFields + deductions.rateFields).distinctBy { it.currencyCode },
+            deductions = deductions, baseEquivalent = quote.baseEquivalent)
     }
 
     /**
@@ -201,6 +132,7 @@ class EditTransactionViewModel @Inject constructor(
                 loaded = null, type = null, isSubmitting = false, error = null,
                 savedOn = null, deleted = false, undoableDelete = null, rateInputs = emptyMap(), readOnly = false,
                 counterparty = "", currencyCode = null, debtId = null, counterpartySuggestions = emptyList(),
+                deductions = it.deductions.copy(drafts = emptyList()),
             )
         }
         loadJob = viewModelScope.launch {
@@ -231,6 +163,13 @@ class EditTransactionViewModel @Inject constructor(
         }
     }
 
+    /** Applies one owner [change] to this entry's deduction row, never to the reusable rule. */
+    fun editDeduction(itemId: Long, change: DeductionEdit) = mutate {
+        if (it.type != TransactionType.INCOME) it else it.copy(error = null, deductions = it.deductions.copy(
+            drafts = deductionForm.edit(it.deductions.drafts, itemId, change,
+                it.accounts.currencyOf(it.selectedAccountId))))
+    }
+
     fun setCounterparty(value: String) {
         mutate { it.copy(counterparty = value, counterpartySuggestions = emptyList(), error = null) }
         suggestions.request(value)
@@ -241,11 +180,17 @@ class EditTransactionViewModel @Inject constructor(
     }
     fun selectCurrency(code: String) = mutate { it.copy(currencyCode = code) }
     fun selectDebtSide(side: DebtSide) = mutate { it.copy(debtSide = side) }
-    fun selectAccount(id: Long) = mutate { it.copy(selectedAccountId = id) }
+    fun selectAccount(id: Long) = mutate {
+        it.copy(selectedAccountId = id, deductions = it.deductions.copy(drafts = deductionForm.onCurrencyChanged(
+            it.deductions.drafts, it.accounts.currencyOf(it.selectedAccountId), it.accounts.currencyOf(id))))
+    }
 
-    // Changing the category drops the child with it: it belongs to the old parent, so the domain
-    // guard would refuse the save with nothing on screen explaining why.
-    fun selectCategory(id: Long) = _state.update {
+    /**
+     * Picks the category and drops the child with it: it belongs to the old parent, so the domain
+     * guard would refuse the save with nothing on screen explaining why. An edited income keeps its
+     * recorded deductions: they are what was agreed for that income, whatever its category now.
+     */
+    fun selectCategory(id: Long) = mutate {
         it.copy(selectedCategoryId = id, selectedSubCategoryId = null)
     }
 
@@ -315,6 +260,7 @@ class EditTransactionViewModel @Inject constructor(
         val snapshot = _state.value
         val loaded = snapshot.loaded ?: return
         if (!snapshot.canEdit) return
+        if (snapshot.type == TransactionType.INCOME && !snapshot.deductions.isCatalogReady) return
         if (snapshot.undoableDelete != null) return // the row is deleted with an undo pending — don't save a ghost
         if (snapshot.isSubmitting || snapshot.savedOn != null) return
         _state.update { it.copy(isSubmitting = true, error = null) }
@@ -322,7 +268,8 @@ class EditTransactionViewModel @Inject constructor(
             try {
                 val built = buildEdited(snapshot, loaded)
                 val saved = saveEntry(
-                    entry = built.entry,
+                    entry = deductionForm.forSave(built.entry, snapshot.deductions, snapshot.amountInput,
+                        snapshot.quoteInput()),
                     debt = built.debt,
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )
@@ -333,6 +280,7 @@ class EditTransactionViewModel @Inject constructor(
                 // A domain refusal (a changed transfer pair, an entry gone since it was opened), a bad
                 // amount or rate, or a missing choice names itself; anything else shows as unexpected,
                 // and the form is freed so it can be tried again.
+                if (e.toUiMessage() == UiMessage.Unexpected) errors.report("Entry could not be saved", e)
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
@@ -355,6 +303,7 @@ class EditTransactionViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (e.toUiMessage() == UiMessage.Unexpected) errors.report("Entry could not be saved", e)
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
@@ -366,7 +315,8 @@ class EditTransactionViewModel @Inject constructor(
      */
     private fun EditTransactionUiState.populatedFrom(tx: Transaction): EditTransactionUiState {
         val rule = EntryFormRules.forEntry(tx)
-            ?: return copyLoaded(tx, type = null, EntryFormInputs(amountInput = inputOf(tx.movedAmount())), readOnly = true)
+            ?: return copyLoaded(tx, type = null,
+                EntryFormInputs(amountInput = inputOf(tx.movedAmount())), readOnly = true)
         return copyLoaded(tx, rule.type, rule.load(tx, moneyParser), readOnly = false)
     }
 
@@ -378,6 +328,9 @@ class EditTransactionViewModel @Inject constructor(
         inputs: EntryFormInputs,
         readOnly: Boolean,
     ) = copy(
+        deductions = deductions.copy(drafts = if (tx is Transaction.Income) deductionForm.refresh(
+            deductionForm.snapshots(tx.deductions), deductions.items, keepHistory = true,
+        ) else emptyList()),
         loaded = tx,
         type = type,
         readOnly = readOnly,

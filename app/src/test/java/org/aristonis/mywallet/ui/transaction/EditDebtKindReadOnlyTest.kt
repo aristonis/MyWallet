@@ -91,6 +91,7 @@ class EditDebtKindReadOnlyTest {
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             debts = use.debts,
+            deductionItems = FakeDeductionItemRepository(),
         )
     }
 

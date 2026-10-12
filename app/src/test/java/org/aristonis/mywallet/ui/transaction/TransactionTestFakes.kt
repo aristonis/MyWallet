@@ -326,7 +326,7 @@ internal class EntryUseCases(
         }
     }
     val ledger = FakeLedgerQueries(entries)
-    private val deductions = FakeDeductionItemRepository()
+    val deductions = FakeDeductionItemRepository()
     val saveEntry = SaveEntry(
         runner, accounts, categories, entries,
         FakeFxRepository(currencies, rates, settings), settings, SetExchangeRate(currencies, rates, ledger, runner, settings),

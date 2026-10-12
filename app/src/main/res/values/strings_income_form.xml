@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="income_deductions_title">Deductions</string>
+    <string name="income_deductions_loading">Loading deductions…</string>
+    <string name="income_deductions_empty">No deductions are enabled. You can add them in Settings.</string>
+    <string name="income_deduction_percent">Percent</string>
+    <string name="income_deduction_fixed">Fixed amount</string>
+    <string name="income_deduction_now">Paid now</string>
+    <string name="income_deduction_later">Owed later</string>
+    <string name="income_deduction_value">Value</string>
+    <string name="income_deduction_value_type">Value type</string>
+    <string name="income_deduction_currency">Fixed amount currency</string>
+    <string name="income_deduction_converted">Converted amount (%1$s)</string>
+    <string name="income_summary_gross">Income</string>
+    <string name="income_summary_deductions">Deductions</string>
+    <string name="income_summary_receives">Account receives</string>
+    <string name="income_summary_owed">You owe</string>
+</resources>

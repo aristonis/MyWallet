@@ -96,6 +96,8 @@ fun AddTransactionScreen(
         onRateChanged = viewModel::setRate,
         onDateSelected = viewModel::setDate,
         onNoteChanged = viewModel::setNote,
+        onDeductionEdited = viewModel::editDeduction,
+        onRetryDeductions = viewModel::retryDeductions,
         onSubmit = viewModel::submit,
         onCancel = onDone,
     )
@@ -119,6 +121,8 @@ internal fun AddTransactionContent(
     onSuggestionSelected: (String) -> Unit = {},
     onCurrencySelected: (String) -> Unit = {},
     onDebtSideSelected: (DebtSide) -> Unit = {},
+    onDeductionEdited: (Long, DeductionEdit) -> Unit = { _, _ -> },
+    onRetryDeductions: () -> Unit = {},
 ) {
     var showingMore by remember { mutableStateOf(false) }
     Scaffold(
@@ -203,6 +207,11 @@ internal fun AddTransactionContent(
                     }
                 }
             }
+
+            if (state.type == TransactionType.INCOME) DeductionsSection(
+                state.deductions, state.fx?.currencies.orEmpty(), selectedAccount?.currencyCode,
+                onDeductionEdited, onRetryDeductions,
+            )
 
             RateSection(state = state, onRateChanged = onRateChanged)
 
@@ -317,8 +326,10 @@ private fun AddTransactionPreview() {
         AddTransactionContent(
             state = AddTransactionUiState(
                 type = TransactionType.EXPENSE,
-                accounts = listOf(Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.zero("USD"))),
-                allCategories = listOf(Category(id = 2, name = "Food", kind = org.aristonis.mywallet.domain.model.CategoryKind.EXPENSE)),
+                accounts = listOf(Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD",
+                    openingBalance = Money.zero("USD"))),
+                allCategories = listOf(Category(id = 2, name = "Food",
+                    kind = org.aristonis.mywallet.domain.model.CategoryKind.EXPENSE)),
                 selectedAccountId = 1,
                 amountInput = "12.50",
                 date = LocalDate.of(2026, 7, 3),

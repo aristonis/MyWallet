@@ -33,10 +33,14 @@ internal class DebtFormTestFixture(
     val use = EntryUseCases(accountRepo, categoryRepo, FakeEntryRepository(initial), currencyRepo, rateRepo, settingsRepo, debts)
     private val fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo)
     val add = AddTransactionViewModel(accountRepo, categoryRepo, use.saveEntry, TodayProvider { day },
-        MoneyParser(Locale.US), fx, settingsRepo, MoneyFormatter(Locale.US), SuggestCounterparties(debts))
+        MoneyParser(Locale.US), fx, settingsRepo, MoneyFormatter(Locale.US), SuggestCounterparties(debts),
+        deductionItems = FakeDeductionItemRepository(),
+    )
     val edit = EditTransactionViewModel(accountRepo, categoryRepo, use.entries, use.saveEntry,
         use.deleteEntry, use.restoreEntries, MoneyParser(Locale.US), MoneyFormatter(Locale.US), fx,
-        debts = debts, suggestCounterparties = SuggestCounterparties(debts))
+        debts = debts, suggestCounterparties = SuggestCounterparties(debts),
+        deductionItems = FakeDeductionItemRepository(),
+    )
 
     companion object {
         val day: LocalDate = LocalDate.of(2026, 10, 10)

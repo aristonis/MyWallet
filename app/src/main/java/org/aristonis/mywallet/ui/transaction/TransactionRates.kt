@@ -129,23 +129,8 @@ internal class RateQuoter(
      * @throws org.aristonis.mywallet.data.format.MoneyParseException when a typed rate does not read
      *   as a positive rate, so the form names the field instead of saving at a rate nobody typed.
      */
-    fun typedRates(input: RateQuoteInput, fields: List<RateField>): Map<String, BigDecimal> {
-        val prefill = input.fx?.let { shownRates(it, input.keptRates).ratesToBase }.orEmpty()
-        return fields
-            .mapNotNull { field -> input.rateInputs[field.currencyCode]?.let { field.currencyCode to it } }
-            .filter { (_, text) -> text.isNotBlank() }
-            .map { (code, text) -> code to parser.parseRate(text) }
-            .filterNot { (code, rate) -> prefill[code]?.compareTo(rate) == 0 }
-            .toMap()
-    }
-
-    /** The saved rates with an edited entry's own rates laid over them; a kept null removes the rate. */
-    private fun shownRates(fx: FxSnapshot, keptRates: Map<String, BigDecimal?>): FxSnapshot {
-        if (keptRates.isEmpty()) return fx
-        val kept = keptRates.filterValues { it != null }.mapValues { (_, rate) -> checkNotNull(rate) }
-        val none = keptRates.filterValues { it == null }.keys
-        return fx.copy(ratesToBase = fx.ratesToBase - none + kept)
-    }
+    fun typedRates(input: RateQuoteInput, fields: List<RateField>): Map<String, BigDecimal> =
+        input.typedRatesFor(fields.map { it.currencyCode }, parser)
 
     private fun fieldFor(input: RateQuoteInput, shown: FxSnapshot, code: String): RateField {
         val typed = input.rateInputs[code]
@@ -200,4 +185,34 @@ internal class RateQuoter(
             return formatter.display(converter.convert(amount, to), fx.currencies)
         }
     }
+}
+
+/**
+ * The saved rates with an edited entry's own rates laid over them; a kept null removes the rate.
+ * Everything an edit form prices (the amount, a deduction line) and every rate field it prefills
+ * reads this one overlay, so the form shows the rate the save will stamp.
+ */
+internal fun shownRates(fx: FxSnapshot, keptRates: Map<String, BigDecimal?>): FxSnapshot {
+    if (keptRates.isEmpty()) return fx
+    val kept = keptRates.filterValues { it != null }.mapValues { (_, rate) -> checkNotNull(rate) }
+    val none = keptRates.filterValues { it == null }.keys
+    return fx.copy(ratesToBase = fx.ratesToBase - none + kept)
+}
+
+/**
+ * The rates typed for [codes] that count as typed, parsed strictly; the rules are listed on
+ * [RateQuoter.typedRates]. Shared so a deduction line is repriced only by a rate the save will
+ * also stamp: a cleared field or a retyped prefill reprices nothing.
+ *
+ * @throws org.aristonis.mywallet.data.format.MoneyParseException when a typed rate does not read
+ *   as a positive rate.
+ */
+internal fun RateQuoteInput.typedRatesFor(codes: List<String>, parser: MoneyParser): Map<String, BigDecimal> {
+    val prefill = fx?.let { shownRates(it, keptRates).ratesToBase }.orEmpty()
+    return codes.distinct()
+        .mapNotNull { code -> rateInputs[code]?.let { code to it } }
+        .filter { (_, text) -> text.isNotBlank() }
+        .map { (code, text) -> code to parser.parseRate(text) }
+        .filterNot { (code, rate) -> prefill[code]?.compareTo(rate) == 0 }
+        .toMap()
 }

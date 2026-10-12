@@ -84,6 +84,7 @@ class EditTransactionViewModelTest {
             fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo),
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             debts = use.debts,
+            deductionItems = FakeDeductionItemRepository(),
         )
 
         /** A live balance probe over the same fake store the view model writes through. */

@@ -122,6 +122,8 @@ fun EditTransactionScreen(
         onRateChanged = viewModel::setRate,
         onDateSelected = viewModel::setDate,
         onNoteChanged = viewModel::setNote,
+        onDeductionEdited = viewModel::editDeduction,
+        onRetryDeductions = viewModel::retryDeductions,
         onSubmit = viewModel::submit,
         onDelete = viewModel::delete,
         onCancel = onDone,
@@ -146,6 +148,8 @@ private fun EditTransactionContent(
     onSuggestionSelected: (String) -> Unit = {},
     onCurrencySelected: (String) -> Unit = {},
     onDebtSideSelected: (DebtSide) -> Unit = {},
+    onDeductionEdited: (Long, DeductionEdit) -> Unit = { _, _ -> },
+    onRetryDeductions: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -176,6 +180,8 @@ private fun EditTransactionContent(
                     onRateChanged = onRateChanged,
                     onDateSelected = onDateSelected,
                     onNoteChanged = onNoteChanged,
+                    onDeductionEdited = onDeductionEdited,
+                    onRetryDeductions = onRetryDeductions,
                     onSubmit = onSubmit,
                     onDelete = onDelete,
                     onCancel = onCancel,
@@ -204,6 +210,8 @@ private fun EditTransactionForm(
     onSuggestionSelected: (String) -> Unit = {},
     onCurrencySelected: (String) -> Unit = {},
     onDebtSideSelected: (DebtSide) -> Unit = {},
+    onDeductionEdited: (Long, DeductionEdit) -> Unit = { _, _ -> },
+    onRetryDeductions: () -> Unit = {},
 ) {
     var confirmingDelete by remember { mutableStateOf(false) }
 
@@ -236,6 +244,11 @@ private fun EditTransactionForm(
             onAccountSelected = onAccountSelected,
             onCategorySelected = onCategorySelected,
             onSubCategorySelected = onSubCategorySelected,
+        )
+
+        if (type == TransactionType.INCOME) DeductionsSection(
+            state.deductions, state.fx?.currencies.orEmpty(), selectedAccount?.currencyCode,
+            onDeductionEdited, onRetryDeductions,
         )
 
         RateSection(
@@ -386,8 +399,10 @@ private fun EditTransactionPreview() {
                     date = LocalDate.of(2026, 7, 3), note = "Lunch",
                 ),
                 type = TransactionType.EXPENSE,
-                accounts = listOf(Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.zero("USD"))),
-                allCategories = listOf(Category(id = 2, name = "Food", kind = org.aristonis.mywallet.domain.model.CategoryKind.EXPENSE)),
+                accounts = listOf(Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD",
+                    openingBalance = Money.zero("USD"))),
+                allCategories = listOf(Category(id = 2, name = "Food",
+                    kind = org.aristonis.mywallet.domain.model.CategoryKind.EXPENSE)),
                 selectedAccountId = 1,
                 selectedCategoryId = 2,
                 amountInput = "12.50",

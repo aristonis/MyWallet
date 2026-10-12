@@ -82,6 +82,7 @@ class SubCategorySelectionTest {
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
+            deductionItems = FakeDeductionItemRepository(),
         )
     }
 

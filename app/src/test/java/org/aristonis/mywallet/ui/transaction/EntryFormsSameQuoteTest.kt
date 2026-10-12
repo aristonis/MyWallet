@@ -80,6 +80,7 @@ class EntryFormsSameQuoteTest {
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
+            deductionItems = FakeDeductionItemRepository(),
         )
         val edit = EditTransactionViewModel(
             accounts = accountRepo,
@@ -93,6 +94,7 @@ class EntryFormsSameQuoteTest {
             fx = fx,
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             debts = use.debts,
+            deductionItems = FakeDeductionItemRepository(),
         )
     }
 
