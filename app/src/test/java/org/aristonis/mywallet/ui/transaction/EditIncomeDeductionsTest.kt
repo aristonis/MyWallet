@@ -59,7 +59,7 @@ class EditIncomeDeductionsTest {
                     if (failRules) throw IllegalStateException("private read error")
                     emitAll(use.deductions.observeAll())
                 }
-            })
+            }, categoryRoles = use.roles)
         suspend fun seed() {
             use.deductions.upsert(DeductionItem(1, "Changed", DeductionMode.PERCENT, BigDecimal("80"),
                 timing = DeductionTiming.LATER, expenseCategoryId = 9, enabled = false))

@@ -315,6 +315,7 @@ internal class EntryUseCases(
     rates: RateRepository,
     settings: SettingsRepository,
     val debts: FakeDebtRepository = FakeDebtRepository(),
+    val roles: CategoryRoleRepository = FakeFormRoles(),
 ) {
     private val runner = object : org.aristonis.mywallet.domain.port.TransactionRunner {
         override suspend fun <T> inTransaction(block: suspend () -> T): T {
@@ -330,11 +331,7 @@ internal class EntryUseCases(
     val saveEntry = SaveEntry(
         runner, accounts, categories, entries,
         FakeFxRepository(currencies, rates, settings), settings, SetExchangeRate(currencies, rates, ledger, runner, settings),
-        debts, ledger, RoleCategories(object : CategoryRoleRepository {
-            override suspend fun categoryFor(role: CategoryRole): Long? = null
-            override suspend fun bindIfMissing(role: CategoryRole, categoryId: Long): Boolean =
-                error("role binding is not exercised by this fixture")
-        }, categories), deductions,
+        debts, ledger, RoleCategories(roles, categories), deductions,
     )
     val deleteEntry = DeleteEntry(runner, entries, debts, ledger)
     val restoreEntries = RestoreEntries(runner, entries, categories, accounts, debts, ledger, deductions)
@@ -367,4 +364,17 @@ internal class FakeDebtRepository(initial: List<Debt> = emptyList()) : DebtRepos
         val key = if (prefix.isBlank()) "" else NameKey.of(prefix).value
         return items.value.filter { it.key.value.startsWith(key) }.distinctBy { it.key }.map { it.counterparty }
     }
+}
+
+/** Role bindings supplied to the real save and the form under test. */
+internal class FakeFormRoles(var feeCategory: Long? = null) : CategoryRoleRepository {
+    var failure: Throwable? = null
+    var beforeRead: suspend () -> Unit = {}
+    override suspend fun categoryFor(role: CategoryRole): Long? {
+        beforeRead()
+        failure?.let { throw it }
+        return if (role == CategoryRole.FEES) feeCategory else null
+    }
+    override suspend fun bindIfMissing(role: CategoryRole, categoryId: Long): Boolean =
+        error("the entry form does not bind roles")
 }

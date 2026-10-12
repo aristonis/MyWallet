@@ -35,7 +35,7 @@ internal fun RateSection(
         rateFields = state.rateFields,
         onRateChanged = onRateChanged,
         transferPreview = if (state.type == TransactionType.TRANSFER) {
-            { TransferPreview(state.pairRate, state.receivedDisplay) }
+            { TransferPreview(state.pairRate, state.receivedDisplay.takeIf { state.fee.accountMovement == null }) }
         } else {
             null
         },

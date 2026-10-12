@@ -35,11 +35,13 @@ internal class DebtFormTestFixture(
     val add = AddTransactionViewModel(accountRepo, categoryRepo, use.saveEntry, TodayProvider { day },
         MoneyParser(Locale.US), fx, settingsRepo, MoneyFormatter(Locale.US), SuggestCounterparties(debts),
         deductionItems = FakeDeductionItemRepository(),
+            categoryRoles = FakeFormRoles(),
     )
     val edit = EditTransactionViewModel(accountRepo, categoryRepo, use.entries, use.saveEntry,
         use.deleteEntry, use.restoreEntries, MoneyParser(Locale.US), MoneyFormatter(Locale.US), fx,
         debts = debts, suggestCounterparties = SuggestCounterparties(debts),
         deductionItems = FakeDeductionItemRepository(),
+            categoryRoles = FakeFormRoles(),
     )
 
     companion object {

@@ -17,8 +17,10 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.di.TodayProvider
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.DeductionItemRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
@@ -56,11 +58,13 @@ class AddTransactionViewModel @Inject constructor(
     moneyFormatter: MoneyFormatter,
     suggestCounterparties: SuggestCounterparties,
     private val deductionItems: DeductionItemRepository,
+    categoryRoles: CategoryRoleRepository,
     private val errors: ErrorReporter = ErrorReporter { _, _ -> },
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
     private val deductionForm = IncomeDeductionForm(moneyParser, errors)
+    private val feeForm = EntryFeeForm(moneyParser, moneyFormatter, errors)
     private val _state = MutableStateFlow(AddTransactionUiState(date = today.today()))
     val state: StateFlow<AddTransactionUiState> = _state.asStateFlow()
     private val suggestions = CounterpartySuggestions(viewModelScope, suggestCounterparties,
@@ -69,6 +73,19 @@ class AddTransactionViewModel @Inject constructor(
             errors.report("Counterparty suggestions could not be read", e)
             _state.update { it.copy(counterpartySuggestions = emptyList()) }
         })
+
+    private val feeCategories = FeeCategoryReader(viewModelScope, categoryRoles, errors) { change ->
+        mutate { it.copy(fee = change(it.fee, it.allCategories)) }
+    }
+
+    /** Retries a failed Fees lookup without changing the fee typed for this entry. */
+    fun retryFeeCategory() = feeCategories.start()
+
+    fun setFeeValue(value: String) = mutate { it.copy(fee = it.fee.withValue(value), error = null) }
+    fun selectFeeMode(mode: FeeMode) = mutate { it.copy(fee = it.fee.withMode(mode), error = null) }
+    fun selectFeeCategory(id: Long?) = mutate {
+        it.fee.withCategory(id, it.allCategories)?.let { fee -> it.copy(fee = fee, error = null) } ?: it
+    }
 
     private val catalog = DeductionCatalogReader(viewModelScope, deductionItems, errors,
         onItems = { items ->
@@ -97,8 +114,10 @@ class AddTransactionViewModel @Inject constructor(
                         allCategories = categoryList,
                         // Pre-select a source account for convenience; never auto-fill the destination.
                         selectedAccountId = current.selectedAccountId ?: accountList.firstOrNull()?.id,
-                    )
+                    ).withPreselectedSourceFee(current.selectedAccountId)
+                        .let { updated -> updated.copy(fee = updated.fee.withCategories(categoryList)) }
                 }
+                feeCategories.start()
             }
             .launchIn(viewModelScope)
         fx.observeFx()
@@ -115,15 +134,21 @@ class AddTransactionViewModel @Inject constructor(
      */
     private fun mutate(change: (AddTransactionUiState) -> AddTransactionUiState) = _state.update { current ->
         val next = change(current)
-        val quote = quoter.quote(next.quoteInput())
+        val rates = next.quoteInput()
         val deductions = deductionForm.recalculated(next.deductions, next.type == TransactionType.INCOME,
-            next.amountInput, next.accounts.currencyOf(next.selectedAccountId), next.quoteInput())
+            next.amountInput, next.accounts.currencyOf(next.selectedAccountId), rates)
+        val fee = feeForm.recalculated(next.fee, next.type, next.amountInput,
+            next.accounts.currencyOf(next.selectedAccountId), next.accounts.currencyOf(next.destAccountId),
+            rates, null)
+        val quote = quoter.quote(if (next.type == TransactionType.TRANSFER) rates.withFee(fee.amount) else rates)
         next.copy(
+            fee = fee,
             rateFields = (quote.rateFields + deductions.rateFields).distinctBy { it.currencyCode },
             deductions = deductions,
             baseEquivalent = quote.baseEquivalent,
             pairRate = quote.pairRate,
-            receivedDisplay = quote.receivedDisplay,
+            receivedDisplay = if (next.type == TransactionType.TRANSFER) feeForm.displayMovement(fee, next.fx)
+                else quote.receivedDisplay,
             rateRequired = quote.rateRequired,
         )
     }
@@ -138,10 +163,25 @@ class AddTransactionViewModel @Inject constructor(
     fun selectType(type: TransactionType) = mutate {
         // Switching type clears the category: the use-cases only check a category EXISTS, not that its
         // kind matches, so a stale income category must not survive into an expense (and vice versa).
-        it.copy(type = type, selectedCategoryId = null, selectedSubCategoryId = null, error = null,
+        if (it.type == type) return@mutate it
+        it.copy(type = type, fee = it.fee.restartedFrom(it.feeDefaultFor(type, it.selectedAccountId)),
+            selectedCategoryId = null, selectedSubCategoryId = null, error = null,
             deductions = it.deductions.copy(
                 drafts = deductionForm.freshDrafts(it.deductions, type == TransactionType.INCOME, null)))
     }
+
+    /** A new transfer starts from its source account's default fee; other kinds start with none. */
+    private fun AddTransactionUiState.feeDefaultFor(type: TransactionType, accountId: Long?): FeeFormState =
+        feeForm.fromDefault(if (type == TransactionType.TRANSFER)
+            accounts.firstOrNull { account -> account.id == accountId }?.defaultFee else null)
+
+    /**
+     * Transfer may be chosen before the accounts arrive; the source picked on arrival then supplies
+     * the default fee, unless the owner already set one.
+     */
+    private fun AddTransactionUiState.withPreselectedSourceFee(previousSource: Long?): AddTransactionUiState =
+        if (previousSource != null || type != TransactionType.TRANSFER) this
+        else copy(fee = fee.followingSource(feeDefaultFor(type, selectedAccountId), null, null))
 
     fun setCounterparty(value: String) {
         mutate { it.copy(counterparty = value, counterpartySuggestions = emptyList(), error = null) }
@@ -154,7 +194,14 @@ class AddTransactionViewModel @Inject constructor(
     fun selectCurrency(code: String) = mutate { it.copy(currencyCode = code) }
     fun selectDebtSide(side: DebtSide) = mutate { it.copy(debtSide = side) }
     fun selectAccount(id: Long) = mutate {
-        it.copy(selectedAccountId = id, deductions = it.deductions.copy(drafts = deductionForm.onCurrencyChanged(
+        if (it.selectedAccountId == id) return@mutate it
+        val oldCode = it.accounts.currencyOf(it.selectedAccountId)
+        val newCode = it.accounts.currencyOf(id)
+        val fee = if (it.type == TransactionType.TRANSFER) {
+            it.fee.followingSource(it.feeDefaultFor(it.type, id), oldCode, newCode)
+        } else it.fee.onCurrencyChanged(oldCode, newCode)
+        it.copy(selectedAccountId = id, fee = fee,
+            deductions = it.deductions.copy(drafts = deductionForm.onCurrencyChanged(
             it.deductions.drafts, it.accounts.currencyOf(it.selectedAccountId), it.accounts.currencyOf(id))))
     }
 
@@ -204,6 +251,7 @@ class AddTransactionViewModel @Inject constructor(
             date = today.today(),
             error = null,
             rateInputs = emptyMap(),
+            fee = it.fee.restartedFrom(it.feeDefaultFor(it.type, it.selectedAccountId)),
             deductions = it.deductions.copy(
                 drafts = deductionForm.freshDrafts(it.deductions, it.type == TransactionType.INCOME, null)),
         )
@@ -230,8 +278,8 @@ class AddTransactionViewModel @Inject constructor(
                     note = snapshot.note,
                 )
                 val saved = saveEntry(
-                    entry = deductionForm.forSave(built.entry, snapshot.deductions, snapshot.amountInput,
-                        snapshot.quoteInput()),
+                    entry = feeForm.forSave(deductionForm.forSave(built.entry, snapshot.deductions,
+                        snapshot.amountInput, snapshot.quoteInput()), snapshot.fee),
                     debt = built.debt,
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )

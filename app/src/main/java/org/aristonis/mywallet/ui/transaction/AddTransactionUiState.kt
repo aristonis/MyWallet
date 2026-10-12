@@ -8,7 +8,9 @@ import org.aristonis.mywallet.ui.message.UiMessage
 import java.time.LocalDate
 
 /** The entry kind the form is recording. */
-enum class TransactionType { INCOME, EXPENSE, TRANSFER, BORROW, LEND, OWED_BEFORE, CREDIT_PURCHASE, EARNED_UNPAID }
+enum class TransactionType {
+    INCOME, EXPENSE, TRANSFER, REFUND, BORROW, LEND, OWED_BEFORE, CREDIT_PURCHASE, EARNED_UNPAID
+}
 
 /** Immutable snapshot the add-transaction screen renders from. */
 data class AddTransactionUiState(
@@ -35,6 +37,8 @@ data class AddTransactionUiState(
     val rateInputs: Map<String, String> = emptyMap(),
     /** An income's deductions; empty and unused for every other type. */
     val deductions: IncomeDeductionFormState = IncomeDeductionFormState(),
+    /** Optional entry fee; ignored by kinds without a fee field. */
+    val fee: FeeFormState = FeeFormState(),
     /** The saved rates and base currency the previews are priced against; null until loaded. */
     val fx: FxSnapshot? = null,
     val rateFields: List<RateField> = emptyList(),
@@ -73,6 +77,7 @@ data class AddTransactionUiState(
     val canSubmit: Boolean
         get() = !isSubmitting && savedOn == null && !rateRequired &&
             (type != TransactionType.INCOME || deductions.allowsIncomeSave) &&
+            (!type.hasFeeField() || fee.allowsSave) &&
             EntryFormRules.forType(type).isSubmittable(formInputs())
 
     /** The form's choices, in the shape the shared rule of each type reads. */

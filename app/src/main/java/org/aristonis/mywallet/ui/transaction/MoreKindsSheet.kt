@@ -23,8 +23,8 @@ import org.aristonis.mywallet.R
 internal val standardTransactionTypes =
     listOf(TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER)
 /** The kinds offered in the "More" sheet. */
-internal val moreTransactionTypes = listOf(TransactionType.BORROW, TransactionType.LEND, TransactionType.OWED_BEFORE,
-    TransactionType.CREDIT_PURCHASE, TransactionType.EARNED_UNPAID)
+internal val moreTransactionTypes = listOf(TransactionType.REFUND, TransactionType.BORROW, TransactionType.LEND,
+    TransactionType.OWED_BEFORE, TransactionType.CREDIT_PURCHASE, TransactionType.EARNED_UNPAID)
 
 /** The sheet that lists the kinds behind "More"; choosing one selects it and closes the sheet. */
 @OptIn(ExperimentalMaterial3Api::class)

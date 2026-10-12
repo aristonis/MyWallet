@@ -88,7 +88,7 @@ interface EntryFormRule {
 /** Every rule, by entry type or by stored entry. */
 object EntryFormRules {
 
-    val all: List<EntryFormRule> = listOf(IncomeFormRule, ExpenseFormRule, TransferFormRule,
+    val all: List<EntryFormRule> = listOf(IncomeFormRule, ExpenseFormRule, TransferFormRule, RefundFormRule,
         BorrowFormRule, LendFormRule, OwedBeforeFormRule, CreditPurchaseFormRule, EarnedUnpaidFormRule)
     private val byType = all.associateBy { it.type }
     private val byKind = all.associateBy { it.kind }

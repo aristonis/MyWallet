@@ -85,6 +85,7 @@ class EditTransactionViewModelTest {
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             debts = use.debts,
             deductionItems = FakeDeductionItemRepository(),
+            categoryRoles = FakeFormRoles(),
         )
 
         /** A live balance probe over the same fake store the view model writes through. */

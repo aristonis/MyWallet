@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.ui.message
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.data.format.MoneyFormatter
@@ -60,6 +61,11 @@ fun UiMessage.text(): String = when (this) {
     UiMessage.FeeNotBelowAmount -> stringResource(R.string.msg_fee_not_below_amount)
     UiMessage.FeeValueNegative -> stringResource(R.string.msg_fee_value_negative)
     UiMessage.FeePercentAboveHundred -> stringResource(R.string.msg_fee_percent_above_hundred)
+    is UiMessage.FeeTooManyDecimals -> if (decimalPlaces == 0) {
+        stringResource(R.string.msg_fee_whole_number, currencyCode)
+    } else {
+        pluralStringResource(R.plurals.msg_fee_too_many_decimals, decimalPlaces, currencyCode, decimalPlaces)
+    }
 
     UiMessage.NameBlank -> stringResource(R.string.msg_name_blank)
     UiMessage.DebtNotFound -> stringResource(R.string.msg_debt_not_found)

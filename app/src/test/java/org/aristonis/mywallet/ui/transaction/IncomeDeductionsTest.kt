@@ -61,6 +61,7 @@ class IncomeDeductionsTest {
                     emitAll(use.deductions.observeAll())
                 }
             },
+            categoryRoles = use.roles,
             errors = org.aristonis.mywallet.di.ErrorReporter { _, failure -> reported.add(failure) })
         suspend fun seed() {
             use.deductions.upsert(item(1, "Tax", "10", DeductionTiming.LATER))

@@ -19,10 +19,11 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.DebtSide
-import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
@@ -64,11 +65,14 @@ class EditTransactionViewModel @Inject constructor(
     private val debts: DebtRepository,
     suggestCounterparties: SuggestCounterparties,
     private val deductionItems: DeductionItemRepository,
+    categoryRoles: CategoryRoleRepository,
     private val errors: ErrorReporter = ErrorReporter { _, _ -> },
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
     private val deductionForm = IncomeDeductionForm(moneyParser, errors)
+    private val feeForm = EntryFeeForm(moneyParser, moneyFormatter, errors)
+    private val loader = EditFormLoader(moneyParser, feeForm, deductionForm)
     private val _state = MutableStateFlow(EditTransactionUiState())
     val state: StateFlow<EditTransactionUiState> = _state.asStateFlow()
     private val suggestions = CounterpartySuggestions(viewModelScope, suggestCounterparties,
@@ -79,6 +83,19 @@ class EditTransactionViewModel @Inject constructor(
         })
 
     private var loadJob: Job? = null
+
+    private val feeCategories = FeeCategoryReader(viewModelScope, categoryRoles, errors) { change ->
+        mutate { it.copy(fee = change(it.fee, it.allCategories)) }
+    }
+
+    /** Retries a failed Fees lookup without changing the fee typed for this entry. */
+    fun retryFeeCategory() = feeCategories.start()
+
+    fun setFeeValue(value: String) = mutate { it.copy(fee = it.fee.withValue(value), error = null) }
+    fun selectFeeMode(mode: FeeMode) = mutate { it.copy(fee = it.fee.withMode(mode), error = null) }
+    fun selectFeeCategory(id: Long?) = mutate {
+        it.fee.withCategory(id, it.allCategories)?.let { fee -> it.copy(fee = fee, error = null) } ?: it
+    }
 
     private val catalog = DeductionCatalogReader(viewModelScope, deductionItems, errors,
         onItems = { items ->
@@ -101,7 +118,9 @@ class EditTransactionViewModel @Inject constructor(
             accountList.filterNot { it.archived } to categoryList
         }
             .onEach { (accountList, categoryList) ->
-                mutate { it.copy(accounts = accountList, allCategories = categoryList) }
+                mutate { it.copy(accounts = accountList, allCategories = categoryList,
+                    fee = it.fee.withCategories(categoryList)) }
+                feeCategories.start()
             }
             .launchIn(viewModelScope)
         fx.observeFx().onEach { snapshot -> mutate { it.copy(fx = snapshot) } }.launchIn(viewModelScope)
@@ -113,7 +132,10 @@ class EditTransactionViewModel @Inject constructor(
         val quote = quoter.quote(next.quoteInput())
         val deductions = deductionForm.recalculated(next.deductions, next.type == TransactionType.INCOME,
             next.amountInput, next.accounts.currencyOf(next.selectedAccountId), next.quoteInput())
-        next.copy(rateFields = (quote.rateFields + deductions.rateFields).distinctBy { it.currencyCode },
+        val fee = feeForm.recalculated(next.fee, next.type, next.amountInput,
+            next.accounts.currencyOf(next.selectedAccountId), next.accounts.currencyOf(next.destAccountId),
+            next.quoteInput(), next.loaded)
+        next.copy(fee = fee, rateFields = (quote.rateFields + deductions.rateFields).distinctBy { it.currencyCode },
             deductions = deductions, baseEquivalent = quote.baseEquivalent)
     }
 
@@ -153,8 +175,10 @@ class EditTransactionViewModel @Inject constructor(
                 val debtId = EntryFormRules.forEntry(existing)?.load(existing, moneyParser)?.debtId
                 val debt = debtId?.let { debts.findById(it) ?: throw WalletException.DebtNotFound(it) }
                 ensureActive()
-                mutate { current -> current.populatedFrom(existing).copy(counterparty = debt?.counterparty.orEmpty(),
-                    debtSide = debt?.side ?: current.debtSide) }
+                mutate { current ->
+                    loader.populated(current, existing).copy(counterparty = debt?.counterparty.orEmpty(),
+                        debtSide = debt?.side ?: current.debtSide)
+                }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 ensureActive()
@@ -181,7 +205,10 @@ class EditTransactionViewModel @Inject constructor(
     fun selectCurrency(code: String) = mutate { it.copy(currencyCode = code) }
     fun selectDebtSide(side: DebtSide) = mutate { it.copy(debtSide = side) }
     fun selectAccount(id: Long) = mutate {
-        it.copy(selectedAccountId = id, deductions = it.deductions.copy(drafts = deductionForm.onCurrencyChanged(
+        if (it.accountPickersLocked) return@mutate it
+        it.copy(selectedAccountId = id,
+            fee = it.fee.onCurrencyChanged(it.accounts.currencyOf(it.selectedAccountId), it.accounts.currencyOf(id)),
+            deductions = it.deductions.copy(drafts = deductionForm.onCurrencyChanged(
             it.deductions.drafts, it.accounts.currencyOf(it.selectedAccountId), it.accounts.currencyOf(id))))
     }
 
@@ -268,8 +295,8 @@ class EditTransactionViewModel @Inject constructor(
             try {
                 val built = buildEdited(snapshot, loaded)
                 val saved = saveEntry(
-                    entry = deductionForm.forSave(built.entry, snapshot.deductions, snapshot.amountInput,
-                        snapshot.quoteInput()),
+                    entry = feeForm.forSave(deductionForm.forSave(built.entry, snapshot.deductions,
+                        snapshot.amountInput, snapshot.quoteInput()), snapshot.fee),
                     debt = built.debt,
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )
@@ -308,49 +335,6 @@ class EditTransactionViewModel @Inject constructor(
             }
         }
     }
-
-    /**
-     * Re-hydrate every form field from a stored row, resetting transient/one-shot state. A kind with
-     * no form rule yet opens read-only, showing the money that moved, its date and its note.
-     */
-    private fun EditTransactionUiState.populatedFrom(tx: Transaction): EditTransactionUiState {
-        val rule = EntryFormRules.forEntry(tx)
-            ?: return copyLoaded(tx, type = null,
-                EntryFormInputs(amountInput = inputOf(tx.movedAmount())), readOnly = true)
-        return copyLoaded(tx, rule.type, rule.load(tx, moneyParser), readOnly = false)
-    }
-
-    private fun inputOf(amount: Money): String = moneyParser.toInputString(amount.amount)
-
-    private fun EditTransactionUiState.copyLoaded(
-        tx: Transaction,
-        type: TransactionType?,
-        inputs: EntryFormInputs,
-        readOnly: Boolean,
-    ) = copy(
-        deductions = deductions.copy(drafts = if (tx is Transaction.Income) deductionForm.refresh(
-            deductionForm.snapshots(tx.deductions), deductions.items, keepHistory = true,
-        ) else emptyList()),
-        loaded = tx,
-        type = type,
-        readOnly = readOnly,
-        selectedAccountId = inputs.accountId,
-        selectedCategoryId = inputs.categoryId,
-        // Seeded here for the same reason it is written on save: the form now owns this field, so
-        // leaving it unseeded would make editing anything at all clear the stored sub-category.
-        selectedSubCategoryId = inputs.subCategoryId,
-        destAccountId = inputs.destAccountId,
-        amountInput = inputs.amountInput,
-        currencyCode = inputs.currencyCode, debtId = inputs.debtId, debtSide = inputs.debtSide,
-        date = tx.date,
-        note = tx.note ?: "",
-        isSubmitting = false,
-        error = null,
-        savedOn = null,
-        deleted = false,
-        undoableDelete = null,
-        rateInputs = emptyMap(),
-    )
 
     /**
      * Fold the edited form back onto the loaded row through its type's rule, which keeps its id and

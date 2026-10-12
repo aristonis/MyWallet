@@ -40,6 +40,7 @@ internal class TransactionFormHarness(type: TransactionType) {
     @Composable
     fun Content() {
         AddTransactionContent(state,
+            onFeeValueChanged = {}, onFeeModeChanged = {}, onFeeCategorySelected = {}, onRetryFeeCategory = {},
             onTypeSelected = { type -> change { it.copy(type = type) } },
             onAccountSelected = { id -> change { it.copy(selectedAccountId = id) } },
             onCategorySelected = { id -> change { it.copy(selectedCategoryId = id) } },

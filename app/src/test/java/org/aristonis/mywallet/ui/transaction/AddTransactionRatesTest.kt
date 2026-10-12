@@ -74,6 +74,7 @@ class AddTransactionRatesTest {
             moneyFormatter = MoneyFormatter(locale),
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             deductionItems = FakeDeductionItemRepository(),
+            categoryRoles = FakeFormRoles(),
         )
         val state get() = viewModel.state.value
 

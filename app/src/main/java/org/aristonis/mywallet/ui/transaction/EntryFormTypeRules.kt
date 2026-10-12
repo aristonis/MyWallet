@@ -123,6 +123,8 @@ internal object ExpenseFormRule : CategoryFormRule(TransactionType.EXPENSE, Cate
         return loaded.copy(
             accountId = fields.accountId, amount = fields.amount, categoryId = fields.categoryId,
             subCategoryId = fields.subCategoryId, date = fields.date, note = fields.note,
+            // The fee form attaches the new fee next; this draft cannot carry an old currency's money.
+            fee = loaded.fee?.takeIf { it.currencyCode == fields.amount.currencyCode },
         )
     }
 

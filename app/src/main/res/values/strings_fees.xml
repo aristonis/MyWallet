@@ -9,4 +9,19 @@
     <string name="account_default_fee_hint">Used for transfers from this account. Leave blank for no default.</string>
     <string name="msg_fee_value_negative">Enter a fee of zero or more.</string>
     <string name="msg_fee_percent_above_hundred">Enter a fee percentage of 100 or less.</string>
+    <string name="fee_mode">Fee type</string>
+    <string name="fee_transfer_hint">Taken from the amount sent. Leave blank or enter zero for no fee.</string>
+    <string name="fee_expense_hint">Added to the payment. Leave blank or enter zero for no fee.</string>
+    <string name="fee_category">Fee category</string>
+    <string name="fee_uncategorized">Uncategorized</string>
+    <string name="fee_destination">Destination</string>
+    <string name="fee_transfer_receives">%1$s receives %2$s</string>
+    <string name="fee_expense_pays">Account pays %1$s</string>
+    <string name="fee_category_removed">The fee category is no longer available. Choose another or use the default.</string>
+    <string name="fee_percent_suffix" formatted="false">%</string>
+    <string name="msg_fee_whole_number">Enter a %1$s fee as a whole number.</string>
+    <plurals name="msg_fee_too_many_decimals">
+        <item quantity="one">Enter a %1$s fee with at most %2$d decimal place.</item>
+        <item quantity="other">Enter a %1$s fee with at most %2$d decimal places.</item>
+    </plurals>
 </resources>

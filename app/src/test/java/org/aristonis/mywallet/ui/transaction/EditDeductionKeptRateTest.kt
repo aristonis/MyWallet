@@ -63,7 +63,7 @@ class EditDeductionKeptRateTest {
         val vm = EditTransactionViewModel(accounts, categories, use.entries, use.saveEntry, use.deleteEntry,
             use.restoreEntries, MoneyParser(Locale.US), MoneyFormatter(Locale.US),
             FakeFxRepository(currencies, rates, settings), use.debts, SuggestCounterparties(use.debts),
-            deductionItems = use.deductions)
+            deductionItems = use.deductions, categoryRoles = use.roles)
 
         suspend fun seed() {
             use.deductions.upsert(DeductionItem(1, "Tax", DeductionMode.FIXED, BigDecimal("100"), "USD",
@@ -109,4 +109,18 @@ class EditDeductionKeptRateTest {
         assertNull(f.vm.state.value.error)
         assertEquals(f.tax, f.stored().deductions.single())
     }
+    @Test fun `moving income currency prices foreign fixed line from current rates`() = runTest(dispatcher) {
+        val f = Fixture(); f.seed(); f.vm.load(1); advanceUntilIdle()
+        f.vm.editDeduction(1, DeductionEdit.SetCurrency("EUR"))
+        f.vm.editDeduction(1, DeductionEdit.SetValue("100"))
+        f.vm.selectAccount(1)
+        assertEquals(Money.of("120", "USD"), f.vm.state.value.deductions.lines.single().amount)
+        f.vm.submit(); advanceUntilIdle()
+        assertNull(f.vm.state.value.error)
+        assertEquals(Money.of("120", "USD"), f.stored().deductions.single().amount)
+        val leg = f.stored().toParts().legs.single { it.role == LegRole.DEDUCTION }
+        assertEquals(0, BigDecimal.ONE.compareTo(leg.rateToBase))
+        assertEquals(Money.of("120", "USD"), leg.amount)
+    }
+
 }

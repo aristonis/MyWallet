@@ -87,6 +87,7 @@ class AddTransactionViewModelTest {
             moneyFormatter = MoneyFormatter(Locale.US),
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             deductionItems = FakeDeductionItemRepository(),
+            categoryRoles = FakeFormRoles(),
         )
 
         /** Everything the save stored. */

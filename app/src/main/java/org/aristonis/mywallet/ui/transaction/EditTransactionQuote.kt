@@ -9,7 +9,11 @@ internal fun EditTransactionUiState.quoteInput(): RateQuoteInput {
     val entry = loaded
     val rule = entry?.let(EntryFormRules::forEntry)
     val inputs = formInputs()
-    return RateQuoteInput(fx = fx, legs = rule?.quoteLegs(inputs, accounts, entry).orEmpty(),
-        rateInputs = rateInputs, keptRates = if (entry != null) rule?.keptRates(entry).orEmpty() else emptyMap(),
+    val legs = rule?.quoteLegs(inputs, accounts, entry).orEmpty()
+    // The original main rate applies only while its leg keeps that currency. A foreign fixed
+    // deduction using the old currency after a move must read today's rate, as the save does.
+    val kept = if (entry == null) emptyMap() else rule?.keptRates(entry).orEmpty()
+        .filterKeys { code -> legs.any { it.currencyCode == code } }
+    return RateQuoteInput(fx = fx, legs = legs, rateInputs = rateInputs, keptRates = kept,
         pair = rule?.quotePair(inputs, accounts, entry))
 }

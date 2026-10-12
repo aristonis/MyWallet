@@ -72,6 +72,8 @@ sealed interface UiMessage {
     data object FeeNotBelowAmount : UiMessage
     data object FeeValueNegative : UiMessage
     data object FeePercentAboveHundred : UiMessage
+    /** A fixed fee typed with more decimals than [currencyCode] has; it is refused, never rounded. */
+    data class FeeTooManyDecimals(val currencyCode: String, val decimalPlaces: Int) : UiMessage
 
     // -- Debts ------------------------------------------------------------------------------------
 

@@ -92,6 +92,7 @@ class EditDebtKindReadOnlyTest {
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             debts = use.debts,
             deductionItems = FakeDeductionItemRepository(),
+            categoryRoles = FakeFormRoles(),
         )
     }
 

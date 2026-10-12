@@ -63,6 +63,8 @@ data class QuotePair(val from: String, val to: String)
  * @property rateInputs the rate text typed so far, by currency code.
  * @property keptRates the rate stored on an entry being edited, by currency code.
  * @property pair the transfer currencies to preview, or null when nothing is converted between accounts.
+ * @property feeCurrency the currency of a positive transfer fee. The fee is an expense valued in the
+ *   base currency, so it needs a rate field even when the transfer itself converts nothing.
  */
 internal data class RateQuoteInput(
     val fx: FxSnapshot?,
@@ -70,6 +72,7 @@ internal data class RateQuoteInput(
     val rateInputs: Map<String, String>,
     val keptRates: Map<String, BigDecimal?> = emptyMap(),
     val pair: QuotePair? = null,
+    val feeCurrency: String? = null,
 )
 
 /**
@@ -96,10 +99,8 @@ internal class RateQuoter(
         val fx = input.fx ?: return RateQuote()
         val pair = input.pair
         val tracking = input.legs.filter { it.countsInTracking }
-        val codes = tracking.map { it.currencyCode } +
-            if (pair != null && pair.from != pair.to) listOf(pair.from, pair.to) else emptyList()
         val shown = shownRates(fx, input.keptRates)
-        val fields = codes.distinct().filterNot { it == fx.baseCurrencyCode }.map { fieldFor(input, shown, it) }
+        val fields = input.visibleRateCodes().map { fieldFor(input, shown, it) }
         val book = bookFor(input, shown, fields)
         val prices = Prices(fx, book)
         val pricedLeg = tracking.firstOrNull() ?: if (pair != null) input.legs.firstOrNull() else null
@@ -109,7 +110,8 @@ internal class RateQuoter(
             baseEquivalent = amount?.let { prices.inBase(it) },
             pairRate = pair?.let { prices.pairRate(it.from, it.to) },
             receivedDisplay = pair?.let { p -> amount?.let { prices.received(it, p.to) } },
-            rateRequired = pair != null && fields.any { book.rateToBase(it.currencyCode) == null },
+            // Only the pair must be priced; a fee leg without a rate is filled in later, as on an expense.
+            rateRequired = input.convertingCodes().any { it != fx.baseCurrencyCode && book.rateToBase(it) == null },
         )
     }
 
@@ -216,3 +218,17 @@ internal fun RateQuoteInput.typedRatesFor(codes: List<String>, parser: MoneyPars
         .filterNot { (code, rate) -> prefill[code]?.compareTo(rate) == 0 }
         .toMap()
 }
+
+/** Only currencies with a rate field may consume rate text retained from a previous form choice. */
+internal fun RateQuoteInput.visibleRateCodes(): List<String> {
+    val tracking = legs.filter { it.countsInTracking }.map { it.currencyCode }
+    return (tracking + convertingCodes() + listOfNotNull(feeCurrency)).distinct()
+        .filterNot { it == fx?.baseCurrencyCode }
+}
+
+private fun RateQuoteInput.convertingCodes(): List<String> =
+    pair?.takeIf { it.from != it.to }?.let { listOf(it.from, it.to) }.orEmpty()
+
+/** Adds the rate field a positive [fee] needs; a blank or zero fee records no fee leg to rate. */
+internal fun RateQuoteInput.withFee(fee: Money?): RateQuoteInput =
+    copy(feeCurrency = fee?.takeIf { it.isPositive }?.currencyCode)

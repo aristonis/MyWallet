@@ -27,7 +27,7 @@ import org.junit.runner.RunWith
 class MoreKindsSheetTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun standardSelectorKeepsThreeChoicesAndMoreOpensTheFiveDebtKinds() {
+    @Test fun standardSelectorKeepsThreeChoicesAndMoreOpensOtherKinds() {
         val form = TransactionFormHarness(TransactionType.EXPENSE)
         compose.setContent { MyWalletTheme(dynamicColor = false) { form.Content() } }
         listOf("Income", "Expense", "Transfer").forEach { compose.onNodeWithText(it).assertIsDisplayed() }
@@ -40,7 +40,6 @@ class MoreKindsSheetTest {
             val height = node.fetchSemanticsNode().boundsInRoot.height
             assertTrue("$label must have a 48dp tap target", height >= 48f * compose.density.density)
         }
-        compose.onNodeWithText("Refund").assertDoesNotExist()
     }
 
     @Test fun everyMoreChoiceSelectsItsKindAndDismissesTheSheet() {
@@ -75,5 +74,5 @@ class MoreKindsSheetTest {
         compose.runOnIdle { assertEquals(TransactionType.EARNED_UNPAID, chosen) }
     }
 
-    private val labels = listOf("Borrowed", "Lent", "Owed from before", "Bought on credit", "Earned, not paid yet")
+    private val labels = listOf("Refund", "Borrowed", "Lent", "Owed from before", "Bought on credit", "Earned, not paid yet")
 }

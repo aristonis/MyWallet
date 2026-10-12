@@ -82,6 +82,7 @@ class EditEntrySaveTest {
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             debts = use.debts,
             deductionItems = FakeDeductionItemRepository(),
+            categoryRoles = FakeFormRoles(),
         )
         val state get() = viewModel.state.value
 

@@ -45,6 +45,7 @@ import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
@@ -98,6 +99,10 @@ fun AddTransactionScreen(
         onNoteChanged = viewModel::setNote,
         onDeductionEdited = viewModel::editDeduction,
         onRetryDeductions = viewModel::retryDeductions,
+        onFeeValueChanged = viewModel::setFeeValue,
+        onFeeModeChanged = viewModel::selectFeeMode,
+        onFeeCategorySelected = viewModel::selectFeeCategory,
+        onRetryFeeCategory = viewModel::retryFeeCategory,
         onSubmit = viewModel::submit,
         onCancel = onDone,
     )
@@ -117,6 +122,10 @@ internal fun AddTransactionContent(
     onNoteChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
+    onFeeValueChanged: (String) -> Unit,
+    onFeeModeChanged: (FeeMode) -> Unit,
+    onFeeCategorySelected: (Long?) -> Unit,
+    onRetryFeeCategory: () -> Unit,
     onCounterpartyChanged: (String) -> Unit = {},
     onSuggestionSelected: (String) -> Unit = {},
     onCurrencySelected: (String) -> Unit = {},
@@ -213,6 +222,9 @@ internal fun AddTransactionContent(
                 onDeductionEdited, onRetryDeductions,
             )
 
+            FeeField(state.fee, state.type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
+                selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
+                onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
             RateSection(state = state, onRateChanged = onRateChanged)
 
             DateField(date = state.date, onDateSelected = onDateSelected)
@@ -296,6 +308,7 @@ internal fun typeLabel(type: TransactionType): String = stringResource(
         TransactionType.INCOME -> R.string.transaction_type_income
         TransactionType.EXPENSE -> R.string.transaction_type_expense
         TransactionType.TRANSFER -> R.string.transaction_type_transfer
+        TransactionType.REFUND -> R.string.transaction_type_refund
         TransactionType.BORROW -> R.string.transaction_type_borrow
         TransactionType.LEND -> R.string.transaction_type_lend
         TransactionType.OWED_BEFORE -> R.string.transaction_type_owed_before
@@ -345,6 +358,7 @@ private fun AddTransactionPreview() {
             onNoteChanged = {},
             onSubmit = {},
             onCancel = {},
+            onFeeValueChanged = {}, onFeeModeChanged = {}, onFeeCategorySelected = {}, onRetryFeeCategory = {},
         )
     }
 }

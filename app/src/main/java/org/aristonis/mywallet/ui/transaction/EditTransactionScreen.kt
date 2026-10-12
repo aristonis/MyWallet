@@ -46,6 +46,7 @@ import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.components.LabeledDropdown
@@ -124,6 +125,10 @@ fun EditTransactionScreen(
         onNoteChanged = viewModel::setNote,
         onDeductionEdited = viewModel::editDeduction,
         onRetryDeductions = viewModel::retryDeductions,
+        onFeeValueChanged = viewModel::setFeeValue,
+        onFeeModeChanged = viewModel::selectFeeMode,
+        onFeeCategorySelected = viewModel::selectFeeCategory,
+        onRetryFeeCategory = viewModel::retryFeeCategory,
         onSubmit = viewModel::submit,
         onDelete = viewModel::delete,
         onCancel = onDone,
@@ -144,6 +149,10 @@ private fun EditTransactionContent(
     onSubmit: () -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
+    onFeeValueChanged: (String) -> Unit,
+    onFeeModeChanged: (FeeMode) -> Unit,
+    onFeeCategorySelected: (Long?) -> Unit,
+    onRetryFeeCategory: () -> Unit,
     onCounterpartyChanged: (String) -> Unit = {},
     onSuggestionSelected: (String) -> Unit = {},
     onCurrencySelected: (String) -> Unit = {},
@@ -182,6 +191,10 @@ private fun EditTransactionContent(
                     onNoteChanged = onNoteChanged,
                     onDeductionEdited = onDeductionEdited,
                     onRetryDeductions = onRetryDeductions,
+                    onFeeValueChanged = onFeeValueChanged,
+                    onFeeModeChanged = onFeeModeChanged,
+                    onFeeCategorySelected = onFeeCategorySelected,
+                    onRetryFeeCategory = onRetryFeeCategory,
                     onSubmit = onSubmit,
                     onDelete = onDelete,
                     onCancel = onCancel,
@@ -206,6 +219,10 @@ private fun EditTransactionForm(
     onSubmit: () -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
+    onFeeValueChanged: (String) -> Unit,
+    onFeeModeChanged: (FeeMode) -> Unit,
+    onFeeCategorySelected: (Long?) -> Unit,
+    onRetryFeeCategory: () -> Unit,
     onCounterpartyChanged: (String) -> Unit = {},
     onSuggestionSelected: (String) -> Unit = {},
     onCurrencySelected: (String) -> Unit = {},
@@ -251,6 +268,9 @@ private fun EditTransactionForm(
             onDeductionEdited, onRetryDeductions,
         )
 
+        FeeField(state.fee, type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
+            selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
+            onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
         RateSection(
             baseCode = state.fx?.baseCurrencyCode,
             rateFields = state.rateFields,
@@ -417,6 +437,7 @@ private fun EditTransactionPreview() {
             onRateChanged = { _, _ -> },
             onDateSelected = {},
             onNoteChanged = {},
+            onFeeValueChanged = {}, onFeeModeChanged = {}, onFeeCategorySelected = {}, onRetryFeeCategory = {},
             onSubmit = {},
             onDelete = {},
             onCancel = {},

@@ -43,6 +43,8 @@ data class EditTransactionUiState(
     val rateInputs: Map<String, String> = emptyMap(),
     /** An income's deductions; empty and unused for every other type. */
     val deductions: IncomeDeductionFormState = IncomeDeductionFormState(),
+    /** Optional entry fee; ignored by kinds without a fee field. */
+    val fee: FeeFormState = FeeFormState(),
     /** The saved rates and base currency the previews are priced against; null until loaded. */
     val fx: FxSnapshot? = null,
     val rateFields: List<RateField> = emptyList(),
@@ -84,6 +86,7 @@ data class EditTransactionUiState(
     val canSubmit: Boolean
         get() = canEdit && undoableDelete == null && !isSubmitting && savedOn == null &&
             (type != TransactionType.INCOME || deductions.allowsIncomeSave) &&
+            (!type.hasFeeField() || fee.allowsSave) &&
             type?.let { EntryFormRules.forType(it).isSubmittable(formInputs()) } == true
 
     /** The form's choices, in the shape the shared rule of each type reads. */
