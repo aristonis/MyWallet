@@ -26,9 +26,14 @@ object TransferRecipe : EntryRecipe<Transaction.Transfer> {
     override suspend fun prepareForSave(entry: Transaction.Transfer, context: EntrySaveContext): Transaction.Transfer {
         val destCurrency = context.accounts.findById(entry.destAccountId)?.currencyCode
             ?: throw WalletException.AccountNotFound(entry.destAccountId)
+        val normalized = entry.copy(
+            fee = entry.fee?.takeUnless { it.isZero },
+            feeCategoryId = context.feeCategory(entry.fee, entry.feeCategoryId),
+            feeRateToBase = entry.feeRateToBase.takeIf { entry.fee?.isPositive == true },
+        )
         val old = context.old
-        return if (old == null) entry.pricedAsNew(destCurrency, context.book)
-        else entry.pricedAsEditOf(old, destCurrency, context.snapshot)
+        return if (old == null) normalized.pricedAsNew(destCurrency, context.book)
+        else normalized.pricedAsEditOf(old, destCurrency, context.snapshot)
     }
 
     private val shape = LegShape(required = setOf(LegRole.SOURCE, LegRole.DEST), optional = setOf(LegRole.FEE))

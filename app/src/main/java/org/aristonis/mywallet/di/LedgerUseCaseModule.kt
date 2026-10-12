@@ -8,6 +8,7 @@ import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.port.DeductionItemRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
@@ -45,8 +46,9 @@ object LedgerUseCaseModule {
         debts: DebtRepository,
         ledger: LedgerQueries,
         roleCategories: RoleCategories,
+        deductions: DeductionItemRepository,
     ): SaveEntry = SaveEntry(
-        runner, accounts, categories, entries, fx, settings, setExchangeRate, debts, ledger, roleCategories,
+        runner, accounts, categories, entries, fx, settings, setExchangeRate, debts, ledger, roleCategories, deductions,
     )
 
     @Provides @Singleton
@@ -65,5 +67,6 @@ object LedgerUseCaseModule {
         accounts: AccountRepository,
         debts: DebtRepository,
         ledger: LedgerQueries,
-    ): RestoreEntries = RestoreEntries(runner, entries, categories, accounts, debts, ledger)
+        deductions: DeductionItemRepository,
+    ): RestoreEntries = RestoreEntries(runner, entries, categories, accounts, debts, ledger, deductions)
 }

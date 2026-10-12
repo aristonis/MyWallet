@@ -9,4 +9,5 @@
     <string name="account_default_fee_hint">Used for transfers from this account. Leave blank for no default.</string>
     <string name="msg_fee_value_negative">Enter a fee of zero or more.</string>
     <string name="msg_fee_percent_above_hundred">Enter a fee percentage of 100 or less.</string>
+    <string name="msg_deduction_snapshot_invalid">Check the deduction details and select them again.</string>
 </resources>

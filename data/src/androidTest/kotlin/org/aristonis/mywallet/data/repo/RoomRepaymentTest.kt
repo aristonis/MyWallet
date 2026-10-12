@@ -11,6 +11,7 @@ import org.aristonis.mywallet.data.db.CurrencyEntity
 import org.aristonis.mywallet.data.db.RateEntity
 import org.aristonis.mywallet.data.db.SettingsEntity
 import org.aristonis.mywallet.data.db.WalletDatabase
+import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
 import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.ExchangeRate
@@ -86,6 +87,7 @@ class RoomRepaymentTest {
         runner, accounts, categories, entries, fx, settings,
         SetExchangeRate(RoomCurrencyRepository(db.currencyDao()), ratePort, ledger, runner, settings),
         debts, ledger, RoleCategories(RoomCategoryRoleRepository(db.categoryRoleDao()), categories),
+            RoomDeductionItemRepository(db),
     )
 
     private fun record(save: SaveEntry = saveEntry()) =

@@ -4,10 +4,9 @@ import kotlinx.coroutines.flow.first
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
-import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.CategoryRole
-import org.aristonis.mywallet.domain.service.RoleCategories
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
@@ -15,6 +14,7 @@ import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.TransactionRunner
+import org.aristonis.mywallet.domain.service.RoleCategories
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
@@ -195,9 +195,11 @@ class SaveEntryRig(
     faultAfterFill: Boolean = false,
     atomic: Boolean = false,
     initialDebts: List<Debt> = emptyList(),
+    initialDeductionItems: List<org.aristonis.mywallet.domain.model.DeductionItem> = emptyList(),
     roleBindings: Map<CategoryRole, Long> = emptyMap(),
     private val currencies: List<Currency> = EntryWorld.currencies,
 ) {
+    val deductions = FakeDeductionItemRepository(initialDeductionItems)
     val debts = FakeDebtRepository(initialDebts)
     val roles = FakeCategoryRoleRepository(roleBindings)
     val entries = FakeEntryRepository(initialEntries)
@@ -229,6 +231,7 @@ class SaveEntryRig(
         debts = debts,
         ledger = ledger,
         roleCategories = RoleCategories(roles, categoryRepository),
+        deductions = deductions,
     )
 
     val deleteEntry = DeleteEntry(runner = runner, entries = entryPort, debts = debts, ledger = ledger)
@@ -240,5 +243,6 @@ class SaveEntryRig(
         accounts = accountRepository,
         debts = debts,
         ledger = ledger,
+        deductions = deductions,
     )
 }

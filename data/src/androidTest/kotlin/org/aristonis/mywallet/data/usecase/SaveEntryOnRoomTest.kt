@@ -11,11 +11,12 @@ import org.aristonis.mywallet.data.db.CurrencyEntity
 import org.aristonis.mywallet.data.db.RateEntity
 import org.aristonis.mywallet.data.db.SettingsEntity
 import org.aristonis.mywallet.data.db.WalletDatabase
-import org.aristonis.mywallet.data.repo.RoomDebtRepository
-import org.aristonis.mywallet.data.repo.RoomCategoryRoleRepository
 import org.aristonis.mywallet.data.repo.RoomAccountRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRepository
+import org.aristonis.mywallet.data.repo.RoomCategoryRoleRepository
 import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
+import org.aristonis.mywallet.data.repo.RoomDebtRepository
+import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
 import org.aristonis.mywallet.data.repo.RoomEntryRepository
 import org.aristonis.mywallet.data.repo.RoomFxRepository
 import org.aristonis.mywallet.data.repo.RoomLedgerQueries
@@ -25,10 +26,10 @@ import org.aristonis.mywallet.data.repo.RoomTransactionRunner
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.DebtRef
 import org.aristonis.mywallet.domain.model.DebtSide
-import org.aristonis.mywallet.domain.service.RoleCategories
-import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.port.EntryRepository
+import org.aristonis.mywallet.domain.service.RoleCategories
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
@@ -51,8 +52,7 @@ import java.time.LocalDate
  * that lands on a taken id.
  *
  * Assumed: `RoomFxRepository(db)`, `RoomLedgerQueries(db.ledgerQueryDao())` and the use-case
- * constructors `RestoreEntries(runner, entries, categories, accounts)` (accounts last, as in the
- * in-memory rig).
+ * uses the same required reference repositories as the in-memory rig.
  */
 @RunWith(AndroidJUnit4::class)
 class SaveEntryOnRoomTest {
@@ -108,9 +108,11 @@ class SaveEntryOnRoomTest {
             debts = debts,
             ledger = ledger,
             roleCategories = RoleCategories(RoomCategoryRoleRepository(db.categoryRoleDao()), categories),
+            deductions = RoomDeductionItemRepository(db),
         )
         deleteEntry = DeleteEntry(runner = runner, entries = entries, debts = debts, ledger = ledger)
-        restoreEntries = RestoreEntries(runner = runner, entries = entries, categories = categories, accounts = accounts, debts = debts, ledger = ledger)
+        restoreEntries = RestoreEntries(runner = runner, entries = entries, categories = categories,
+            accounts = accounts, debts = debts, ledger = ledger, deductions = RoomDeductionItemRepository(db))
     }
 
     @After
@@ -213,6 +215,7 @@ class SaveEntryOnRoomTest {
             RoomFxRepository(db), RoomSettingsRepository(db.settingsDao()),
             SetExchangeRate(RoomCurrencyRepository(db.currencyDao()), rates, ledger, runner, RoomSettingsRepository(db.settingsDao())),
             debts, ledger, RoleCategories(RoomCategoryRoleRepository(db.categoryRoleDao()), categories),
+            RoomDeductionItemRepository(db),
         )
         val failure = runCatching {
             withTimeout(RETURN_WITHIN_MS) { failingSave(borrow(), emptyMap(), DebtRef("Ali", DebtSide.I_OWE, "USD")) }

@@ -326,6 +326,7 @@ internal class EntryUseCases(
         }
     }
     val ledger = FakeLedgerQueries(entries)
+    private val deductions = FakeDeductionItemRepository()
     val saveEntry = SaveEntry(
         runner, accounts, categories, entries,
         FakeFxRepository(currencies, rates, settings), settings, SetExchangeRate(currencies, rates, ledger, runner, settings),
@@ -333,10 +334,10 @@ internal class EntryUseCases(
             override suspend fun categoryFor(role: CategoryRole): Long? = null
             override suspend fun bindIfMissing(role: CategoryRole, categoryId: Long): Boolean =
                 error("role binding is not exercised by this fixture")
-        }, categories),
+        }, categories), deductions,
     )
     val deleteEntry = DeleteEntry(runner, entries, debts, ledger)
-    val restoreEntries = RestoreEntries(runner, entries, categories, accounts, debts, ledger)
+    val restoreEntries = RestoreEntries(runner, entries, categories, accounts, debts, ledger, deductions)
 }
 
 internal class FakeDebtRepository(initial: List<Debt> = emptyList()) : DebtRepository {

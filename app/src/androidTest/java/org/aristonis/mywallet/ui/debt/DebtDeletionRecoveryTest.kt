@@ -26,6 +26,7 @@ import org.aristonis.mywallet.data.repo.RoomCategoryRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRoleRepository
 import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
 import org.aristonis.mywallet.data.repo.RoomDebtRepository
+import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
 import org.aristonis.mywallet.data.repo.RoomEntryRepository
 import org.aristonis.mywallet.data.repo.RoomFxRepository
 import org.aristonis.mywallet.data.repo.RoomLedgerQueries
@@ -154,13 +155,15 @@ class DebtDeletionRecoveryTest {
         val settings = RoomSettingsRepository(db.settingsDao())
         val rates = RoomRateRepository(db.rateDao())
         val save = SaveEntry(runner, accounts, categories, entries, RoomFxRepository(db), settings,
-            SetExchangeRate(currencies, rates, ledger, runner, settings), debts, ledger, RoleCategories(roles, categories))
+            SetExchangeRate(currencies, rates, ledger, runner, settings), debts, ledger,
+                RoleCategories(roles, categories), RoomDeductionItemRepository(db))
         val today = TodaySource { Clock.fixed(Instant.parse("2026-10-12T12:00:00Z"), ZoneOffset.UTC) }
         return DebtDetailViewModel(ObserveDebt(debts, ledger, entries, today.dates), RenameDebt(runner, debts),
             UpdateDebtDetails(runner, debts), currencies, MoneyFormatter(Locale.US), today, Dispatchers.Default,
             ErrorReporter { _, _ -> }, ObserveLedgerHealth(ledger), categories, roles,
             WriteOffDebt(runner, debts, ledger, save), PreviewDebtDeletion(runner, debts, entries, ledger),
-            DeleteDebt(runner, debts, entries, ledger), RestoreEntries(runner, entries, categories, accounts, debts, ledger))
+            DeleteDebt(runner, debts, entries, ledger), RestoreEntries(runner, entries, categories,
+                accounts, debts, ledger, RoomDeductionItemRepository(db)))
     }
 
     private companion object { const val WAIT_MS = 5_000L }

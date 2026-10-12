@@ -42,13 +42,17 @@ sealed interface Transaction {
         override val note: String? = null,
         /** The rate to the base currency this entry was recorded with; null means none is stored yet. */
         val rateToBase: BigDecimal? = null,
-        /** Optional fee included in the account outflow. */
+        /** Draft fee included in the account outflow; save validates it and resolves its category. */
         val fee: Money? = null,
         val feeCategoryId: Long? = null,
     ) : Transaction {
         init {
             require(amount.isPositive) { "expense amount must be > 0" }
-            requireFee(fee, feeCategoryId, amount.currencyCode)
+            // Only the currency is fixed here: a draft's category is resolved on save, and a
+            // negative fee is a typed save error rather than a construction failure.
+            require(fee == null || fee.currencyCode == amount.currencyCode) {
+                "fee currency must match ${amount.currencyCode}"
+            }
         }
     }
 
@@ -79,7 +83,7 @@ sealed interface Transaction {
         val rateUsed: BigDecimal,
         override val date: LocalDate,
         override val note: String? = null,
-        /** Optional fee removed from the source amount before conversion. */
+        /** Draft fee removed before conversion; save validates it and resolves its category. */
         val fee: Money? = null,
         val feeCategoryId: Long? = null,
         /** The rate to the base currency the fee was recorded with; null means none is stored yet. */
@@ -90,8 +94,10 @@ sealed interface Transaction {
             require(sourceAmount.isPositive) { "transfer sourceAmount must be > 0" }
             require(destAmount.isPositive) { "transfer destAmount must be > 0" }
             require(rateUsed.signum() > 0) { "transfer rateUsed must be > 0" }
-            requireFee(fee, feeCategoryId, sourceAmount.currencyCode)
-            require(fee == null || fee < sourceAmount) { "transfer fee must be less than source amount" }
+            // The fee leaves the source account, so it is always in the source currency.
+            require(fee == null || fee.currencyCode == sourceAmount.currencyCode) {
+                "fee currency must match ${sourceAmount.currencyCode}"
+            }
         }
     }
 
@@ -218,13 +224,5 @@ sealed interface Transaction {
         override val note: String? = null,
     ) : Transaction {
         init { require(amount.isPositive) { "write-off amount must be > 0" } }
-    }
-}
-
-private fun requireFee(fee: Money?, categoryId: Long?, currencyCode: String) {
-    require((fee == null) == (categoryId == null)) { "fee and fee category must be provided together" }
-    fee?.let {
-        require(it.isPositive) { "fee amount must be > 0" }
-        require(it.currencyCode == currencyCode) { "fee currency must match $currencyCode" }
     }
 }

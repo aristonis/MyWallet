@@ -8,18 +8,19 @@ import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.toParts
-import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.DebtRef
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.port.DeductionItemRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRunner
+import org.aristonis.mywallet.domain.service.DebtBalance
 import org.aristonis.mywallet.domain.service.DebtEntryGuard
 import org.aristonis.mywallet.domain.service.DebtGuard
 import org.aristonis.mywallet.domain.service.RateBook
@@ -63,6 +64,7 @@ class SaveEntry(
     private val debts: DebtRepository,
     ledger: LedgerQueries,
     private val roleCategories: RoleCategories,
+    private val deductions: DeductionItemRepository,
 ) {
     private val debtGuard = DebtEntryGuard(debts, ledger)
 
@@ -76,6 +78,8 @@ class SaveEntry(
                 entries.findById(entry.id) ?: throw WalletException.TransactionNotFound(entry.id)
             }
             val snapshot = fx.currentFx()
+            requireSaveValues(entry, snapshot, deductions)
+            requireIncomeDebtReferences(entry)
             val book = rateBookFor(snapshot, typedRates)
             val priced = entry.recipe().prepareForSave(
                 entry, EntrySaveContext(old, snapshot, book, accounts, roleCategories, debts, debt),
@@ -100,15 +104,36 @@ class SaveEntry(
             val id = if (old == null) entries.insert(stamped) else stamped.id.also { entries.replace(stamped) }
 
             val after = debtGuard.check(touched, before)
-            reopenCandidates.forEach { debtId ->
-                if (before[debtId]?.remaining?.isZero != false && after[debtId]?.remaining?.isPositive == true) {
-                    debts.updateDetails(debtId, dueDate = null, note = null)
-                }
-            }
+            clearReopenedDetails(reopenCandidates, before, after)
 
             if (settings.get().saveTransactionRates) keepTypedRates(typedRates, snapshot.baseCurrencyCode)
             SavedEntry(id = id, date = stamped.date)
         }
+
+    /**
+     * A debt id an edit carries must still exist. Whether it still fits the line (payee, side, currency)
+     * is decided while preparing the save, which re-resolves a debt that no longer fits.
+     */
+    private suspend fun requireIncomeDebtReferences(entry: Transaction) {
+        if (entry !is Transaction.Income) return
+        entry.deductions.forEach { line ->
+            // Preparation removes zero obligations; their old legs still enforce repayment limits.
+            if (line.amount.isZero) return@forEach
+            line.debtId?.let { id -> debtGuard.requireDebt(id) }
+        }
+    }
+
+    private suspend fun clearReopenedDetails(
+        ids: Set<Long>,
+        before: Map<Long, DebtBalance>,
+        after: Map<Long, DebtBalance>,
+    ) {
+        ids.forEach { id ->
+            if (before[id]?.remaining?.isZero != false && after[id]?.remaining?.isPositive == true) {
+                debts.updateDetails(id, dueDate = null, note = null)
+            }
+        }
+    }
 
     /** A typed rate must be for a currency the app tracks; [RateBook] refuses one of zero or less. */
     private fun rateBookFor(snapshot: FxSnapshot, typedRates: Map<String, BigDecimal>): RateBook {
@@ -142,12 +167,7 @@ class SaveEntry(
     private suspend fun requireCategoryOfKind(target: LegTarget.Category, rule: TrackingRule) {
         categories.requireTransactionCategories(target.id, target.subId)
         val category = categories.findById(target.id) ?: throw WalletException.CategoryNotFound(target.id)
-        val expected = when (rule) {
-            TrackingRule.INCOME -> CategoryKind.INCOME
-            TrackingRule.EXPENSE, TrackingRule.REDUCES_EXPENSE -> CategoryKind.EXPENSE
-            TrackingRule.NOT_COUNTED -> error("a leg that never counts cannot be on a category")
-        }
-        if (category.kind != expected) throw WalletException.CategoryWrongKind(target.id)
+        if (category.kind != rule.categoryKind()) throw WalletException.CategoryWrongKind(target.id)
     }
 
     /**

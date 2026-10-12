@@ -57,6 +57,9 @@ class DeductionUiMessageMappingTest {
         )
     }
 
+    @Test fun anInvalidSnapshotHasAnActionableMessageWithoutItsFields() {
+        assertEquals(UiMessage.DeductionSnapshotInvalid, WalletException.DeductionSnapshotInvalid().toUiMessage())
+    }
 
     @Test fun aNegativeFeeUsesTheNonnegativeFeeMessage() {
         assertEquals(UiMessage.FeeValueNegative, WalletException.FeeValueNegative(Money.of("-1", "USD")).toUiMessage())

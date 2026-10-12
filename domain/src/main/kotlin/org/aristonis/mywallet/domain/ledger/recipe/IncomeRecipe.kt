@@ -3,6 +3,7 @@ package org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.EntryHeader
 import org.aristonis.mywallet.domain.ledger.EntryParts
 import org.aristonis.mywallet.domain.ledger.EntryRecipe
+import org.aristonis.mywallet.domain.ledger.EntrySaveContext
 import org.aristonis.mywallet.domain.ledger.Leg
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
@@ -23,6 +24,15 @@ import java.time.LocalDate
 object IncomeRecipe : EntryRecipe<Transaction.Income> {
 
     override val kind: String = "INCOME"
+
+    override suspend fun prepareForSave(entry: Transaction.Income, context: EntrySaveContext): Transaction.Income =
+        entry.copy(deductions = entry.deductions.map { line ->
+            // Clearing a rounded-zero obligation keeps the snapshot; SaveEntry checks its old debt legs.
+            if (line.amount.isZero) line.copy(debtId = null)
+            else if (line.timing == DeductionTiming.LATER) {
+                line.copy(debtId = context.deductionDebtId(line))
+            } else line
+        })
 
     private val shape = LegShape(
         required = setOf(LegRole.ACCOUNT, LegRole.MAIN),
@@ -48,7 +58,7 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
                     LegRole.DEDUCTION, line.position, LegTarget.Category(line.categoryId, null),
                     line.amount, entry.rateToBase,
                 ),
-            ) + if (line.timing == DeductionTiming.LATER) {
+            ) + if (line.timing == DeductionTiming.LATER && line.amount.isPositive) {
                 listOf(Leg(
                     LegRole.DEDUCTION_DEBT, line.position,
                     LegTarget.Debt(requireNotNull(line.debtId), DebtSide.I_OWE), line.amount,
@@ -97,14 +107,16 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
             categoryLeg.position == line.position && categoryLeg.categoryTarget().id == line.categoryId &&
                 categoryLeg.amount == line.amount,
         ) { "deduction ${line.position} differs from its journal leg" }
-        if (line.timing == DeductionTiming.LATER) {
+        if (line.timing == DeductionTiming.LATER && line.amount.isPositive) {
             val debtId = line.debtId
             require(
                 debtId != null && debtId > 0 && debtLeg != null &&
                     debtLeg.debtId(DebtSide.I_OWE) == debtId && debtLeg.amount == line.amount,
             ) { "owed-later deduction ${line.position} has no matching debt leg" }
         } else {
-            require(line.debtId == null && debtLeg == null) { "paid-now deduction ${line.position} has a debt leg" }
+            require(line.debtId == null && debtLeg == null) {
+                "deduction ${line.position} without an obligation has a debt leg"
+            }
         }
     }
 
@@ -117,13 +129,14 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
         require(line.value.signum() > 0 && isPercentInRange && hasCurrencyOnlyWhenFixed) {
             "deduction ${line.position} has an invalid value"
         }
-        require(line.amount.isPositive && line.amount.currencyCode == incomeCurrency) {
+        require(!line.amount.isNegative && line.amount.currencyCode == incomeCurrency) {
             "deduction ${line.position} has an invalid amount"
         }
     }
 
     private fun requireDebtLegsHaveLines(debtPositions: Set<Int>, lines: List<DeductionLine>) {
-        val laterPositions = lines.filter { it.timing == DeductionTiming.LATER }.map { it.position }.toSet()
+        val laterPositions = lines.filter { it.timing == DeductionTiming.LATER && it.amount.isPositive }
+            .map { it.position }.toSet()
         require(debtPositions == laterPositions) { "income has debt legs without deduction snapshots" }
     }
 

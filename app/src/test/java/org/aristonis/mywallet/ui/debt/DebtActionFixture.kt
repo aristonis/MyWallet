@@ -5,12 +5,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
-import org.aristonis.mywallet.domain.ledger.LegTarget
-import org.aristonis.mywallet.domain.ledger.toParts
-import org.aristonis.mywallet.domain.port.DebtLeg
-import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.domain.ledger.LegTarget
+import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -23,8 +21,10 @@ import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CategoryRoleRepository
+import org.aristonis.mywallet.domain.port.DebtLeg
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.service.RoleCategories
 import org.aristonis.mywallet.domain.usecase.DeleteDebt
@@ -41,6 +41,7 @@ import org.aristonis.mywallet.ui.transaction.FakeAccountRepository
 import org.aristonis.mywallet.ui.transaction.FakeCategoryRepository
 import org.aristonis.mywallet.ui.transaction.FakeCurrencyRepository
 import org.aristonis.mywallet.ui.transaction.FakeDebtRepository
+import org.aristonis.mywallet.ui.transaction.FakeDeductionItemRepository
 import org.aristonis.mywallet.ui.transaction.FakeEntryRepository
 import org.aristonis.mywallet.ui.transaction.FakeFxRepository
 import org.aristonis.mywallet.ui.transaction.FakeLedgerQueries
@@ -115,8 +116,10 @@ internal class DebtActionFixture(work: CoroutineDispatcher, val debt: Debt = scr
     private val rates = FakeRateRepository()
     private val settings = FakeSettingsRepository(Settings(baseCurrencyCode = "USD"))
     private val fx: FxRepository = FakeFxRepository(codes, rates, settings)
+    private val deductions = FakeDeductionItemRepository()
     private val save = SaveEntry(runner, accounts, categories, entryPort, fx, settings,
-        SetExchangeRate(codes, rates, ledger, runner, settings), debtPort, ledger, RoleCategories(roles, categories))
+        SetExchangeRate(codes, rates, ledger, runner, settings), debtPort, ledger, RoleCategories(roles,
+            categories), deductions)
     private val today = TodaySource { Clock.fixed(Instant.parse("2026-10-12T12:00:00Z"), ZoneOffset.UTC) }
     val vm = DebtDetailViewModel(ObserveDebt(debtPort, ledger, entryPort, today.dates),
         RenameDebt(runner, debtPort), UpdateDebtDetails(runner, debtPort), codes, MoneyFormatter(Locale.US),
@@ -124,6 +127,6 @@ internal class DebtActionFixture(work: CoroutineDispatcher, val debt: Debt = scr
         roles = roles, writeOffDebt = WriteOffDebt(runner, debtPort, ledger, save),
         previewDebtDeletion = PreviewDebtDeletion(runner, debtPort, entryPort, ledger),
         deleteDebt = DeleteDebt(runner, debtPort, entryPort, ledger),
-        restoreEntries = RestoreEntries(runner, entryPort, categories, accounts, debtPort, ledger))
+        restoreEntries = RestoreEntries(runner, entryPort, categories, accounts, debtPort, ledger, deductions))
 
 }

@@ -57,25 +57,18 @@ class RestoreEntriesTest {
     }
 
     @Test
-    fun aDeletedCategoryRefusesTheRestore() = runTest {
-        val gone = EntryWorld.expense(id = 4, rate = "1", categoryId = 77)
-        val rig = SaveEntryRig(atomic = true)
+    fun anItemDeletedWhileItsSalaryWasUndoneRefusesTheWholeRestore() = runTest {
+        val rig = salaryRig()
+        val id = rig.saveEntry(salary(), emptyMap()).id
+        val bundle = rig.deleteEntry(id)
+        rig.deductions.delete(10)
+        val fine = EntryWorld.expense(id = 80, rate = "1")
+        val failure = runCatching {
+            rig.restoreEntries(bundle.copy(entries = listOf(fine) + bundle.entries))
+        }.exceptionOrNull()
 
-        val failure = runCatching { rig.restoreEntries(bundleOf(gone)) }.exceptionOrNull()
-
-        assertTrue("was $failure", failure is WalletException.CategoryNotFound)
-        assertEquals(77L, (failure as WalletException.CategoryNotFound).id)
-        assertTrue(rig.entries.rows.value.isEmpty())
-    }
-
-    @Test
-    fun aDeletedCategoryOnALaterEntryStopsTheWholeRestore() = runTest {
-        val fine = EntryWorld.expense(id = 4, rate = "1")
-        val gone = EntryWorld.expense(id = 5, rate = "1", categoryId = 77)
-        val rig = SaveEntryRig(atomic = true)
-
-        runCatching { rig.restoreEntries(bundleOf(fine, gone)) }
-
+        assertTrue("was $failure", failure is WalletException.DeductionItemNotFound)
+        assertEquals(10L, (failure as WalletException.DeductionItemNotFound).id)
         assertTrue(rig.entries.rows.value.isEmpty())
     }
 

@@ -21,7 +21,10 @@ fun DeductionLine.toEntity(entryId: Long): IncomeDeductionLineEntity = IncomeDed
     timing = timing.name,
 )
 
-/** Rebuilds the input snapshot together with its matching category and optional debt journal leg. */
+/**
+ * Rebuilds the input snapshot with its category and optional debt leg. A rounded-zero amount still
+ * has its category leg, preserving the selected rule even though no money or obligation moves.
+ */
 fun List<IncomeDeductionLineEntity>.toSnapshots(parts: EntryParts): List<DeductionLine> {
     val categoryByPosition = parts.legs.filter { it.role == LegRole.DEDUCTION }.associateBy { it.position }
     val debtByPosition = parts.legs.filter { it.role == LegRole.DEDUCTION_DEBT }.associateBy { it.position }
@@ -52,7 +55,7 @@ fun List<IncomeDeductionLineEntity>.toSnapshots(parts: EntryParts): List<Deducti
         require((mode == DeductionMode.FIXED) == (row.valueCurrencyCode != null)) {
             "deduction line ${row.id} has an invalid value currency"
         }
-        require(target.id > 0 && category.amount.isPositive) {
+        require(target.id > 0 && !category.amount.isNegative) {
             "deduction line ${row.id} has an invalid category or amount"
         }
         require(debt == null || debt > 0) { "deduction line ${row.id} has an invalid debt id" }

@@ -1,17 +1,18 @@
 package org.aristonis.mywallet.domain.usecase
 
 import kotlinx.coroutines.test.runTest
-import org.aristonis.mywallet.domain.service.RoleCategories
-import org.aristonis.mywallet.domain.usecase.fake.FakeDebtRepository
-import org.aristonis.mywallet.domain.usecase.fake.FakeCategoryRoleRepository
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.service.RoleCategories
 import org.aristonis.mywallet.domain.usecase.fake.DirectTransactionRunner
 import org.aristonis.mywallet.domain.usecase.fake.EntryWorld
 import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeCategoryRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeCategoryRoleRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeDebtRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeDeductionItemRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
 import org.aristonis.mywallet.domain.usecase.fake.FakeRateRepository
@@ -62,6 +63,7 @@ class SaveEntryRateFillTest {
             debts = FakeDebtRepository(),
             ledger = rateLedger,
             roleCategories = RoleCategories(FakeCategoryRoleRepository(), categories),
+            deductions = FakeDeductionItemRepository(),
         )
     }
 

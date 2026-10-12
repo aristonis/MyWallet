@@ -10,6 +10,7 @@ import org.aristonis.mywallet.data.db.CategoryEntity
 import org.aristonis.mywallet.data.db.EntryEntity
 import org.aristonis.mywallet.data.db.EntryLegEntity
 import org.aristonis.mywallet.data.db.WalletDatabase
+import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.DebtSide
@@ -70,7 +71,7 @@ class RoomDebtDeletionTest {
     }
     private fun delete(port: EntryRepository = entries, debtPort: DebtRepository = debts) = DeleteDebt(runner, debtPort, port, ledger)
     private fun restore() = RestoreEntries(runner, entries, RoomCategoryRepository(db.categoryDao()),
-        RoomAccountRepository(db.accountDao()), debts, ledger)
+        RoomAccountRepository(db.accountDao()), debts, ledger, RoomDeductionItemRepository(db))
     private class DeleteFault : RuntimeException("injected deletion fault")
 
     @Test fun rawIncomeIsExcludedBeforeDecodingAndItsHeaderAndDebtLegSurviveDeletion() = runBlocking {

@@ -1,12 +1,10 @@
 package org.aristonis.mywallet.domain.service
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
-import org.junit.Test
-import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.FeeRule
 import org.aristonis.mywallet.domain.model.Money
+import org.junit.Assert.assertEquals
+import org.junit.Test
 import java.math.BigDecimal
 
 class FeeCalculatorTest {
@@ -81,24 +79,12 @@ class FeeCalculatorTest {
     }
 
     @Test
-    fun refusesFeeEqualToAmountSent() {
-        assertThrows(WalletException.FeeNotBelowAmount::class.java) {
-            FeeCalculator.calculate(
-                sent = money("10"),
-                rule = FeeRule(FeeMode.FIXED, BigDecimal("10")),
-                converter = converter,
+    fun anExpenseFeeMayEqualOrExceedItsPrincipal() {
+        for (value in listOf("10", "10.01")) {
+            val fee = FeeCalculator.calculate(
+                sent = money("10"), rule = FeeRule(FeeMode.FIXED, BigDecimal(value)), converter = converter,
             )
-        }
-    }
-
-    @Test
-    fun refusesFeeGreaterThanAmountSent() {
-        assertThrows(WalletException.FeeNotBelowAmount::class.java) {
-            FeeCalculator.calculate(
-                sent = money("10"),
-                rule = FeeRule(FeeMode.FIXED, BigDecimal("10.01")),
-                converter = converter,
-            )
+            assertEquals(money(value), fee)
         }
     }
 }

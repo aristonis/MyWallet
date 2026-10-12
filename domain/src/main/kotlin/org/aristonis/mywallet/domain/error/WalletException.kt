@@ -135,6 +135,8 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class DeductionItemNameTaken(val name: String, cause: Throwable? = null) :
         WalletException("A deduction item named \"$name\" already exists", cause)
 
+    /** A deduction snapshot has invalid fields or an incompatible obligation. */
+    class DeductionSnapshotInvalid : WalletException("Check the deduction details and select them again")
 
     /** A fee can be absent or zero, but never negative. */
     class FeeValueNegative(val fee: Money) : WalletException("Fee $fee must not be negative")
