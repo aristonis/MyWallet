@@ -30,6 +30,7 @@ import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.SearchableCurrencyField
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
@@ -59,6 +60,8 @@ fun AddAccountScreen(
         onTypeSelected = viewModel::selectAccountType,
         onOpeningBalanceChanged = viewModel::setOpeningBalance,
         onCreditLimitChanged = viewModel::setCreditLimit,
+        onFeeModeChanged = viewModel::selectFeeMode,
+        onFeeValueChanged = viewModel::setFeeValue,
         onSubmit = viewModel::submit,
         onCancel = onDone,
     )
@@ -72,6 +75,8 @@ private fun AddAccountContent(
     onTypeSelected: (String) -> Unit,
     onOpeningBalanceChanged: (String) -> Unit,
     onCreditLimitChanged: (String) -> Unit,
+    onFeeModeChanged: (FeeMode?) -> Unit,
+    onFeeValueChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -125,6 +130,14 @@ private fun AddAccountContent(
                 CreditLimitField(value = state.creditLimitInput, onValueChange = onCreditLimitChanged)
             }
 
+            AccountFeeEditor(
+                mode = state.feeMode,
+                value = state.feeValueInput,
+                currencyCode = state.selectedCurrencyCode,
+                onModeChanged = onFeeModeChanged,
+                onValueChanged = onFeeValueChanged,
+            )
+
             state.error?.let { message ->
                 Text(message.text(), color = MaterialTheme.colorScheme.error)
             }
@@ -161,6 +174,8 @@ private fun AddAccountPreview() {
             onTypeSelected = {},
             onOpeningBalanceChanged = {},
             onCreditLimitChanged = {},
+            onFeeModeChanged = {},
+            onFeeValueChanged = {},
             onSubmit = {},
             onCancel = {},
         )

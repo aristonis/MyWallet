@@ -135,6 +135,10 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class DeductionItemNameTaken(val name: String, cause: Throwable? = null) :
         WalletException("A deduction item named \"$name\" already exists", cause)
 
+
+    /** A fee can be absent or zero, but never negative. */
+    class FeeValueNegative(val fee: Money) : WalletException("Fee $fee must not be negative")
+
     /** The rounded fee would consume the amount being sent. */
     class FeeNotBelowAmount(val sent: Money, val fee: Money) :
         WalletException("Fee $fee must be less than amount sent $sent")

@@ -11,6 +11,8 @@ import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.FeeMode
+import org.aristonis.mywallet.domain.model.FeeRule
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.usecase.UpdateAccount
 import org.aristonis.mywallet.ui.HealthLedger
@@ -23,6 +25,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.math.BigDecimal
 import java.util.Locale
 
 /**
@@ -53,6 +56,7 @@ class EditAccountViewModelTest {
         currencies: List<Currency>,
         accountsInUse: Set<Long> = emptySet(),
         val errors: RecordingErrorReporter = RecordingErrorReporter(),
+        locale: Locale = Locale.US,
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val currencyRepo = FakeCurrencyRepository(currencies)
@@ -64,9 +68,99 @@ class EditAccountViewModelTest {
             ledger = ledger,
             observeLedgerHealth = ledger.health(),
             updateAccount = UpdateAccount(currencyRepo, accountRepo, ledger),
-            moneyParser = MoneyParser(Locale.US),
+            moneyParser = MoneyParser(locale),
             errors = errors,
         )
+    }
+
+    @Test
+    fun unchangedLocalizedDefaultFeesAreLoadedAndSavedExactly() = runTest {
+        for (mode in FeeMode.entries) {
+            val fee = FeeRule(mode, BigDecimal("2.125"))
+            val f = Fixture(listOf(account(1, archived = true, sortOrder = 4).copy(defaultFee = fee)),
+                listOf(usd), locale = Locale.GERMANY)
+            f.viewModel.load(1)
+            advanceUntilIdle()
+            assertEquals(mode, f.viewModel.state.value.feeMode)
+            assertEquals("2,125", f.viewModel.state.value.feeValueInput)
+            f.viewModel.submit()
+            advanceUntilIdle()
+            assertEquals(fee, f.accountRepo.findById(1)!!.defaultFee)
+            assertTrue(f.accountRepo.findById(1)!!.archived)
+            assertEquals(4, f.accountRepo.findById(1)!!.sortOrder)
+        }
+    }
+
+    @Test
+    fun clearingDefaultFeeRemovesItAndReloadDoesNotRestoreDirtyFields() = runTest {
+        val f = Fixture(listOf(account(1).copy(defaultFee = FeeRule(FeeMode.PERCENT, BigDecimal("2"))),
+            account(2)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+        f.viewModel.setFeeValue("")
+        f.viewModel.submit()
+        advanceUntilIdle()
+        assertNull(f.accountRepo.findById(1)!!.defaultFee)
+        f.viewModel.selectFeeMode(FeeMode.FIXED)
+        f.viewModel.setFeeValue("10")
+        f.viewModel.load(2)
+        advanceUntilIdle()
+        assertNull(f.viewModel.state.value.feeMode)
+        assertEquals("", f.viewModel.state.value.feeValueInput)
+    }
+
+    @Test
+    fun changingADefaultFeeIsSavedAndInvalidEditKeepsStoredFee() = runTest {
+        val f = Fixture(listOf(account(1)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+        f.viewModel.selectFeeMode(FeeMode.FIXED)
+        f.viewModel.setFeeValue("3.50")
+        f.viewModel.submit()
+        advanceUntilIdle()
+        val fee = FeeRule(FeeMode.FIXED, BigDecimal("3.50"))
+        assertEquals(fee, f.accountRepo.findById(1)!!.defaultFee)
+        f.viewModel.acknowledgeSaved()
+        f.viewModel.setFeeValue("-2")
+        f.viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(UiMessage.FeeValueNegative, f.viewModel.state.value.error)
+        assertFalse(f.viewModel.state.value.saved)
+        assertEquals(fee, f.accountRepo.findById(1)!!.defaultFee)
+    }
+
+    @Test
+    fun aPercentDefaultAboveOneHundredIsRefusedAndTheStoredFeeKept() = runTest {
+        val stored = FeeRule(FeeMode.PERCENT, BigDecimal("2"))
+        val f = Fixture(listOf(account(1).copy(defaultFee = stored)), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+        f.viewModel.setFeeValue("101")
+        f.viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(UiMessage.FeePercentAboveHundred, f.viewModel.state.value.error)
+        assertEquals(stored, f.accountRepo.findById(1)!!.defaultFee)
+    }
+
+    @Test
+    fun loadingKeepsTheStoredFeeButChangingTheModeClearsIt() = runTest {
+        val f = Fixture(listOf(account(1).copy(defaultFee = FeeRule(FeeMode.PERCENT, BigDecimal("2.5")))), listOf(usd))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+        assertEquals("2.5", f.viewModel.state.value.feeValueInput)
+        f.viewModel.selectFeeMode(FeeMode.FIXED)
+        assertEquals("", f.viewModel.state.value.feeValueInput)
+    }
+
+    @Test
+    fun changingAnUnlockedCurrencyClearsAFixedFee() = runTest {
+        val fee = FeeRule(FeeMode.FIXED, BigDecimal("3.50"))
+        val f = Fixture(listOf(account(1).copy(defaultFee = fee)), listOf(usd, eur))
+        f.viewModel.load(1)
+        advanceUntilIdle()
+        f.viewModel.selectCurrency("EUR")
+        assertEquals("", f.viewModel.state.value.feeValueInput)
+        assertEquals(FeeMode.FIXED, f.viewModel.state.value.feeMode)
     }
 
     @Test

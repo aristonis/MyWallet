@@ -36,6 +36,7 @@ import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.LoadFailedState
@@ -71,6 +72,8 @@ fun EditAccountScreen(
         onTypeSelected = viewModel::selectAccountType,
         onOpeningBalanceChanged = viewModel::setOpeningBalance,
         onCreditLimitChanged = viewModel::setCreditLimit,
+        onFeeModeChanged = viewModel::selectFeeMode,
+        onFeeValueChanged = viewModel::setFeeValue,
         onSubmit = viewModel::submit,
         onCancel = onDone,
         onRetry = viewModel::retry,
@@ -85,6 +88,8 @@ private fun EditAccountContent(
     onTypeSelected: (String) -> Unit,
     onOpeningBalanceChanged: (String) -> Unit,
     onCreditLimitChanged: (String) -> Unit,
+    onFeeModeChanged: (FeeMode?) -> Unit,
+    onFeeValueChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
@@ -113,6 +118,8 @@ private fun EditAccountContent(
                     onTypeSelected = onTypeSelected,
                     onOpeningBalanceChanged = onOpeningBalanceChanged,
                     onCreditLimitChanged = onCreditLimitChanged,
+                    onFeeModeChanged = onFeeModeChanged,
+                    onFeeValueChanged = onFeeValueChanged,
                     onSubmit = onSubmit,
                     onCancel = onCancel,
                 )
@@ -129,6 +136,8 @@ private fun EditAccountForm(
     onTypeSelected: (String) -> Unit,
     onOpeningBalanceChanged: (String) -> Unit,
     onCreditLimitChanged: (String) -> Unit,
+    onFeeModeChanged: (FeeMode?) -> Unit,
+    onFeeValueChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -181,6 +190,14 @@ private fun EditAccountForm(
         if (state.showsCreditLimit) {
             CreditLimitField(value = state.creditLimitInput, onValueChange = onCreditLimitChanged)
         }
+
+        AccountFeeEditor(
+            mode = state.feeMode,
+            value = state.feeValueInput,
+            currencyCode = state.selectedCurrencyCode,
+            onModeChanged = onFeeModeChanged,
+            onValueChanged = onFeeValueChanged,
+        )
 
         state.error?.let { message ->
             Text(message.text(), color = MaterialTheme.colorScheme.error)
@@ -251,6 +268,8 @@ private fun EditAccountPreview() {
             onTypeSelected = {},
             onOpeningBalanceChanged = {},
             onCreditLimitChanged = {},
+            onFeeModeChanged = {},
+            onFeeValueChanged = {},
             onSubmit = {},
             onCancel = {},
             onRetry = {},

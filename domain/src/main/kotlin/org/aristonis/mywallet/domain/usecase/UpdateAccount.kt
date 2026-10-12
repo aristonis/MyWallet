@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.domain.usecase
 
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.FeeRule
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
@@ -33,6 +34,7 @@ class UpdateAccount(
         typeKey: String,
         currencyCode: String,
         openingBalance: Money,
+        defaultFee: FeeRule?,
         creditLimit: Money?,
     ) {
         val existing = accounts.findById(id) ?: throw WalletException.AccountNotFound(id)
@@ -47,6 +49,7 @@ class UpdateAccount(
                 currencyCode = currencyCode,
                 openingBalance = openingBalance,
                 creditLimit = creditLimit,
+                defaultFee = defaultFee,
             ),
         )
     }

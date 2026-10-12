@@ -32,6 +32,15 @@ class AccountFeeMappersTest {
     }
 
     @Test
+    fun fixedDefaultFeeRoundTripsExactly() {
+        val account = Account(id = 4, name = "Wallet", typeKey = "card", currencyCode = "EUR",
+            openingBalance = Money.zero("EUR"), defaultFee = FeeRule(FeeMode.FIXED, BigDecimal("3.500")))
+        assertEquals(account, account.toEntity().toDomain())
+        assertEquals("FIXED", account.toEntity().defaultFeeMode)
+        assertEquals("3.500", account.toEntity().defaultFeeValue)
+    }
+
+    @Test
     fun defaultFeeRoundTripsWithItsExactValueText() {
         val account = Account(
             id = 3, name = "Visa", typeKey = "credit_card", currencyCode = "USD",

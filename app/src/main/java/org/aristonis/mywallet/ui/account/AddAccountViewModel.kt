@@ -15,6 +15,7 @@ import org.aristonis.mywallet.di.LocaleDefaults
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.ui.message.UiMessage
@@ -29,6 +30,8 @@ data class AddAccountUiState(
     val accountTypeKey: String = AccountTypeRegistry.BuiltIns.CASH.key,
     val openingBalanceInput: String = "",
     val creditLimitInput: String = "",
+    val feeMode: FeeMode? = null,
+    val feeValueInput: String = "",
     val isSubmitting: Boolean = false,
     val error: UiMessage? = null,
     val created: Boolean = false,
@@ -69,7 +72,12 @@ class AddAccountViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    fun selectCurrency(code: String) = _state.update { it.copy(selectedCurrencyCode = code) }
+    fun selectCurrency(code: String) = _state.update {
+        it.copy(
+            selectedCurrencyCode = code,
+            feeValueInput = feeInputAfterCurrencyChange(it.feeMode, it.selectedCurrencyCode, code, it.feeValueInput),
+        )
+    }
 
     fun setName(name: String) = _state.update { it.copy(name = name) }
 
@@ -78,6 +86,12 @@ class AddAccountViewModel @Inject constructor(
     fun setOpeningBalance(text: String) = _state.update { it.copy(openingBalanceInput = text) }
 
     fun setCreditLimit(text: String) = _state.update { it.copy(creditLimitInput = text) }
+
+    fun selectFeeMode(mode: FeeMode?) = _state.update {
+        it.copy(feeMode = mode, feeValueInput = feeInputAfterModeChange(it.feeMode, mode, it.feeValueInput))
+    }
+
+    fun setFeeValue(text: String) = _state.update { it.copy(feeValueInput = text) }
 
     fun submit() {
         val snapshot = _state.value
@@ -95,6 +109,7 @@ class AddAccountViewModel @Inject constructor(
                     currencyCode = currencyCode,
                     openingBalance = openingBalance,
                     creditLimit = creditLimit,
+                    defaultFee = parseDefaultFee(snapshot.feeMode, snapshot.feeValueInput, currencyCode, moneyParser),
                 )
                 _state.update { it.copy(isSubmitting = false, created = true) }
             } catch (e: WalletException) {
@@ -113,7 +128,10 @@ class AddAccountViewModel @Inject constructor(
      * bounce a re-opened screen straight back to Home before the user could add a second account.
      */
     fun acknowledgeCreated() = _state.update {
-        it.copy(created = false, name = "", openingBalanceInput = "", creditLimitInput = "", error = null)
+        it.copy(
+            created = false, name = "", openingBalanceInput = "", creditLimitInput = "",
+            feeMode = null, feeValueInput = "", error = null,
+        )
     }
 
     private fun defaultCurrency(currencies: List<Currency>): String? =

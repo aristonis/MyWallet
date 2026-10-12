@@ -41,6 +41,7 @@ fun WalletException.toUiMessage(): UiMessage = when (this) {
     is WalletException.DeductionItemNotFound -> UiMessage.DeductionItemNotFound
     is WalletException.DeductionItemNameTaken -> UiMessage.DeductionItemNameTaken
     is WalletException.FeeNotBelowAmount -> UiMessage.FeeNotBelowAmount
+    is WalletException.FeeValueNegative -> UiMessage.FeeValueNegative
     is WalletException.NameBlank -> UiMessage.NameBlank
     is WalletException.DebtNotFound -> UiMessage.DebtNotFound
     is WalletException.DebtSideMismatch -> UiMessage.DebtSideMismatch
@@ -75,6 +76,7 @@ fun Throwable.toUiMessage(): UiMessage = when (this) {
     is WalletException -> toUiMessage()
     is MoneyParseException -> error.toUiMessage()
     is MissingSelectionException -> uiMessage
+    is RefusedInputException -> uiMessage
     else -> UiMessage.Unexpected
 }
 
@@ -84,4 +86,11 @@ fun Throwable.toUiMessage(): UiMessage = when (this) {
  * correctly wherever it surfaces.
  */
 class MissingSelectionException(val uiMessage: UiMessage) :
+    IllegalArgumentException(uiMessage::class.simpleName)
+
+/**
+ * A typed value the form refuses before any use case sees it, for a rule only the form knows (a fee
+ * percentage above 100). Like [MissingSelectionException] it carries what to tell the user.
+ */
+class RefusedInputException(val uiMessage: UiMessage) :
     IllegalArgumentException(uiMessage::class.simpleName)

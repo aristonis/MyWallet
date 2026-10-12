@@ -4,17 +4,20 @@ import kotlinx.coroutines.test.runTest
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.FeeMode
+import org.aristonis.mywallet.domain.model.FeeRule
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
-import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.usecase.fake.EntryWorld
+import org.aristonis.mywallet.domain.usecase.fake.FakeAccountRepository
+import org.aristonis.mywallet.domain.usecase.fake.FakeCurrencyRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeEntryRepository
 import org.aristonis.mywallet.domain.usecase.fake.FakeLedgerQueries
 import org.aristonis.mywallet.domain.usecase.fake.InUseOnlyLedgerQueries
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.math.BigDecimal
 
 /**
  * The bar for editing an account: name/type edits persist while the fields the form never exposes
@@ -47,11 +50,26 @@ class UpdateAccountTest {
     ) = UpdateAccount(currencies, accounts, ledger)
 
     @Test
+    fun storesAndClearsDefaultFeesWithoutChangingOtherSettings() = runTest {
+        val accounts = FakeAccountRepository(listOf(account(1, archived = true, sortOrder = 7)))
+        for (fee in listOf(FeeRule(FeeMode.PERCENT, BigDecimal("2.125")), FeeRule(FeeMode.FIXED,
+            BigDecimal("3.50")), null)) {
+            updateAccount(accounts)(id = 1, name = "Wallet", typeKey = "card", currencyCode = "USD",
+                openingBalance = Money.of("100", "USD"), creditLimit = null, defaultFee = fee)
+            val saved = accounts.findById(1)!!
+            assertEquals(fee, saved.defaultFee)
+            assertEquals(true, saved.archived)
+            assertEquals(7, saved.sortOrder)
+        }
+    }
+
+    @Test
     fun editsNameAndType_persists_andPreservesArchivedAndSortOrder() = runTest {
         val accounts = FakeAccountRepository(listOf(account(1, archived = true, sortOrder = 7)))
 
         updateAccount(accounts).invoke(
-            id = 1, name = "Wallet", typeKey = "card", currencyCode = "USD", openingBalance = Money.of("100", "USD"), creditLimit = null,
+            id = 1, name = "Wallet", typeKey = "card", currencyCode = "USD",
+                openingBalance = Money.of("100", "USD"), creditLimit = null, defaultFee = null,
         )
 
         val saved = accounts.findById(1)!!
@@ -67,7 +85,8 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1)))
 
         updateAccount(accounts).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR",
+                openingBalance = Money.of("100", "EUR"), creditLimit = null, defaultFee = null,
         )
 
         val saved = accounts.findById(1)!!
@@ -81,7 +100,8 @@ class UpdateAccountTest {
         val ledger = ledgerOf(expense(1, accountId = 1))
 
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR",
+                openingBalance = Money.of("100", "EUR"), creditLimit = null, defaultFee = null,
         )
     }
 
@@ -90,7 +110,8 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1)))
         val ledger = ledgerOf(transfer(1, source = 1, dest = 3))
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR",
+                openingBalance = Money.of("100", "EUR"), creditLimit = null, defaultFee = null,
         )
     }
 
@@ -99,14 +120,16 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1)))
         val ledger = ledgerOf(transfer(1, source = 3, dest = 1))
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR",
+                openingBalance = Money.of("100", "EUR"), creditLimit = null, defaultFee = null,
         )
     }
 
     @Test(expected = WalletException.AccountNotFound::class)
     fun unknownId_throwsAccountNotFound() = runTest {
         updateAccount(FakeAccountRepository()).invoke(
-            id = 99, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100", "USD"), creditLimit = null,
+            id = 99, name = "Cash", typeKey = "cash", currencyCode = "USD",
+                openingBalance = Money.of("100", "USD"), creditLimit = null, defaultFee = null,
         )
     }
 
@@ -115,7 +138,8 @@ class UpdateAccountTest {
         val accounts = FakeAccountRepository(listOf(account(1)))
 
         updateAccount(accounts).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "XXX", openingBalance = Money.of("100", "XXX"), creditLimit = null,
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "XXX",
+                openingBalance = Money.of("100", "XXX"), creditLimit = null, defaultFee = null,
         )
     }
 
@@ -125,7 +149,8 @@ class UpdateAccountTest {
         val (ledger, asked) = InUseOnlyLedgerQueries.of(accountsInUse = setOf(1L))
 
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Wallet", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100", "USD"), creditLimit = null,
+            id = 1, name = "Wallet", typeKey = "cash", currencyCode = "USD",
+                openingBalance = Money.of("100", "USD"), creditLimit = null, defaultFee = null,
         )
 
         assertEquals("Wallet", accounts.findById(1)!!.name)
@@ -138,7 +163,8 @@ class UpdateAccountTest {
         val (ledger, asked) = InUseOnlyLedgerQueries.of(accountsInUse = emptySet())
 
         updateAccount(accounts, ledger = ledger).invoke(
-            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
+            id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR",
+                openingBalance = Money.of("100", "EUR"), creditLimit = null, defaultFee = null,
         )
 
         assertEquals(listOf(1L), asked.toList())
@@ -152,7 +178,8 @@ class UpdateAccountTest {
 
         try {
             updateAccount(accounts, ledger = ledger).invoke(
-                id = 3, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
+                id = 3, name = "Cash", typeKey = "cash", currencyCode = "EUR",
+                    openingBalance = Money.of("100", "EUR"), creditLimit = null, defaultFee = null,
             )
             org.junit.Assert.fail("expected AccountCurrencyLocked")
         } catch (_: WalletException.AccountCurrencyLocked) {
@@ -170,7 +197,8 @@ class UpdateAccountTest {
 
         try {
             updateAccount(accounts, ledger = ledger).invoke(
-                id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR", openingBalance = Money.of("100", "EUR"), creditLimit = null,
+                id = 1, name = "Cash", typeKey = "cash", currencyCode = "EUR",
+                    openingBalance = Money.of("100", "EUR"), creditLimit = null, defaultFee = null,
             )
             org.junit.Assert.fail("expected AccountCurrencyLocked")
         } catch (_: WalletException.AccountCurrencyLocked) {
@@ -188,7 +216,7 @@ class UpdateAccountTest {
 
         updateAccount(accounts).invoke(
             id = 1, name = "Visa credit", typeKey = "credit_card", currencyCode = "USD",
-            openingBalance = Money.of("100", "USD"), creditLimit = limit,
+            openingBalance = Money.of("100", "USD"), creditLimit = limit, defaultFee = null,
         )
 
         val saved = accounts.findById(1)!!
@@ -204,13 +232,13 @@ class UpdateAccountTest {
 
         updateAccount(accounts).invoke(
             id = 1, name = "Cash", typeKey = "credit_card", currencyCode = "USD",
-            openingBalance = Money.of("100", "USD"), creditLimit = Money.of("3000", "USD"),
+            openingBalance = Money.of("100", "USD"), creditLimit = Money.of("3000", "USD"), defaultFee = null,
         )
         assertEquals(Money.of("3000", "USD"), accounts.findById(1)!!.creditLimit)
 
         updateAccount(accounts).invoke(
             id = 1, name = "Cash", typeKey = "credit_card", currencyCode = "USD",
-            openingBalance = Money.of("100", "USD"), creditLimit = null,
+            openingBalance = Money.of("100", "USD"), creditLimit = null, defaultFee = null,
         )
         assertEquals(null, accounts.findById(1)!!.creditLimit)
     }
@@ -223,7 +251,7 @@ class UpdateAccountTest {
 
         updateAccount(accounts, ledger = ledger).invoke(
             id = 1, name = "Cash", typeKey = "credit_card", currencyCode = "USD",
-            openingBalance = Money.of("-1146.04", "USD"), creditLimit = Money.of("5000", "USD"),
+            openingBalance = Money.of("-1146.04", "USD"), creditLimit = Money.of("5000", "USD"), defaultFee = null,
         )
 
         val saved = accounts.findById(1)!!

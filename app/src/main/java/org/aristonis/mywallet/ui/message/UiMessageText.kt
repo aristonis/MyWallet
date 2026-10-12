@@ -57,6 +57,8 @@ fun UiMessage.text(): String = when (this) {
     UiMessage.DeductionItemNotFound -> stringResource(R.string.msg_deduction_item_not_found)
     UiMessage.DeductionItemNameTaken -> stringResource(R.string.msg_deduction_item_name_taken)
     UiMessage.FeeNotBelowAmount -> stringResource(R.string.msg_fee_not_below_amount)
+    UiMessage.FeeValueNegative -> stringResource(R.string.msg_fee_value_negative)
+    UiMessage.FeePercentAboveHundred -> stringResource(R.string.msg_fee_percent_above_hundred)
 
     UiMessage.NameBlank -> stringResource(R.string.msg_name_blank)
     UiMessage.DebtNotFound -> stringResource(R.string.msg_debt_not_found)

@@ -96,6 +96,7 @@ class OnboardingViewModel @Inject constructor(
                     typeKey = snapshot.accountTypeKey,
                     currencyCode = currencyCode,
                     openingBalance = openingBalance,
+                    defaultFee = null,
                 )
                 setBaseCurrency(currencyCode, snapshot.theme)
                 _state.update { it.copy(isSubmitting = false, completed = true) }

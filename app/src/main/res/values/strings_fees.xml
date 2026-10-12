@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="account_default_fee">Default transfer fee</string>
+    <string name="fee_none">None</string>
+    <string name="fee_percent">Percent</string>
+    <string name="fee_fixed">Fixed amount</string>
+    <string name="fee_percent_value">Fee percentage</string>
+    <string name="fee_fixed_value">Fee amount</string>
+    <string name="account_default_fee_hint">Used for transfers from this account. Leave blank for no default.</string>
+    <string name="msg_fee_value_negative">Enter a fee of zero or more.</string>
+    <string name="msg_fee_percent_above_hundred">Enter a fee percentage of 100 or less.</string>
+</resources>

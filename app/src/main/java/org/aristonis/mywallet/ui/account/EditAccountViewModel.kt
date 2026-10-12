@@ -24,6 +24,7 @@ import org.aristonis.mywallet.ui.load.toLoadFailure
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
@@ -42,6 +43,8 @@ data class EditAccountUiState(
     val accountTypeKey: String = AccountTypeRegistry.BuiltIns.CASH.key,
     val openingBalanceInput: String = "",
     val creditLimitInput: String = "",
+    val feeMode: FeeMode? = null,
+    val feeValueInput: String = "",
     // True once the loaded account has transactions: its currency is fixed, so the picker is disabled.
     val currencyLocked: Boolean = false,
     val isSubmitting: Boolean = false,
@@ -119,6 +122,8 @@ class EditAccountViewModel @Inject constructor(
         _state.update {
             it.copy(
                 loaded = null,
+                feeMode = null,
+                feeValueInput = "",
                 currencyLocked = false,
                 isSubmitting = false,
                 error = null,
@@ -159,7 +164,12 @@ class EditAccountViewModel @Inject constructor(
         _state.update { it.populatedFrom(existing, locked) }
     }
 
-    fun selectCurrency(code: String) = _state.update { it.copy(selectedCurrencyCode = code) }
+    fun selectCurrency(code: String) = _state.update {
+        it.copy(
+            selectedCurrencyCode = code,
+            feeValueInput = feeInputAfterCurrencyChange(it.feeMode, it.selectedCurrencyCode, code, it.feeValueInput),
+        )
+    }
 
     fun setName(name: String) = _state.update { it.copy(name = name) }
 
@@ -171,6 +181,12 @@ class EditAccountViewModel @Inject constructor(
 
     /** Clear the one-shot `saved` signal after the screen has navigated away, so a re-open won't bounce. */
     fun acknowledgeSaved() = _state.update { it.copy(saved = false, error = null) }
+
+    fun selectFeeMode(mode: FeeMode?) = _state.update {
+        it.copy(feeMode = mode, feeValueInput = feeInputAfterModeChange(it.feeMode, mode, it.feeValueInput))
+    }
+
+    fun setFeeValue(text: String) = _state.update { it.copy(feeValueInput = text) }
 
     fun submit() {
         val snapshot = _state.value
@@ -193,13 +209,15 @@ class EditAccountViewModel @Inject constructor(
                     currencyCode = currencyCode,
                     openingBalance = openingBalance,
                     creditLimit = creditLimit,
+                    defaultFee = parseDefaultFee(snapshot.feeMode, snapshot.feeValueInput, currencyCode, moneyParser),
                 )
                 _state.update { it.copy(isSubmitting = false, saved = true) }
             } catch (e: WalletException) {
                 // Includes AccountCurrencyLocked / AccountNotFound — surface it to the user.
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
-                // Blank name (Account invariant) or an amount or limit the parser refused — surface it.
+                // Blank name (Account invariant), an amount or limit the parser refused, or a fee default
+                // the form refused — surface it.
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             }
         }
@@ -213,6 +231,8 @@ class EditAccountViewModel @Inject constructor(
         selectedCurrencyCode = account.currencyCode,
         openingBalanceInput = moneyParser.toInputString(account.openingBalance.amount),
         creditLimitInput = account.creditLimit?.let { moneyParser.toInputString(it.amount) } ?: "",
+        feeMode = account.defaultFee?.mode,
+        feeValueInput = account.defaultFee?.let { moneyParser.toInputString(it.value) } ?: "",
         currencyLocked = locked,
         isSubmitting = false,
         error = null,

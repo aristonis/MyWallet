@@ -2,6 +2,7 @@ package org.aristonis.mywallet.domain.usecase
 
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
+import org.aristonis.mywallet.domain.model.FeeRule
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
@@ -20,6 +21,7 @@ class CreateAccount(
         typeKey: String,
         currencyCode: String,
         openingBalance: Money,
+        defaultFee: FeeRule?,
         creditLimit: Money? = null,
     ): Long {
         currencies.findByCode(currencyCode)
@@ -31,6 +33,7 @@ class CreateAccount(
                 currencyCode = currencyCode,
                 openingBalance = openingBalance,
                 creditLimit = creditLimit,
+                defaultFee = defaultFee,
             ),
         )
     }

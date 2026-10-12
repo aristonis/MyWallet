@@ -56,4 +56,14 @@ class DeductionUiMessageMappingTest {
             WalletException.FeeNotBelowAmount(Money.of("10", "USD"), Money.of("10", "USD")).toUiMessage(),
         )
     }
+
+
+    @Test fun aNegativeFeeUsesTheNonnegativeFeeMessage() {
+        assertEquals(UiMessage.FeeValueNegative, WalletException.FeeValueNegative(Money.of("-1", "USD")).toUiMessage())
+    }
+
+    @Test fun aFeeInputTheFormRefusesKeepsItsNamedMessage() {
+        val refused: Throwable = RefusedInputException(UiMessage.FeePercentAboveHundred)
+        assertEquals(UiMessage.FeePercentAboveHundred, refused.toUiMessage())
+    }
 }
