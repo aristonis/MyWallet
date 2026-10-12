@@ -38,4 +38,8 @@ class DeductionUiMessageMappingTest {
         assertEquals(UiMessage.DeductionItemInUse, WalletException.DeductionItemInUse(3).toUiMessage())
         assertEquals(UiMessage.DeductionItemNotFound, WalletException.DeductionItemNotFound(3).toUiMessage())
     }
+
+    @Test fun aDuplicateDeductionItemNameHasANamedMessageWithoutTheName() {
+        assertEquals(UiMessage.DeductionItemNameTaken, WalletException.DeductionItemNameTaken("Tax").toUiMessage())
+    }
 }

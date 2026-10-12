@@ -66,6 +66,7 @@ sealed interface UiMessage {
     data object DeductionsExceedIncome : UiMessage
     data object DeductionItemInUse : UiMessage
     data object DeductionItemNotFound : UiMessage
+    data object DeductionItemNameTaken : UiMessage
 
     // -- Debts ------------------------------------------------------------------------------------
 

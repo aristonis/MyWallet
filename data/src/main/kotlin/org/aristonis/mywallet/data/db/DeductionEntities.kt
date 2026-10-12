@@ -1,9 +1,11 @@
 package org.aristonis.mywallet.data.db
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.Relation
 
 /**
  * A deduction the owner set up once (tax, insurance) and applies to incomes. [nameKey] is the
@@ -53,6 +55,13 @@ data class DeductionItemEntity(
 data class DeductionItemAutoCategoryEntity(
     val itemId: Long,
     val incomeCategoryId: Long,
+)
+
+/** One rule and its category links loaded through Room's transactional relation reader. */
+data class DeductionItemWithAutoCategories(
+    @Embedded val item: DeductionItemEntity,
+    @Relation(parentColumn = "id", entityColumn = "itemId")
+    val autoCategories: List<DeductionItemAutoCategoryEntity>,
 )
 
 /**

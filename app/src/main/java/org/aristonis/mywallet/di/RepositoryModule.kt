@@ -42,7 +42,9 @@ import org.aristonis.mywallet.data.repo.RoomBaseCurrencyRepository
 import org.aristonis.mywallet.data.repo.RoomTransactionRunner
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.data.repo.RoomDebtRepository
+import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
+import org.aristonis.mywallet.domain.port.DeductionItemRepository
 
 /** Binds each domain port to its Room implementation. This is the seam where the app chooses Room. */
 @Module
@@ -85,6 +87,10 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideDebtRepository(db: WalletDatabase): DebtRepository = RoomDebtRepository(db)
+
+    @Provides @Singleton
+    fun provideDeductionItemRepository(db: WalletDatabase): DeductionItemRepository =
+        RoomDeductionItemRepository(db)
 
     @Provides @Singleton
     fun provideBackupRepository(

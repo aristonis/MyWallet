@@ -3,13 +3,47 @@ package org.aristonis.mywallet.data.db
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 
-/**
- * The deduction items, their auto-add links and the lines incomes snapshot from them. So far only
- * backup reads and writes these: a one-shot snapshot and a bulk replace, each list in key order.
- */
+/** The persisted deduction rules, their default category links and the lines income entries snapshot. */
 @Dao
 interface DeductionDao {
+    @Transaction
+    @Query("SELECT * FROM deduction_items ORDER BY sortOrder, id")
+    fun observeAllItemsWithCategories(): Flow<List<DeductionItemWithAutoCategories>>
+
+    @Query("SELECT * FROM deduction_items WHERE id = :id")
+    suspend fun findItem(id: Long): DeductionItemEntity?
+
+    @Query("SELECT * FROM deduction_items WHERE nameKey = :nameKey LIMIT 1")
+    suspend fun findItemByNameKey(nameKey: String): DeductionItemEntity?
+
+    @Insert
+    suspend fun insertItem(row: DeductionItemEntity): Long
+
+    @Update
+    suspend fun updateItem(row: DeductionItemEntity): Int
+
+    @Query(
+        "SELECT incomeCategoryId FROM deduction_item_auto_categories " +
+            "WHERE itemId = :itemId ORDER BY incomeCategoryId",
+    )
+    suspend fun autoCategoryIds(itemId: Long): List<Long>
+
+    @Query("DELETE FROM deduction_item_auto_categories WHERE itemId = :itemId")
+    suspend fun clearAutoCategories(itemId: Long)
+
+    @Insert
+    suspend fun insertAutoCategoriesForItem(rows: List<DeductionItemAutoCategoryEntity>)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM income_deduction_lines WHERE itemId = :itemId)")
+    suspend fun isItemInUse(itemId: Long): Boolean
+
+    @Query("DELETE FROM deduction_items WHERE id = :id")
+    suspend fun deleteItem(id: Long): Int
+
     @Query("SELECT * FROM deduction_items ORDER BY id")
     suspend fun getAllItems(): List<DeductionItemEntity>
 

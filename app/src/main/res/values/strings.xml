@@ -329,6 +329,7 @@
     <string name="msg_deductions_exceed_income">Deductions cannot be more than the income.</string>
     <string name="msg_deduction_item_in_use">This deduction is used by saved income and can\'t be deleted.</string>
     <string name="msg_deduction_item_not_found">That deduction no longer exists.</string>
+    <string name="msg_deduction_item_name_taken">A deduction with this name already exists.</string>
 
     <string name="msg_name_blank">Enter a name.</string>
     <string name="msg_debt_below_zero">That would take %1$s %2$s below zero.</string>

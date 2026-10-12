@@ -8,7 +8,11 @@ interface DeductionItemRepository {
     fun observeAll(): Flow<List<DeductionItem>>
     suspend fun findById(id: Long): DeductionItem?
 
-    /** Inserts an item with id 0 or replaces an existing item, returning its stable id. */
+    /**
+     * Inserts an item with id 0 or replaces an existing item, returning its stable id.
+     *
+     * @throws DeductionItemNotFound (a WalletException) when a positive id is not stored.
+     */
     suspend fun upsert(item: DeductionItem): Long
     suspend fun delete(id: Long)
 

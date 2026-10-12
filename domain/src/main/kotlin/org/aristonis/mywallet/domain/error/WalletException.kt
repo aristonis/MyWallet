@@ -127,6 +127,10 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class DeductionItemNotFound(val id: Long) :
         WalletException("Deduction item $id not found")
 
+    /** A deduction item with the same normalized name already exists. */
+    class DeductionItemNameTaken(val name: String, cause: Throwable? = null) :
+        WalletException("A deduction item named \"$name\" already exists", cause)
+
     /** A name that is empty once trimmed. A debt is found by its person's name, so it can't be blank. */
     class NameBlank :
         WalletException("A name is required")
