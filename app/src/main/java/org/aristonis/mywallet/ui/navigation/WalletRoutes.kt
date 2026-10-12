@@ -68,6 +68,9 @@ object Leaf {
     const val EDIT_ACCOUNT = "editAccount"
     const val RATES = "rates"
     const val CATEGORIES = "categories"
+    const val DEDUCTIONS = "deductions"
+    const val ADD_DEDUCTION = "addDeduction"
+    const val EDIT_DEDUCTION = "editDeduction"
     const val BASE_CURRENCY = "baseCurrency"
     const val ABOUT = "about"
     const val DEBTS = "debts"
@@ -75,16 +78,18 @@ object Leaf {
     const val RECORD_REPAYMENT = "recordRepayment"
 
     /** Every supporting screen a tab can push that needs no argument. [ROOT] is the tab itself. */
-    val all = listOf(ADD_TRANSACTION, ADD_ACCOUNT, MANAGE_ACCOUNTS, RATES, CATEGORIES, BASE_CURRENCY, ABOUT, DEBTS)
+    val all = listOf(ADD_TRANSACTION, ADD_ACCOUNT, MANAGE_ACCOUNTS, RATES, CATEGORIES, BASE_CURRENCY,
+        ABOUT, DEBTS, DEDUCTIONS, ADD_DEDUCTION)
 
     /** Every leaf that edits one row. */
-    val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL, RECORD_REPAYMENT)
+    val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL, RECORD_REPAYMENT, EDIT_DEDUCTION)
 
     /**
      * Leaves that end in one committing action. These give up the navigation bar so nothing sits
      * under their primary button.
      */
-    val forms = setOf(ADD_TRANSACTION, EDIT_TRANSACTION, ADD_ACCOUNT, EDIT_ACCOUNT, BASE_CURRENCY, RECORD_REPAYMENT)
+    val forms = setOf(ADD_TRANSACTION, EDIT_TRANSACTION, ADD_ACCOUNT, EDIT_ACCOUNT, BASE_CURRENCY, RECORD_REPAYMENT,
+        ADD_DEDUCTION, EDIT_DEDUCTION)
 }
 
 /** Which tab a destination belongs to, or null if it is outside the tabbed shell. */

@@ -31,6 +31,8 @@ import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen
 import org.aristonis.mywallet.ui.settings.AboutScreen
 import org.aristonis.mywallet.ui.settings.SettingsScreen
+import org.aristonis.mywallet.ui.deduction.DeductionsScreen
+import org.aristonis.mywallet.ui.deduction.DeductionEditorScreen
 import org.aristonis.mywallet.ui.transaction.AddTransactionScreen
 import org.aristonis.mywallet.ui.transaction.EditTransactionScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListScreen
@@ -238,6 +240,7 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
             SettingsScreen(
                 onManageAccounts = { nav.navigate(tab.child(Leaf.MANAGE_ACCOUNTS)) },
                 onManageCategories = { nav.navigate(tab.child(Leaf.CATEGORIES)) },
+                onManageDeductions = { nav.navigate(tab.child(Leaf.DEDUCTIONS)) },
                 onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
                 onChangeBaseCurrency = { nav.navigate(tab.child(Leaf.BASE_CURRENCY)) },
                 onAbout = { nav.navigate(tab.child(Leaf.ABOUT)) },
@@ -258,6 +261,17 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
         }
         composable(tab.child(Leaf.CATEGORIES)) {
             ManageCategoriesScreen(onDone = { nav.popBackStack() })
+        }
+        composable(tab.child(Leaf.DEDUCTIONS)) {
+            DeductionsScreen(onDone = { nav.popBackStack() },
+                onAdd = { nav.navigate(tab.child(Leaf.ADD_DEDUCTION)) },
+                onEdit = { nav.navigate(tab.child(Leaf.EDIT_DEDUCTION, it)) })
+        }
+        composable(tab.child(Leaf.ADD_DEDUCTION)) {
+            DeductionEditorScreen(isEditing = false, onDone = { nav.popBackStack() })
+        }
+        editorRoute(tab, Leaf.EDIT_DEDUCTION) {
+            DeductionEditorScreen(isEditing = true, onDone = { nav.popBackStack() })
         }
         composable(tab.child(Leaf.RATES)) {
             ManageRatesScreen(onDone = { nav.popBackStack() })

@@ -67,6 +67,7 @@ private val themeOptions = listOf(
 fun SettingsScreen(
     onManageAccounts: () -> Unit,
     onManageCategories: () -> Unit,
+    onManageDeductions: () -> Unit,
     onManageRates: () -> Unit,
     onChangeBaseCurrency: () -> Unit,
     onAbout: () -> Unit,
@@ -104,6 +105,7 @@ fun SettingsScreen(
         onStatusShown = viewModel::acknowledge,
         onManageAccounts = onManageAccounts,
         onManageCategories = onManageCategories,
+        onManageDeductions = onManageDeductions,
         onManageRates = onManageRates,
         onChangeBaseCurrency = onChangeBaseCurrency,
         onAbout = onAbout,
@@ -133,6 +135,7 @@ private fun SettingsContent(
     onStatusShown: () -> Unit,
     onManageAccounts: () -> Unit,
     onManageCategories: () -> Unit,
+    onManageDeductions: () -> Unit,
     onManageRates: () -> Unit,
     onChangeBaseCurrency: () -> Unit,
     onAbout: () -> Unit,
@@ -185,6 +188,11 @@ private fun SettingsContent(
                     label = stringResource(R.string.settings_categories),
                     icon = WalletIcons.Categories,
                     onClick = onManageCategories,
+                )
+                SettingsRow(
+                    label = stringResource(R.string.deductions_title),
+                    icon = WalletIcons.Transactions,
+                    onClick = onManageDeductions,
                 )
             }
 
@@ -350,6 +358,7 @@ private fun SettingsPreview() {
             onStatusShown = {},
             onManageAccounts = {},
             onManageCategories = {},
+            onManageDeductions = {},
             onManageRates = {},
             onChangeBaseCurrency = {},
             onAbout = {},

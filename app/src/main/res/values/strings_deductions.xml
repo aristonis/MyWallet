@@ -1,0 +1,32 @@
+<resources>
+    <string name="deductions_title">Deductions</string>
+    <string name="deduction_add">Add deduction</string>
+    <string name="deduction_edit">Edit deduction</string>
+    <string name="deductions_empty">No deductions yet. Add one to use it on your income.</string>
+    <string name="deductions_load_failed">Deductions could not be read.</string>
+    <string name="deduction_name">Name</string>
+    <string name="deduction_mode">Value type</string>
+    <string name="deduction_percent">Percentage</string>
+    <string name="deduction_fixed">Fixed amount</string>
+    <string name="deduction_value">Default value</string>
+    <string name="deduction_currency">Currency</string>
+    <string name="deduction_timing">When paid</string>
+    <string name="deduction_now">Paid now</string>
+    <string name="deduction_later">Owed later</string>
+    <string name="deduction_expense_category">Expense category</string>
+    <string name="deduction_category_automatic">Use the deduction name</string>
+    <string name="deduction_category_choose">Choose a category</string>
+    <string name="deduction_category_missing">The expense category this deduction used was deleted. Choose a category, or choose \"Use the deduction name\" to create one, before saving.</string>
+    <string name="deduction_auto_add">Auto-add on income categories</string>
+    <string name="deduction_auto_add_hint">Leave all off to add this deduction by hand.</string>
+    <string name="deduction_enabled">Enabled</string>
+    <string name="deduction_disable_title">Switch this deduction off?</string>
+    <string name="deduction_disable_body">Saved income uses this deduction, so it cannot be deleted. Switch it off to stop offering it on future income.</string>
+    <string name="deduction_disable_action">Switch off</string>
+    <string name="deduction_delete_title">Delete deduction?</string>
+    <string name="deduction_delete_body">Delete %1$s? Saved income is kept.</string>
+    <string name="deduction_percent_summary">%1$s%% · %2$s</string>
+    <string name="deduction_fixed_summary">%1$s %2$s · %3$s</string>
+    <string name="msg_deduction_snapshot_invalid">Check the deduction details and select them again.</string>
+    <string name="deduction_enabled_for">Enable %1$s</string>
+</resources>

@@ -12,6 +12,17 @@ import org.junit.Test
 class WalletRoutesTest {
 
     @Test
+    fun deductionsListKeepsNavigationAndEditorsHideIt() {
+        val tab = WalletTab.SETTINGS
+        assertEquals("settings/deductions", tab.child(Leaf.DEDUCTIONS))
+        assertTrue(showsNavigationBar(tab.child(Leaf.DEDUCTIONS)))
+        assertTrue(!showsNavigationBar(tab.child(Leaf.ADD_DEDUCTION)))
+        assertTrue(!showsNavigationBar(tab.child(Leaf.EDIT_DEDUCTION, 3)))
+        assertEquals("settings/editDeduction/{id}", tab.childPattern(Leaf.EDIT_DEDUCTION))
+    }
+
+
+    @Test
     fun `every tab has a distinct route`() {
         val routes = WalletTab.entries.map { it.route }
 
