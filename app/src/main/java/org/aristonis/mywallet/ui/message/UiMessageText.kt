@@ -96,6 +96,8 @@ fun UiMessage.text(): String = when (this) {
     UiMessage.BackupFromNewerVersion -> stringResource(R.string.msg_backup_from_newer_version)
     UiMessage.BackupRestoreFailed -> stringResource(R.string.msg_backup_restore_failed)
 
+    UiMessage.ExportInterrupted -> stringResource(R.string.tracking_export_interrupted)
+
     UiMessage.Unexpected -> stringResource(R.string.msg_unexpected)
 }
 

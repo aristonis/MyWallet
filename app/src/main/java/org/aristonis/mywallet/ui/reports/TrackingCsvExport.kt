@@ -127,7 +127,7 @@ internal class TrackingCsvExport(
         if (csv == null) {
             // Activity results can outlive the process. The marker retains no wallet data,
             // so a lost artifact requires a new export instead of opening an empty document.
-            clear(ReportsExportState.Error(UiMessage.Unexpected))
+            clear(ReportsExportState.Error(UiMessage.ExportInterrupted))
             return null
         }
         artifact = null

@@ -112,6 +112,10 @@ sealed interface UiMessage {
     data object BackupFromNewerVersion : UiMessage
     data object BackupRestoreFailed : UiMessage
 
+    // -- Tracking export -------------------------------------------------------------------------
+
+    data object ExportInterrupted : UiMessage
+
     /**
      * A failure with no specific handling. It exists so an unmapped exception still reaches the user
      * as a plain apology instead of an English developer message from somewhere deep in the stack.

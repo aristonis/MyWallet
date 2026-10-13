@@ -360,7 +360,7 @@ class ReportsCsvExportTest {
         var opened = 0
         recreated.runCsvWrite { opened++ }
         assertEquals(0, opened)
-        assertEquals(ReportsExportState.Error(UiMessage.Unexpected), recreated.exportState.value)
+        assertEquals(ReportsExportState.Error(UiMessage.ExportInterrupted), recreated.exportState.value)
         recreated.consumeExportResult()
         recreated.selectRange(day, day)
         recreated.prepareExport()

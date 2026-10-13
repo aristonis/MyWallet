@@ -3,4 +3,5 @@
     <string name="tracking_more_options">More options</string>
     <string name="tracking_export_csv">Export these dates (CSV)</string>
     <string name="tracking_export_saved">CSV saved</string>
+    <string name="tracking_export_interrupted">CSV export was interrupted. Try exporting again.</string>
 </resources>
