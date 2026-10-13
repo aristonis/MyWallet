@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.account
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -7,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.data.format.MoneyParser
@@ -43,12 +45,23 @@ class AddAccountViewModelTest {
     private val usd = Currency("USD", "$", 2)
     private val eur = Currency("EUR", "€", 2)
 
-    private class Fixture(currencies: List<Currency>, localeCurrency: String? = null, locale: Locale = Locale.US) {
+    private class Fixture(
+        currencies: List<Currency>,
+        localeCurrency: String? = null,
+        locale: Locale = Locale.US,
+        upsertGate: CompletableDeferred<Unit>? = null,
+    ) {
         val currencyRepo = FakeCurrencyRepository(currencies)
         val accountRepo = FakeAccountRepository()
+        private val gatedAccountRepo = object : AccountRepository by accountRepo {
+            override suspend fun upsert(account: Account): Long {
+                upsertGate?.await()
+                return accountRepo.upsert(account)
+            }
+        }
         val viewModel = AddAccountViewModel(
             currencies = currencyRepo,
-            createAccount = CreateAccount(currencyRepo, accountRepo),
+            createAccount = CreateAccount(currencyRepo, gatedAccountRepo),
             localeDefaults = LocaleDefaults(localeCurrency),
             moneyParser = MoneyParser(locale),
         )
@@ -272,6 +285,80 @@ class AddAccountViewModelTest {
         assertNotNull(f.viewModel.state.value.error)
         assertFalse(f.viewModel.state.value.created)
         assertTrue(f.accountRepo.upserted.isEmpty())
+    }
+
+    @Test
+    fun correctingInvalidOpeningBalanceClearsErrorAndKeepsDraftForRetry() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+        f.viewModel.setName("Cash")
+        f.viewModel.setOpeningBalance("not-a-number")
+        f.viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(UiMessage.NotANumber, f.viewModel.state.value.error)
+        assertTrue(f.accountRepo.upserted.isEmpty())
+
+        f.viewModel.setOpeningBalance("25.50")
+
+        assertNull(f.viewModel.state.value.error)
+        assertEquals("Cash", f.viewModel.state.value.name)
+        assertEquals("25.50", f.viewModel.state.value.openingBalanceInput)
+        f.viewModel.submit()
+        advanceUntilIdle()
+        assertTrue(f.viewModel.state.value.created)
+        assertEquals(Money.of("25.50", "USD"), f.accountRepo.upserted.single().openingBalance)
+    }
+
+    @Test
+    fun changingAccountTypeClearsInvalidCreditLimitErrorAndKeepsDraftForRetry() = runTest {
+        val f = Fixture(listOf(usd))
+        advanceUntilIdle()
+        f.viewModel.setName("Cash")
+        f.viewModel.selectAccountType("credit_card")
+        f.viewModel.setCreditLimit("0")
+        f.viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(UiMessage.AmountNotPositive, f.viewModel.state.value.error)
+        assertTrue(f.accountRepo.upserted.isEmpty())
+
+        f.viewModel.selectAccountType("cash")
+
+        assertNull(f.viewModel.state.value.error)
+        assertEquals("Cash", f.viewModel.state.value.name)
+        f.viewModel.submit()
+        advanceUntilIdle()
+        assertTrue(f.viewModel.state.value.created)
+        assertNull(f.accountRepo.upserted.single().creditLimit)
+    }
+
+    @Test
+    fun pendingSaveKeepsSubmittedDraftAndRejectsDuplicateSubmit() = runTest {
+        val upsertGate = CompletableDeferred<Unit>()
+        val f = Fixture(listOf(usd, eur), upsertGate = upsertGate)
+        advanceUntilIdle()
+        f.viewModel.setName("Cash")
+        f.viewModel.setOpeningBalance("25")
+        f.viewModel.submit()
+        f.viewModel.submit()
+        runCurrent()
+        val pendingDraft = f.viewModel.state.value
+        assertTrue(pendingDraft.isSubmitting)
+
+        f.viewModel.setName("Changed")
+        f.viewModel.selectCurrency("EUR")
+        f.viewModel.selectAccountType("credit_card")
+        f.viewModel.setOpeningBalance("99")
+        f.viewModel.setCreditLimit("100")
+        f.viewModel.selectFeeMode(FeeMode.FIXED)
+        f.viewModel.setFeeValue("5")
+        f.viewModel.submit()
+        assertEquals(pendingDraft, f.viewModel.state.value)
+
+        upsertGate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(f.viewModel.state.value.created)
+        assertEquals("Cash", f.accountRepo.upserted.single().name)
+        assertEquals(Money.of("25", "USD"), f.accountRepo.upserted.single().openingBalance)
     }
 
     private fun creditCardForm(f: Fixture, limit: String, currency: String = "USD") {

@@ -23,11 +23,17 @@ internal fun MoneyParser.parseCreditLimit(input: String, isShown: Boolean, curre
 
 /** The opening balance field, with the owed-as-negative hint under it for a credit type. */
 @Composable
-internal fun OpeningBalanceField(value: String, typeKey: String, onValueChange: (String) -> Unit) {
+internal fun OpeningBalanceField(
+    value: String,
+    typeKey: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean = true,
+) {
     val hintRes = openingBalanceHintRes(typeKey)
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         label = { Text(stringResource(R.string.field_opening_balance)) },
         supportingText = hintRes?.let { res -> { Text(stringResource(res)) } },
         singleLine = true,
@@ -38,10 +44,11 @@ internal fun OpeningBalanceField(value: String, typeKey: String, onValueChange: 
 
 /** The optional credit limit field; the caller shows it only for a type that is owed when negative. */
 @Composable
-internal fun CreditLimitField(value: String, onValueChange: (String) -> Unit) {
+internal fun CreditLimitField(value: String, onValueChange: (String) -> Unit, enabled: Boolean = true) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         label = { Text(stringResource(R.string.field_credit_limit)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

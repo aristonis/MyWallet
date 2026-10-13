@@ -57,7 +57,7 @@ fun OnboardingScreen(viewModel: OnboardingViewModel = hiltViewModel()) {
 
 /** Stateless body — state in, events out (hoisted). No ViewModel reference, so previews work. */
 @Composable
-private fun OnboardingContent(
+internal fun OnboardingContent(
     state: OnboardingUiState,
     onCurrencySelected: (String) -> Unit,
     onNameChanged: (String) -> Unit,
@@ -95,11 +95,13 @@ private fun OnboardingContent(
                 selected = selectedCurrency,
                 currencies = state.currencies,
                 onSelect = onCurrencySelected,
+                enabled = !state.isSubmitting,
             )
 
             OutlinedTextField(
                 value = state.accountName,
                 onValueChange = onNameChanged,
+                enabled = !state.isSubmitting,
                 label = { Text(stringResource(R.string.field_account_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -112,11 +114,13 @@ private fun OnboardingContent(
                 items = AccountTypeRegistry.BuiltIns.all,
                 itemLabel = { accountTypeLabel(it.key) },
                 onSelect = { onTypeSelected(it.key) },
+                enabled = !state.isSubmitting,
             )
 
             OutlinedTextField(
                 value = state.openingBalanceInput,
                 onValueChange = onOpeningBalanceChanged,
+                enabled = !state.isSubmitting,
                 label = { Text(stringResource(R.string.field_opening_balance)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

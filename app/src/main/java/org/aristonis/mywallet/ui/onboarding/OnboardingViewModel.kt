@@ -70,21 +70,26 @@ class OnboardingViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    fun selectCurrency(code: String) = _state.update { it.copy(selectedCurrencyCode = code) }
+    fun selectCurrency(code: String) = editDraft { it.copy(selectedCurrencyCode = code, error = null) }
 
-    fun setAccountName(name: String) = _state.update { it.copy(accountName = name) }
+    fun setAccountName(name: String) = editDraft { it.copy(accountName = name, error = null) }
 
-    fun selectAccountType(typeKey: String) = _state.update { it.copy(accountTypeKey = typeKey) }
+    fun selectAccountType(typeKey: String) = editDraft { it.copy(accountTypeKey = typeKey, error = null) }
 
-    fun setOpeningBalance(text: String) = _state.update { it.copy(openingBalanceInput = text) }
+    fun setOpeningBalance(text: String) = editDraft { it.copy(openingBalanceInput = text, error = null) }
 
-    fun selectTheme(theme: ThemePreference) = _state.update { it.copy(theme = theme) }
+    fun selectTheme(theme: ThemePreference) = editDraft { it.copy(theme = theme) }
+
+    private fun editDraft(edit: (OnboardingUiState) -> OnboardingUiState) = _state.update { current ->
+        if (current.isSubmitting) current else edit(current)
+    }
 
     fun submit() {
         val snapshot = _state.value
+        if (snapshot.isSubmitting || snapshot.completed) return
         val currencyCode = snapshot.selectedCurrencyCode ?: return // UI guards this via canSubmit
+        if (!_state.compareAndSet(snapshot, snapshot.copy(isSubmitting = true, error = null))) return
         viewModelScope.launch {
-            _state.update { it.copy(isSubmitting = true, error = null) }
             try {
                 val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
                 // Create the account FIRST: it carries all the failure-prone validation (blank name, bad

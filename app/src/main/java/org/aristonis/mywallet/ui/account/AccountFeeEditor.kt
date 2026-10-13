@@ -52,6 +52,7 @@ internal fun AccountFeeEditor(
     currencyCode: String?,
     onModeChanged: (FeeMode?) -> Unit,
     onValueChanged: (String) -> Unit,
+    enabled: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         LabeledDropdown(
@@ -60,11 +61,13 @@ internal fun AccountFeeEditor(
             items = listOf(null, FeeMode.PERCENT, FeeMode.FIXED),
             itemLabel = { feeModeLabel(it) },
             onSelect = onModeChanged,
+            enabled = enabled,
         )
         if (mode != null) {
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChanged,
+                enabled = enabled,
                 label = {
                     val label = if (mode == FeeMode.PERCENT) R.string.fee_percent_value else R.string.fee_fixed_value
                     Text(stringResource(label))

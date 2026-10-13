@@ -68,7 +68,7 @@ fun AddAccountScreen(
 }
 
 @Composable
-private fun AddAccountContent(
+internal fun AddAccountContent(
     state: AddAccountUiState,
     onCurrencySelected: (String) -> Unit,
     onNameChanged: (String) -> Unit,
@@ -101,11 +101,13 @@ private fun AddAccountContent(
                 selected = selectedCurrency,
                 currencies = state.currencies,
                 onSelect = onCurrencySelected,
+                enabled = !state.isSubmitting,
             )
 
             OutlinedTextField(
                 value = state.name,
                 onValueChange = onNameChanged,
+                enabled = !state.isSubmitting,
                 label = { Text(stringResource(R.string.field_account_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -118,16 +120,22 @@ private fun AddAccountContent(
                 items = AccountTypeRegistry.BuiltIns.all,
                 itemLabel = { accountTypeLabel(it.key) },
                 onSelect = { onTypeSelected(it.key) },
+                enabled = !state.isSubmitting,
             )
 
             OpeningBalanceField(
                 value = state.openingBalanceInput,
                 typeKey = state.accountTypeKey,
                 onValueChange = onOpeningBalanceChanged,
+                enabled = !state.isSubmitting,
             )
 
             if (state.showsCreditLimit) {
-                CreditLimitField(value = state.creditLimitInput, onValueChange = onCreditLimitChanged)
+                CreditLimitField(
+                    value = state.creditLimitInput,
+                    onValueChange = onCreditLimitChanged,
+                    enabled = !state.isSubmitting,
+                )
             }
 
             AccountFeeEditor(
@@ -136,6 +144,7 @@ private fun AddAccountContent(
                 currencyCode = state.selectedCurrencyCode,
                 onModeChanged = onFeeModeChanged,
                 onValueChanged = onFeeValueChanged,
+                enabled = !state.isSubmitting,
             )
 
             state.error?.let { message ->

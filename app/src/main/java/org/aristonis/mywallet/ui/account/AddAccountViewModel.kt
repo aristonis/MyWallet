@@ -72,32 +72,40 @@ class AddAccountViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    fun selectCurrency(code: String) = _state.update {
+    private fun updateDraft(change: (AddAccountUiState) -> AddAccountUiState) = _state.update {
+        if (it.isSubmitting) it else change(it)
+    }
+
+    fun selectCurrency(code: String) = updateDraft {
         it.copy(
             selectedCurrencyCode = code,
             feeValueInput = feeInputAfterCurrencyChange(it.feeMode, it.selectedCurrencyCode, code, it.feeValueInput),
+            error = null,
         )
     }
 
-    fun setName(name: String) = _state.update { it.copy(name = name) }
+    fun setName(name: String) = updateDraft { it.copy(name = name, error = null) }
 
-    fun selectAccountType(typeKey: String) = _state.update { it.copy(accountTypeKey = typeKey) }
+    fun selectAccountType(typeKey: String) = updateDraft { it.copy(accountTypeKey = typeKey, error = null) }
 
-    fun setOpeningBalance(text: String) = _state.update { it.copy(openingBalanceInput = text) }
-
-    fun setCreditLimit(text: String) = _state.update { it.copy(creditLimitInput = text) }
-
-    fun selectFeeMode(mode: FeeMode?) = _state.update {
-        it.copy(feeMode = mode, feeValueInput = feeInputAfterModeChange(it.feeMode, mode, it.feeValueInput))
+    fun setOpeningBalance(text: String) = updateDraft {
+        it.copy(openingBalanceInput = text, error = null)
     }
 
-    fun setFeeValue(text: String) = _state.update { it.copy(feeValueInput = text) }
+    fun setCreditLimit(text: String) = updateDraft { it.copy(creditLimitInput = text, error = null) }
+
+    fun selectFeeMode(mode: FeeMode?) = updateDraft {
+        it.copy(feeMode = mode, feeValueInput = feeInputAfterModeChange(it.feeMode, mode, it.feeValueInput), error = null)
+    }
+
+    fun setFeeValue(text: String) = updateDraft { it.copy(feeValueInput = text, error = null) }
 
     fun submit() {
         val snapshot = _state.value
-        val currencyCode = snapshot.selectedCurrencyCode ?: return // UI guards this via canSubmit
+        if (snapshot.isSubmitting || snapshot.created) return
+        val currencyCode = snapshot.selectedCurrencyCode ?: return
+        if (!_state.compareAndSet(snapshot, snapshot.copy(isSubmitting = true, error = null))) return
         viewModelScope.launch {
-            _state.update { it.copy(isSubmitting = true, error = null) }
             try {
                 val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
                 val creditLimit = moneyParser.parseCreditLimit(

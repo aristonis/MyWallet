@@ -17,6 +17,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,11 +52,15 @@ internal fun SearchableCurrencyField(
     selected: Currency?,
     currencies: List<Currency>,
     onSelect: (String) -> Unit,
+    enabled: Boolean = true,
 ) {
     var showPicker by remember { mutableStateOf(false) }
+    LaunchedEffect(enabled) {
+        if (!enabled) showPicker = false
+    }
     Column {
         Text(label, style = MaterialTheme.typography.labelMedium)
-        OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = { showPicker = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = selected?.let { stringResource(R.string.account_with_currency, it.code, it.symbol) }
                     ?: stringResource(R.string.value_select_prompt),
@@ -64,7 +69,7 @@ internal fun SearchableCurrencyField(
             DropdownCaret()
         }
     }
-    if (showPicker) {
+    if (showPicker && enabled) {
         SearchableListDialog(
             title = label,
             items = currencies,
@@ -136,16 +141,20 @@ internal fun <T> LabeledDropdown(
     items: List<T>,
     itemLabel: @Composable (T) -> String,
     onSelect: (T) -> Unit,
+    enabled: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(enabled) {
+        if (!enabled) expanded = false
+    }
     Column {
         Text(label, style = MaterialTheme.typography.labelMedium)
         Box {
-            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
                 Text(selectedText, modifier = Modifier.weight(1f))
                 DropdownCaret()
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
                 items.forEach { item ->
                     DropdownMenuItem(
                         text = { Text(itemLabel(item)) },
