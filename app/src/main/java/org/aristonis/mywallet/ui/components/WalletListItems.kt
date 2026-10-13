@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.theme.WalletTheme
@@ -27,6 +29,8 @@ import org.aristonis.mywallet.ui.theme.WalletTheme
 /** Between a heading and its content. Larger gaps separate whole regions; see docs/Design.md 2.3. */
 private val SECTION_SPACING = 8.dp
 private val CARD_PADDING = 16.dp
+private val COMPACT_ROW_WIDTH = 360.dp
+private const val LARGE_TEXT_SCALE = 1.8f
 
 /**
  * A titled band with optional actions on the trailing side ("Accounts … Manage"). Actions sit at the
@@ -54,7 +58,8 @@ fun SectionHeader(
 /**
  * One record in a list: a leading type icon, a name, a quieter second line, and whatever belongs at
  * the end (usually a [MoneyText]). Built on Material's `ListItem` so height, padding and the touch
- * target follow the platform rather than being re-guessed per screen.
+ * target follow the platform rather than being re-guessed per screen. At compact widths with large
+ * text, trailing content moves below wrapped copy instead of sharing its line.
  */
 @Composable
 fun WalletListRow(
@@ -67,8 +72,74 @@ fun WalletListRow(
     trailing: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
 ) {
+    val fontScale = LocalDensity.current.fontScale
+    BoxWithConstraints {
+        // A phone's usable text width falls as font scale grows, even when its dp width is unchanged.
+        val stackTrailing = trailing != null && maxWidth / fontScale <= COMPACT_ROW_WIDTH &&
+            fontScale >= LARGE_TEXT_SCALE
+        if (stackTrailing) {
+            Column(modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier) {
+                // A nested ListItem owns a separate semantics node and hides the parent's switch role.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(CARD_PADDING),
+                    horizontalArrangement = Arrangement.spacedBy(CARD_PADDING),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (leadingIcon != null) {
+                        Icon(
+                            imageVector = leadingIcon,
+                            contentDescription = leadingIconDescription,
+                            tint = leadingIconTint,
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(headline, style = MaterialTheme.typography.titleMedium)
+                        if (supporting != null) {
+                            Text(
+                                text = supporting,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(
+                        start = CARD_PADDING,
+                        end = CARD_PADDING,
+                        bottom = CARD_PADDING,
+                    ),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    trailing?.invoke()
+                }
+            }
+        } else {
+            WalletListItemBody(
+                headline = headline,
+                supporting = supporting,
+                leadingIcon = leadingIcon,
+                leadingIconDescription = leadingIconDescription,
+                leadingIconTint = leadingIconTint,
+                trailing = trailing,
+                modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WalletListItemBody(
+    headline: String,
+    supporting: String?,
+    leadingIcon: ImageVector?,
+    leadingIconDescription: String?,
+    leadingIconTint: Color,
+    trailing: @Composable (() -> Unit)?,
+    modifier: Modifier,
+) {
     ListItem(
-        modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier,
+        modifier = modifier,
         headlineContent = { Text(headline, style = MaterialTheme.typography.titleMedium) },
         supportingContent = supporting?.let {
             {
