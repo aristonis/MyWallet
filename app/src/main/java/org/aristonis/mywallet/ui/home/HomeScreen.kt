@@ -24,7 +24,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,6 +53,9 @@ import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.icons.accountTypeIcon
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.theme.WalletTheme
+
+private val FAB_EDGE_GAP = 16.dp
+private val FAB_LIST_GAP = 16.dp
 
 @Composable
 fun HomeScreen(
@@ -84,6 +92,9 @@ internal fun HomeContent(
     onDebts: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    var addActionHeightPx by remember { mutableIntStateOf(0) }
+    val addActionClearance = with(LocalDensity.current) { addActionHeightPx.toDp() } +
+        FAB_EDGE_GAP + FAB_LIST_GAP
     Scaffold(
         topBar = {
             WalletTopAppBar(title = stringResource(R.string.home_title)) {
@@ -99,7 +110,10 @@ internal fun HomeContent(
         floatingActionButton = {
             // Recording a transaction is the primary action, so it gets the FAB. Adding an account is
             // a rarer, setup-time action, so it lives behind Manage.
-            ExtendedFloatingActionButton(onClick = onAddTransaction) {
+            ExtendedFloatingActionButton(
+                onClick = onAddTransaction,
+                modifier = Modifier.onSizeChanged { addActionHeightPx = it.height },
+            ) {
                 Icon(imageVector = WalletIcons.Add, contentDescription = null)
                 Text(
                     text = stringResource(R.string.home_add_transaction),
@@ -112,7 +126,12 @@ internal fun HomeContent(
         // accounts get a real height instead of asking for the sum of all their rows.
         LazyColumn(
             modifier = Modifier.padding(innerPadding).fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 16.dp,
+                bottom = addActionClearance,
+            ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // A failed read has no figure coming, so no spinner promising one; the message below says why.

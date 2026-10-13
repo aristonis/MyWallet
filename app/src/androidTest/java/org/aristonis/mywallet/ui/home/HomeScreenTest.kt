@@ -1,16 +1,28 @@
 package org.aristonis.mywallet.ui.home
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.Account
+import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,5 +87,73 @@ class HomeScreenTest {
         compose.onNodeWithText(text(R.string.debts_title)).assertIsDisplayed().performClick()
 
         compose.runOnIdle { assertEquals(1, openings.get()) }
+    }
+
+    @Test
+    fun finalSummaryTextClearsAddActionAtTwoHundredPercentInRtl() {
+        val state = HomeUiState(
+            summary = HomeSummaryState.Amounts(
+                pocketDisplay = "100.00 USD",
+                owedToMeDisplay = "20.00 USD",
+                iOweDisplay = "30.00 USD",
+                balanceDisplay = "90.00 USD",
+            ),
+            isLoading = false,
+        )
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalLayoutDirection provides LayoutDirection.Rtl,
+                LocalDensity provides Density(density.density, 2f),
+            ) {
+                MyWalletTheme(dynamicColor = false) {
+                    HomeContent(state, {}, {}, {}, {}, {}, {}, {})
+                }
+            }
+        }
+
+        val owed = compose.onNodeWithText(text(R.string.home_i_owe)).performScrollTo().getBoundsInRoot()
+        val add = compose.onNodeWithText(text(R.string.home_add_transaction)).getBoundsInRoot()
+        assertTrue("The I owe text must clear the Add action", owed.bottom <= add.top || owed.top >= add.bottom)
+    }
+
+    @Test
+    fun finalAccountActionClearsAddActionAndRemainsClickableAtTwoHundredPercentInRtl() {
+        val rateOpens = AtomicInteger()
+        val state = HomeUiState(
+            summary = HomeSummaryState.Amounts("100.00 USD", "0.00 USD", "0.00 USD", "100.00 USD"),
+            accounts = listOf(
+                AccountRow(
+                    account = Account(1, "Final Account", "bank", "EUR", Money.of("987.65", "EUR")),
+                    native = Money.of("987.65", "EUR"),
+                    base = null,
+                    nativeDisplay = "987.65 EUR",
+                    baseDisplay = null,
+                ),
+            ),
+            isLoading = false,
+        )
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalLayoutDirection provides LayoutDirection.Rtl,
+                LocalDensity provides Density(density.density, 2f),
+            ) {
+                MyWalletTheme(dynamicColor = false) {
+                    HomeContent(state, {}, {}, {}, { rateOpens.incrementAndGet() }, {}, {}, {})
+                }
+            }
+        }
+
+        val actionLabel = InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(R.string.home_account_missing_rate, "EUR")
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(2)
+        val accountAction = compose.onNodeWithText(actionLabel).assertIsDisplayed()
+        val actionBounds = accountAction.getBoundsInRoot()
+        val addBounds = compose.onNodeWithText(text(R.string.home_add_transaction)).getBoundsInRoot()
+        assertTrue("The final account action $actionBounds must clear Add $addBounds", actionBounds.bottom <= addBounds.top ||
+            actionBounds.top >= addBounds.bottom)
+        accountAction.performClick()
+        compose.runOnIdle { assertEquals(1, rateOpens.get()) }
     }
 }
