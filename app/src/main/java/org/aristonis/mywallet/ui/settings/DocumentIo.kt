@@ -6,35 +6,29 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 
-/**
- * The Storage Access Framework boundary: reads/writes the text a backup is (de)serialized to at a
- * user-picked [Uri]. Keeping [ContentResolver]/[Uri] behind this interface keeps them out of the
- * domain and out of the view-model's unit-tested logic — the view-model only ever sees plain text.
- */
+/** SAF boundary owning stream lifetimes; serialization runs directly on the chosen document. */
 interface DocumentIo {
-    suspend fun writeText(uri: Uri, text: String)
-    suspend fun readText(uri: Uri): String
+    /** Truncates the document before [block] runs, so anything that can refuse the write must run first. */
+    suspend fun write(uri: Uri, block: suspend (OutputStream) -> Unit)
+    suspend fun read(uri: Uri, block: suspend (InputStream) -> Unit)
 }
 
-/**
- * Android-backed [DocumentIo]. Streams are opened off the main thread and a null stream fails loud
- * (the resolver couldn't grant access), never a silent no-op that would look like a successful
- * backup while writing nothing.
- */
+/** Opens and closes document streams off the main thread; unavailable documents fail explicitly. */
 class AndroidDocumentIo(
     @ApplicationContext private val context: Context,
 ) : DocumentIo {
-
-    override suspend fun writeText(uri: Uri, text: String): Unit = withContext(Dispatchers.IO) {
-        val stream = context.contentResolver.openOutputStream(uri)
-            ?: throw IOException("Could not open $uri for writing")
-        stream.use { it.write(text.toByteArray()) }
+    override suspend fun write(uri: Uri, block: suspend (OutputStream) -> Unit): Unit = withContext(Dispatchers.IO) {
+        val stream = context.contentResolver.openOutputStream(uri, "wt")
+            ?: throw IOException("Could not open document for writing")
+        stream.use { block(it) }
     }
 
-    override suspend fun readText(uri: Uri): String = withContext(Dispatchers.IO) {
+    override suspend fun read(uri: Uri, block: suspend (InputStream) -> Unit): Unit = withContext(Dispatchers.IO) {
         val stream = context.contentResolver.openInputStream(uri)
-            ?: throw IOException("Could not open $uri for reading")
-        stream.use { it.readBytes().decodeToString() }
+            ?: throw IOException("Could not open document for reading")
+        stream.use { block(it) }
     }
 }

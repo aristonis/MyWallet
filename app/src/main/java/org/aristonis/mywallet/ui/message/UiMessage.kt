@@ -103,6 +103,9 @@ sealed interface UiMessage {
 
     data object BackupSaved : UiMessage
     data object BackupSaveFailed : UiMessage
+
+    /** The wallet holds data a restore would refuse, so no backup was written until it is fixed. */
+    data object BackupWalletNeedsFixing : UiMessage
     data object BackupFileUnreadable : UiMessage
     data object BackupRestored : UiMessage
     data object BackupNotRecognized : UiMessage

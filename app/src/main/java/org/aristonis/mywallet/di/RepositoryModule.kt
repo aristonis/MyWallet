@@ -1,50 +1,52 @@
 package org.aristonis.mywallet.di
 
+import android.content.Context
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import org.aristonis.mywallet.data.backup.RoomBackupRepository
 import org.aristonis.mywallet.data.db.AccountDao
 import org.aristonis.mywallet.data.db.CategoryDao
-import org.aristonis.mywallet.data.db.CurrencyDao
-import org.aristonis.mywallet.data.db.RateDao
-import org.aristonis.mywallet.data.db.SettingsDao
 import org.aristonis.mywallet.data.db.CategoryRoleDao
+import org.aristonis.mywallet.data.db.CurrencyDao
 import org.aristonis.mywallet.data.db.DebtDao
 import org.aristonis.mywallet.data.db.DeductionDao
 import org.aristonis.mywallet.data.db.EntryDao
 import org.aristonis.mywallet.data.db.LedgerQueryDao
 import org.aristonis.mywallet.data.db.LegacyRowDao
+import org.aristonis.mywallet.data.db.RateDao
+import org.aristonis.mywallet.data.db.SettingsDao
 import org.aristonis.mywallet.data.db.WalletDatabase
-import org.aristonis.mywallet.data.backup.RoomBackupRepository
 import org.aristonis.mywallet.data.repo.RoomAccountRepository
+import org.aristonis.mywallet.data.repo.RoomBaseCurrencyRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRoleRepository
 import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
+import org.aristonis.mywallet.data.repo.RoomDebtRepository
+import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
+import org.aristonis.mywallet.data.repo.RoomEntryRepository
+import org.aristonis.mywallet.data.repo.RoomFxRepository
+import org.aristonis.mywallet.data.repo.RoomLedgerQueries
 import org.aristonis.mywallet.data.repo.RoomRateRepository
 import org.aristonis.mywallet.data.repo.RoomSettingsRepository
-import org.aristonis.mywallet.data.repo.RoomEntryRepository
-import org.aristonis.mywallet.data.repo.RoomLedgerQueries
+import org.aristonis.mywallet.data.repo.RoomTransactionRunner
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.BackupRepository
+import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
-import org.aristonis.mywallet.domain.port.RateRepository
-import org.aristonis.mywallet.domain.port.SettingsRepository
-import org.aristonis.mywallet.domain.port.EntryRepository
-import org.aristonis.mywallet.domain.port.LedgerQueries
-import javax.inject.Singleton
-import org.aristonis.mywallet.domain.port.FxRepository
-import org.aristonis.mywallet.data.repo.RoomFxRepository
-import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
-import org.aristonis.mywallet.data.repo.RoomBaseCurrencyRepository
-import org.aristonis.mywallet.data.repo.RoomTransactionRunner
-import org.aristonis.mywallet.domain.port.TransactionRunner
-import org.aristonis.mywallet.data.repo.RoomDebtRepository
-import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.DeductionItemRepository
+import org.aristonis.mywallet.domain.port.EntryRepository
+import org.aristonis.mywallet.domain.port.FxRepository
+import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.port.RateRepository
+import org.aristonis.mywallet.domain.port.SettingsRepository
+import org.aristonis.mywallet.domain.port.TransactionRunner
+import javax.inject.Singleton
 
 /** Binds each domain port to its Room implementation. This is the seam where the app chooses Room. */
 @Module
@@ -94,6 +96,7 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideBackupRepository(
+        @ApplicationContext context: Context,
         database: WalletDatabase,
         accountDao: AccountDao,
         entryDao: EntryDao,
@@ -107,6 +110,6 @@ object RepositoryModule {
         deductionDao: DeductionDao,
     ): BackupRepository = RoomBackupRepository(
         database, accountDao, entryDao, categoryDao, currencyDao, rateDao, settingsDao,
-        categoryRoleDao, legacyRowDao, debtDao, deductionDao,
+        categoryRoleDao, legacyRowDao, debtDao, deductionDao, context.cacheDir,
     )
 }

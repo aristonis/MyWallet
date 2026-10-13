@@ -1,7 +1,12 @@
 package org.aristonis.mywallet.data.backup
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import org.aristonis.mywallet.data.fixture.LegacyFixture
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
@@ -173,13 +178,18 @@ class BackupUpgradeTest {
     @Test
     fun aFormatTwoReaderRefusesOtherVersionsUnknownKeysMissingKeysAndAMissingVersion() {
         val json = BackupCodec.encode(v2)
+        val original = Json.parseToJsonElement(json).jsonObject
         listOf(
-            json.replaceFirst("\"version\": 2", "\"version\": 1"),
-            json.replaceFirst("\"version\": 2", "\"version\": 3"),
-            json.replaceFirst("\"version\": 2,", "\"version\": 2, \"surprise\": true,"),
-            json.replaceFirst("\"legacyRows\":", "\"legacyRowsX\":"),
-            json.replaceFirst("\"version\": 2,", ""),
-        ).forEach { bad -> assertThrows(Exception::class.java) { BackupCodec.decodeV2(bad) } }
+            JsonObject(original + ("version" to JsonPrimitive(1))),
+            JsonObject(original + ("version" to JsonPrimitive(3))),
+            JsonObject(original + ("surprise" to JsonPrimitive(true))),
+            JsonObject(original - "legacyRows"),
+            JsonObject(original - "version"),
+        ).forEach { mutation ->
+            val bad = mutation.toString()
+            assertNotEquals("the rejection fixture must change the file", json, bad)
+            assertThrows(Exception::class.java) { BackupCodec.decodeV2(bad) }
+        }
     }
 
     @Test

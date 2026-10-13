@@ -1,7 +1,7 @@
 package org.aristonis.mywallet.data.backup
 
-import org.aristonis.mywallet.data.db.StoredEntry
 import org.aristonis.mywallet.data.db.IncomeDeductionLineEntity
+import org.aristonis.mywallet.data.db.StoredEntry
 import org.aristonis.mywallet.data.db.TOP_LEVEL_PARENT_ID
 import org.aristonis.mywallet.data.db.toDomain
 import org.aristonis.mywallet.data.db.toEntity
@@ -11,8 +11,10 @@ import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.NameKey
+import java.math.BigDecimal
 
 /**
  * Refuses, as [WalletException.BackupInvalid], a format-2 backup that could not be restored and then
@@ -70,7 +72,14 @@ private fun checkRestorable(backup: WalletBackupV2) {
     settings.toEntity().toDomain()
     // An account's credit limit is read here too, so a limit that is not a number or not above 0
     // is refused the way the account model refuses it.
-    backup.accounts.forEach { it.toEntity().toDomain() }
+    backup.accounts.forEach { account ->
+        account.toEntity().toDomain().defaultFee?.let { fee ->
+            require(fee.mode != FeeMode.PERCENT || fee.value <= BigDecimal("100")) {
+                "account ${account.id} has a percentage fee above 100"
+            }
+        }
+    }
+    backup.deductionItems.forEach { it.toEntity().toDomain() }
     backup.categories.forEach { it.toEntity().toDomain() }
     backup.currencies.forEach { it.toEntity().toDomain() }
     backup.rates.forEach { it.toEntity().toDomain() }
@@ -166,7 +175,7 @@ private fun requireSameCurrency(leg: LegDto, targetCurrency: String?, target: St
  * Every entry must read back through its kind's recipe, and each leg on a category must be of a role
  * that counts in Tracking. The category's own kind is not checked: 1.1.1 never checked it, so a
  * wallet can hold an income filed under an expense category, and the upgrade keeps it with the same
- * numbers. A new save still refuses that; a restore puts back what was there. The one exception is an old row the upgrade could not read: it restores
+ * numbers. A new save still refuses that; a restore puts back what was there. An old unreadable row restores
  * as it was, with no legs, but only together with its raw copy, so export, clear data and restore
  * never lose it and nothing is ever summed from it. A raw copy may also stand alone, or no longer
  * match its entry: the owner may have deleted or edited that entry since the upgrade.
@@ -220,17 +229,26 @@ private fun requireReadable(
  * "Food" and "FOOD" clash, "Éclair" and "éclair" do not.
  */
 private fun requireUniqueKeys(backup: WalletBackupV2) {
-    requireUnique(backup.legs.map { Triple(it.entryId, it.role, it.position) }, "legs of one entry share a role and position")
+    requireUnique(
+        backup.legs.map { Triple(it.entryId, it.role, it.position) }, "legs of one entry share a role and position",
+    )
     requireUnique(
         backup.categories.map { Triple(it.kind, it.parentId ?: TOP_LEVEL_PARENT_ID, sqliteNoCaseKey(it.name)) },
         "two sibling categories of one kind share a name",
     )
     requireUnique(backup.categories.mapNotNull { it.systemKey }, "two categories share a system key")
-    requireUnique(backup.deductionLines.map { it.entryId to it.position }, "deduction lines of one entry share a position")
+    requireUnique(
+        backup.deductionLines.map { it.entryId to it.position }, "deduction lines of one entry share a position",
+    )
     requireUnique(backup.deductionLines.map { it.id }, "two deduction lines share an id")
-    requireUnique(backup.deductionAutoCategories.map { it.itemId to it.incomeCategoryId }, "an auto-add link is listed twice")
+    requireUnique(
+        backup.deductionAutoCategories.map { it.itemId to it.incomeCategoryId }, "an auto-add link is listed twice",
+    )
     requireUnique(backup.deductionItems.map { it.nameKey }, "two deduction items share a name key")
-    requireUnique(backup.debts.map { Triple(it.side, it.currencyCode, it.counterpartyKey) }, "two debts share a name, side and currency")
+    requireUnique(
+        backup.debts.map { Triple(it.side, it.currencyCode, it.counterpartyKey) },
+        "two debts share a name, side and currency",
+    )
 }
 
 /**

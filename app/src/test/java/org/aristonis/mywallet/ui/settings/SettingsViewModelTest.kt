@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -23,8 +24,12 @@ import org.aristonis.mywallet.domain.usecase.RestoreBackup
 import org.aristonis.mywallet.domain.usecase.SetSaveTransactionRates
 import org.aristonis.mywallet.domain.usecase.SetTheme
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -47,6 +52,7 @@ class SettingsViewModelTest {
     private fun viewModel(
         repo: FakeBackupRepository,
         settings: FakeSettingsRepository = FakeSettingsRepository(Settings(baseCurrencyCode = "USD")),
+        errors: org.aristonis.mywallet.di.ErrorReporter = org.aristonis.mywallet.di.ErrorReporter { _, _ -> },
     ) = SettingsViewModel(
         exportBackup = ExportBackup(repo),
         restoreBackup = RestoreBackup(repo),
@@ -54,6 +60,7 @@ class SettingsViewModelTest {
         setTheme = SetTheme(settings),
         setSaveTransactionRates = SetSaveTransactionRates(settings),
         settings = settings,
+        errors = errors,
     )
 
     // --- backup section (ported) ---
@@ -63,7 +70,11 @@ class SettingsViewModelTest {
         val vm = viewModel(FakeBackupRepository(exported = "the-backup-json"))
         var written: String? = null
 
-        vm.runExport { written = it }
+        vm.runExport { write ->
+            val output = java.io.ByteArrayOutputStream()
+            write(output)
+            written = output.toString("UTF-8")
+        }
 
         assertEquals("the-backup-json", written)
         assertEquals(BackupStatus.Success(UiMessage.BackupSaved), vm.uiState.value.status)
@@ -74,6 +85,44 @@ class SettingsViewModelTest {
         val vm = viewModel(FakeBackupRepository())
 
         vm.runExport { throw IOException("no space") }
+
+        assertEquals(BackupStatus.Error(UiMessage.BackupSaveFailed), vm.uiState.value.status)
+    }
+
+    @Test
+    fun exportOfAWalletThatFailsValidationLeavesTheChosenDocumentUntouched() = runTest {
+        val vm = viewModel(FakeBackupRepository(exportFailure = WalletException.BackupInvalid()))
+        val previous = "an older backup".toByteArray()
+        var document = previous
+        var opened = false
+
+        vm.runExport { write ->
+            // Opening for writing truncates, as the "wt" mode does on a real provider.
+            opened = true
+            document = ByteArray(0)
+            val output = java.io.ByteArrayOutputStream()
+            write(output)
+            document = output.toByteArray()
+        }
+
+        assertFalse(opened)
+        assertArrayEquals(previous, document)
+    }
+
+    @Test
+    fun exportOfAWalletThatFailsValidationNamesTheDataToFix() = runTest {
+        val vm = viewModel(FakeBackupRepository(exportFailure = WalletException.BackupInvalid()))
+
+        vm.runExport { write -> write(java.io.ByteArrayOutputStream()) }
+
+        assertEquals(BackupStatus.Error(UiMessage.BackupWalletNeedsFixing), vm.uiState.value.status)
+    }
+
+    @Test
+    fun exportFailureOtherThanValidationKeepsTheGenericSaveMessage() = runTest {
+        val vm = viewModel(FakeBackupRepository(exportFailure = IllegalStateException("database closed")))
+
+        vm.runExport { write -> write(java.io.ByteArrayOutputStream()) }
 
         assertEquals(BackupStatus.Error(UiMessage.BackupSaveFailed), vm.uiState.value.status)
     }
@@ -94,17 +143,68 @@ class SettingsViewModelTest {
         val repo = FakeBackupRepository()
         val vm = viewModel(repo)
 
-        vm.runImport { "payload" }
+        vm.runImport { read -> read("payload".byteInputStream()) }
 
         assertEquals("payload", repo.restoredWith)
         assertEquals(BackupStatus.Success(UiMessage.BackupRestored), vm.uiState.value.status)
     }
 
     @Test
+    fun importCloseFailureKeepsTheCommittedRestoreResult() = runTest {
+        val repo = FakeBackupRepository()
+        val failure = IOException("close failed")
+        val reports = mutableListOf<Throwable>()
+        val vm = viewModel(repo, errors = org.aristonis.mywallet.di.ErrorReporter { _, error -> reports += error })
+
+        vm.runImport { read ->
+            read("payload".byteInputStream())
+            throw failure
+        }
+
+        assertEquals("payload", repo.restoredWith)
+        assertEquals(BackupStatus.Success(UiMessage.BackupRestored), vm.uiState.value.status)
+        assertEquals(listOf(failure), reports)
+    }
+
+    @Test
+    fun importCloseFailureKeepsTheTypedBackupRejection() = runTest {
+        val failure = IOException("close failed")
+        val reports = mutableListOf<Throwable>()
+        val vm = viewModel(FakeBackupRepository(restoreFailure = WalletException.BackupInvalid()),
+            errors = org.aristonis.mywallet.di.ErrorReporter { _, error -> reports += error })
+
+        vm.runImport { read ->
+            read("payload".byteInputStream())
+            throw failure
+        }
+
+        assertEquals(BackupStatus.Error(UiMessage.BackupNotRecognized), vm.uiState.value.status)
+        assertEquals(listOf(failure), reports)
+    }
+
+    @Test
+    fun importCancellationAfterRestoreStillPropagates() = runTest {
+        val failure = kotlinx.coroutines.CancellationException("cancelled")
+        val reports = mutableListOf<Throwable>()
+        val vm = viewModel(FakeBackupRepository(),
+            errors = org.aristonis.mywallet.di.ErrorReporter { _, error -> reports += error })
+
+        val thrown = runCatching {
+            vm.runImport { read ->
+                read("payload".byteInputStream())
+                throw failure
+            }
+        }.exceptionOrNull()
+
+        assertSame(failure, thrown)
+        assertTrue(reports.isEmpty())
+    }
+
+    @Test
     fun restore_corruptBackup_reportsInvalidMessage() = runTest {
         val vm = viewModel(FakeBackupRepository(restoreFailure = WalletException.BackupInvalid()))
 
-        vm.applyRestore("payload")
+        vm.applyRestore("payload".byteInputStream())
 
         assertEquals(BackupStatus.Error(UiMessage.BackupNotRecognized), vm.uiState.value.status)
     }
@@ -113,7 +213,7 @@ class SettingsViewModelTest {
     fun restore_newerVersionBackup_reportsVersionMessage() = runTest {
         val vm = viewModel(FakeBackupRepository(restoreFailure = WalletException.BackupVersionUnsupported(2)))
 
-        vm.applyRestore("payload")
+        vm.applyRestore("payload".byteInputStream())
 
         assertEquals(
             BackupStatus.Error(UiMessage.BackupFromNewerVersion),
@@ -125,10 +225,99 @@ class SettingsViewModelTest {
     fun acknowledge_afterTerminalStatus_returnsToIdle() = runTest {
         val vm = viewModel(FakeBackupRepository())
 
-        vm.applyRestore("payload")
+        vm.applyRestore("payload".byteInputStream())
         vm.acknowledge()
 
         assertEquals(BackupStatus.Idle, vm.uiState.value.status)
+    }
+
+    @Test
+    fun unexpectedExportFailureIsReportedWithoutExposingItsMessageToTheUser() = runTest {
+        val failure = IOException("storage failure")
+        val reports = mutableListOf<Throwable>()
+        val vm = viewModel(FakeBackupRepository(), errors = org.aristonis.mywallet.di.ErrorReporter { _, e ->
+            reports += e
+        })
+        vm.runExport { throw failure }
+        assertEquals(listOf(failure), reports)
+        assertEquals(BackupStatus.Error(UiMessage.BackupSaveFailed), vm.uiState.value.status)
+    }
+
+    @Test
+    fun unexpectedRestoreFailureIsReportedAndNamesRestoreFailure() = runTest {
+        val failure = IllegalStateException("write failed")
+        val reports = mutableListOf<Throwable>()
+        val vm = viewModel(FakeBackupRepository(restoreFailure = failure),
+            errors = org.aristonis.mywallet.di.ErrorReporter { _, e -> reports += e })
+        vm.runImport { read -> read("payload".byteInputStream()) }
+        assertEquals(listOf(failure), reports)
+        assertEquals(BackupStatus.Error(UiMessage.BackupRestoreFailed), vm.uiState.value.status)
+    }
+
+    @Test
+    fun failureWhileReadingTheOpenStreamNamesAnUnreadableDocument() = runTest {
+        val repo = FakeBackupRepository()
+        val vm = viewModel(repo)
+        val input = object : java.io.InputStream() {
+            override fun read(): Int = throw IOException("read failed")
+        }
+        vm.runImport { read -> read(input) }
+        assertNull(repo.restoredWith)
+        assertEquals(BackupStatus.Error(UiMessage.BackupFileUnreadable), vm.uiState.value.status)
+    }
+
+    @Test
+    fun exportCancellationPropagatesWithoutReportingFailure() = runTest {
+        val cancelled = kotlinx.coroutines.CancellationException("cancelled")
+        val reports = mutableListOf<Throwable>()
+        val vm = viewModel(FakeBackupRepository(),
+            errors = org.aristonis.mywallet.di.ErrorReporter { _, e -> reports += e })
+        var thrown: Throwable? = null
+        try {
+            vm.runExport { throw cancelled }
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            thrown = error
+        }
+        assertSame(cancelled, thrown)
+        assertTrue(reports.isEmpty())
+    }
+
+    @Test
+    fun restoreCancellationPropagatesWithoutReportingFailure() = runTest {
+        val cancelled = kotlinx.coroutines.CancellationException("cancelled")
+        val reports = mutableListOf<Throwable>()
+        val vm = viewModel(FakeBackupRepository(restoreFailure = cancelled),
+            errors = org.aristonis.mywallet.di.ErrorReporter { _, e -> reports += e })
+        var thrown: Throwable? = null
+        try {
+            vm.runImport { read -> read("payload".byteInputStream()) }
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            thrown = error
+        }
+        assertSame(cancelled, thrown)
+        assertTrue(reports.isEmpty())
+    }
+
+    @Test
+    fun concurrentBackupRequestDoesNotOpenAnotherDocument() = runTest {
+        val vm = viewModel(FakeBackupRepository())
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var opened = 0
+        val export = launch {
+            vm.runExport { write ->
+                opened++
+                release.await()
+                write(java.io.ByteArrayOutputStream())
+            }
+        }
+        runCurrent()
+        assertEquals(BackupStatus.Working, vm.uiState.value.status)
+        vm.runImport { opened++ }
+        vm.runExport { opened++ }
+        assertEquals(1, opened)
+        release.complete(Unit)
+        export.join()
+        assertEquals(BackupStatus.Success(UiMessage.BackupSaved), vm.uiState.value.status)
     }
 
     // --- theme section (new) ---

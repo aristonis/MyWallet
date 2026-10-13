@@ -174,11 +174,12 @@ class FakeBackupRepository(
     var restoredWith: String? = null
         private set
 
-    override suspend fun exportBackup(): String = exported
+    override suspend fun prepareBackup() =
+        org.aristonis.mywallet.domain.port.PreparedBackup { output -> output.write(exported.toByteArray()) }
 
-    override suspend fun restoreBackup(serialized: String) {
+    override suspend fun restoreBackup(input: java.io.InputStream) {
         restoreFailure?.let { throw it }
-        restoredWith = serialized
+        restoredWith = input.bufferedReader().readText()
     }
 }
 

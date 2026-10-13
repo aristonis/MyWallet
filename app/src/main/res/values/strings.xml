@@ -345,6 +345,7 @@
 
     <string name="msg_backup_saved">Backup saved.</string>
     <string name="msg_backup_save_failed">Couldn\'t save the backup.</string>
+    <string name="msg_backup_wallet_needs_fixing">Couldn\'t save the backup: some of your data needs fixing first, such as a debt below zero.</string>
     <string name="msg_backup_file_unreadable">Couldn\'t read that file.</string>
     <string name="msg_backup_restored">Backup restored.</string>
     <string name="msg_backup_not_recognized">This file isn\'t a MyWallet backup.</string>

@@ -12,14 +12,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
-import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.ExportBackup
 import org.aristonis.mywallet.domain.usecase.RestoreBackup
 import org.aristonis.mywallet.domain.usecase.SetSaveTransactionRates
 import org.aristonis.mywallet.domain.usecase.SetTheme
+import org.aristonis.mywallet.ui.message.UiMessage
+import java.io.InputStream
+import java.io.OutputStream
 import javax.inject.Inject
 
 /**
@@ -41,7 +44,7 @@ data class BackupUiState(val status: BackupStatus = BackupStatus.Idle)
  *
  * Backup: the screen owns the Storage Access Framework pickers and hands this a [Uri]; here the [Uri]
  * is only passed through to [DocumentIo]. The actual work is done by [Uri]-free `internal` functions
- * that take the IO step as a lambda, so the whole Working -> Success/Error state machine (and the
+ * that take the stream IO step as a lambda, so the whole Working -> Success/Error state machine (and the
  * error mapping) is unit-testable without a real `android.net.Uri`.
  *
  * Theme: [theme] mirrors the saved choice off the live settings flow so the selector shows what's in
@@ -56,6 +59,7 @@ class SettingsViewModel @Inject constructor(
     private val setTheme: SetTheme,
     private val setSaveTransactionRates: SetSaveTransactionRates,
     settings: SettingsRepository,
+    private val errors: ErrorReporter,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BackupUiState())
@@ -98,12 +102,12 @@ class SettingsViewModel @Inject constructor(
 
     /** Serialize the wallet and write it to the chosen document. */
     fun exportTo(uri: Uri) {
-        viewModelScope.launch { runExport { text -> documentIo.writeText(uri, text) } }
+        viewModelScope.launch { runExport { write -> documentIo.write(uri, write) } }
     }
 
     /** Read the chosen document and replace the wallet with it. */
     fun importFrom(uri: Uri) {
-        viewModelScope.launch { runImport { documentIo.readText(uri) } }
+        viewModelScope.launch { runImport { read -> documentIo.read(uri, read) } }
     }
 
     /** Reset to Idle once the UI has shown the terminal message. */
@@ -112,54 +116,66 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Export core: produce the snapshot and hand it to [write]. `internal` and [Uri]-free so a test
-     * can assert the Working/Success/Error transitions and that the built text is what gets written.
+     * Checks the snapshot first, then opens the document once and streams it through. Opening for
+     * writing truncates the file, so a wallet that restore would refuse must stop before [write] runs;
+     * otherwise the backup it was replacing would be lost along with this one.
      */
-    internal suspend fun runExport(write: suspend (String) -> Unit) {
+    internal suspend fun runExport(write: suspend (suspend (OutputStream) -> Unit) -> Unit) {
         if (_uiState.value.status is BackupStatus.Working) return
         _uiState.value = BackupUiState(BackupStatus.Working)
         try {
-            write(exportBackup())
+            val prepared = exportBackup()
+            write { output -> prepared.writeTo(output) }
             _uiState.value = BackupUiState(BackupStatus.Success(UiMessage.BackupSaved))
-        } catch (e: CancellationException) {
-            throw e // honour structured concurrency — never swallow cancellation
-        } catch (e: Exception) {
+        } catch (error: WalletException.BackupInvalid) {
+            // The owner can act on this one: the data to fix is theirs, not the storage's.
+            errors.report("Backup export refused by validation", error)
+            _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupWalletNeedsFixing))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            errors.report("Backup export failed", error)
             _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupSaveFailed))
         }
     }
 
-    /**
-     * Import core: [read] the chosen document, then apply it. A read failure is distinct from a file
-     * that reads but can't be applied, so it stops here with its own message.
-     */
-    internal suspend fun runImport(read: suspend () -> String) {
+    /** Opening or reading a document failure stays distinct from a rejected or failed restore. */
+    internal suspend fun runImport(read: suspend (suspend (InputStream) -> Unit) -> Unit) {
         if (_uiState.value.status is BackupStatus.Working) return
         _uiState.value = BackupUiState(BackupStatus.Working)
-        val text = try {
-            read()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupFileUnreadable))
-            return
+        var restoreCompleted = false
+        try {
+            read { input ->
+                applyRestore(input)
+                restoreCompleted = true
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            errors.report("Backup document read failed", error)
+            // Closing the provider stream must not replace an already completed restore result.
+            if (!restoreCompleted) {
+                _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupFileUnreadable))
+            }
         }
-        applyRestore(text)
     }
 
-    /** Restore core: apply the decoded text and name each typed rejection. */
-    internal suspend fun applyRestore(text: String) {
+    /** Applies the caller-owned stream and names typed rejections without exposing file contents. */
+    internal suspend fun applyRestore(input: InputStream) {
         try {
-            restoreBackup(text)
+            restoreBackup(input)
             _uiState.value = BackupUiState(BackupStatus.Success(UiMessage.BackupRestored))
-        } catch (e: WalletException.BackupInvalid) {
+        } catch (error: WalletException.BackupInvalid) {
             _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupNotRecognized))
-        } catch (e: WalletException.BackupVersionUnsupported) {
+        } catch (error: WalletException.BackupVersionUnsupported) {
             _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupFromNewerVersion))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // The file read fine but applying it failed (e.g. a database write error) — surface a
-            // restore failure, not the read-failure copy, and never leave it silently swallowed.
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: java.io.IOException) {
+            errors.report("Backup document read failed", error)
+            _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupFileUnreadable))
+        } catch (error: Exception) {
+            errors.report("Backup restore failed", error)
             _uiState.value = BackupUiState(BackupStatus.Error(UiMessage.BackupRestoreFailed))
         }
     }

@@ -7,22 +7,27 @@ import kotlinx.coroutines.flow.filterNotNull
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.port.BackupRepository
+import org.aristonis.mywallet.domain.port.PreparedBackup
 import org.aristonis.mywallet.domain.port.SettingsRepository
 
 // App-side fakes: the domain module's own fakes aren't on the :app test classpath, so the ports are
-// re-faked here. `restoreBackup` is configurable to succeed or throw a typed rejection.
+// re-faked here. Export and restore are each configurable to succeed or throw a typed rejection.
 internal class FakeBackupRepository(
     private val exported: String = "{}",
-    private val restoreFailure: WalletException? = null,
+    private val restoreFailure: Throwable? = null,
+    private val exportFailure: Throwable? = null,
 ) : BackupRepository {
     var restoredWith: String? = null
         private set
 
-    override suspend fun exportBackup(): String = exported
+    override suspend fun prepareBackup(): PreparedBackup {
+        exportFailure?.let { throw it }
+        return PreparedBackup { output -> output.write(exported.toByteArray()) }
+    }
 
-    override suspend fun restoreBackup(serialized: String) {
+    override suspend fun restoreBackup(input: java.io.InputStream) {
         restoreFailure?.let { throw it }
-        restoredWith = serialized
+        restoredWith = input.bufferedReader().readText()
     }
 }
 
@@ -37,6 +42,10 @@ internal class FakeSettingsRepository(initial: Settings?) : SettingsRepository {
 // The tested cores take the IO step as a lambda, so this is only here to construct the view-model —
 // its Uri-typed methods are never invoked in these tests, so no real android.net.Uri is built.
 internal class FakeDocumentIo : DocumentIo {
-    override suspend fun writeText(uri: Uri, text: String) = Unit
-    override suspend fun readText(uri: Uri): String = "{}"
+    override suspend fun write(uri: Uri, block: suspend (java.io.OutputStream) -> Unit) {
+        java.io.ByteArrayOutputStream().use { block(it) }
+    }
+    override suspend fun read(uri: Uri, block: suspend (java.io.InputStream) -> Unit) {
+        "{}".byteInputStream().use { block(it) }
+    }
 }

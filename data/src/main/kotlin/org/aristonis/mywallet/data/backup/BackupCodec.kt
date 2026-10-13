@@ -1,8 +1,13 @@
 package org.aristonis.mywallet.data.backup
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
+import java.io.InputStream
+import java.io.OutputStream
 
 /**
  * The single JSON gateway for wallet backups. Reads are strict — unknown keys and missing required
@@ -13,7 +18,7 @@ import kotlinx.serialization.json.Json
 object BackupCodec {
 
     private val json = Json {
-        prettyPrint = true
+        prettyPrint = false
         ignoreUnknownKeys = false
         encodeDefaults = true
     }
@@ -30,6 +35,28 @@ object BackupCodec {
     fun encode(backup: WalletBackupV2): String = json.encodeToString(backup)
 
     /**
+     * Checks [backup] exactly as restore does, with no stream involved, so a refused wallet is caught
+     * before the caller opens a document. Throws `WalletException.BackupInvalid` on refusal.
+     */
+    fun validate(backup: WalletBackupV2): RestorableBackup = RestorableBackup(requireRestorable(backup))
+
+    /** Writes a checked backup to the caller-owned stream, which stays open. */
+    @OptIn(ExperimentalSerializationApi::class)
+    fun encode(backup: RestorableBackup, output: OutputStream) {
+        json.encodeToStream(backup.backup, output)
+    }
+
+    /** Reads frozen format 1 directly from a caller-owned stream. */
+    @OptIn(ExperimentalSerializationApi::class)
+    fun decode(input: InputStream): WalletBackup = json.decodeFromStream(input)
+
+    /** Reads frozen format 2 directly from a caller-owned stream. */
+    @OptIn(ExperimentalSerializationApi::class)
+    fun decodeV2(input: InputStream): WalletBackupV2 = json.decodeFromStream<WalletBackupV2>(input).also {
+        require(it.version == BACKUP_FORMAT_V2) { "expected backup version $BACKUP_FORMAT_V2" }
+    }
+
+    /**
      * Reads a format-2 file with the same strict settings as [decode]. A file whose `version` is
      * not 2 is refused with IllegalArgumentException even when its keys happen to fit.
      */
@@ -41,3 +68,9 @@ object BackupCodec {
         return backup
     }
 }
+
+/**
+ * A format-2 backup that has passed the restore checks. Only [BackupCodec.validate] makes one, so the
+ * streaming [BackupCodec.encode] cannot be handed a wallet that restore would refuse.
+ */
+class RestorableBackup internal constructor(internal val backup: WalletBackupV2)

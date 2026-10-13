@@ -17,12 +17,16 @@ import org.aristonis.mywallet.data.db.SettingsDao
 import org.aristonis.mywallet.data.db.WalletDatabase
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.port.BackupRepository
+import org.aristonis.mywallet.domain.port.PreparedBackup
+import java.io.File
+import java.io.InputStream
 
 /**
- * Room-backed backup port. Export takes a one-shot snapshot of every table and encodes it. Restore
- * decodes and validates first — so bad or newer-format input is rejected before a single write —
- * then wipes and re-inserts every table inside one Room transaction: any failure rolls the whole
- * thing back, so the database is never left half-restored. Rows are inserted with their backed-up
+ * Room-backed backup port. Export takes a one-shot snapshot of every table, checks it, and hands
+ * back a writer for it. Restore decodes and validates first — so bad or newer-format input is
+ * rejected before a single write — then wipes and re-inserts every table inside one Room
+ * transaction: any failure rolls the whole thing back, so the database is never left
+ * half-restored. Rows are inserted with their backed-up
  * ids so cross-row references (categories, accounts, debts, entries) stay intact.
  */
 class RoomBackupRepository(
@@ -37,9 +41,10 @@ class RoomBackupRepository(
     private val legacyRows: LegacyRowDao,
     private val debts: DebtDao,
     private val deductions: DeductionDao,
+    private val scratchDirectory: File,
 ) : BackupRepository {
 
-    override suspend fun exportBackup(): String {
+    override suspend fun prepareBackup(): PreparedBackup {
         // One read transaction so the tables form a consistent snapshot: a write landing between two
         // reads can't yield a backup whose leg points at an entry the snapshot missed.
         val snapshot = database.withTransaction {
@@ -59,15 +64,17 @@ class RoomBackupRepository(
                 legacyRows = legacyRows.getAll(),
             )
         }
-        // Serializing the whole database is CPU-bound — keep it off the caller's thread so a
-        // ViewModel-scope call doesn't encode on the UI thread.
-        return withContext(Dispatchers.Default) { BackupCodec.encode(buildBackup(snapshot)) }
+        // Building, checking and serializing the whole database are CPU-bound — keep them off the
+        // caller's thread so a ViewModel-scope call doesn't run them on the UI thread. The check runs
+        // here, before the caller opens its document, because opening for writing truncates it.
+        val checked = withContext(Dispatchers.IO) { BackupCodec.validate(buildBackup(snapshot)) }
+        return PreparedBackup { output -> withContext(Dispatchers.IO) { BackupCodec.encode(checked, output) } }
     }
 
-    override suspend fun restoreBackup(serialized: String) {
+    override suspend fun restoreBackup(input: InputStream) {
         // Decode + validate off the caller's thread and before the transaction opens, so bad or
         // newer-format input is rejected without a single write.
-        val backup = withContext(Dispatchers.Default) { decodeValidated(serialized) }
+        val backup = withContext(Dispatchers.IO) { decodeValidated(input, scratchDirectory) }
         try {
             writeAll(backup)
         } catch (e: SQLiteConstraintException) {

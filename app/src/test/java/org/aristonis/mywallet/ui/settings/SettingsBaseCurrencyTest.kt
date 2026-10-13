@@ -40,6 +40,7 @@ class SettingsBaseCurrencyTest {
         setTheme = SetTheme(settings),
         setSaveTransactionRates = SetSaveTransactionRates(settings),
         settings = settings,
+        errors = org.aristonis.mywallet.di.ErrorReporter { _, _ -> },
     )
 
     @Test

@@ -1,5 +1,7 @@
 package org.aristonis.mywallet.domain.port
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
@@ -7,8 +9,8 @@ import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Settings
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
+import java.io.InputStream
+import java.io.OutputStream
 import java.math.BigDecimal
 
 /**
@@ -129,13 +131,23 @@ interface SettingsRepository {
 }
 
 /**
- * Reads and writes a full-database backup as one opaque serialized string. The domain deliberately
- * stays unaware of the on-disk format (JSON today, in `:data`) — here it is only text in, text out.
+ * Streams a full-database backup without exposing its file format to the domain. The caller owns
+ * and closes both streams; a rejected restore leaves the wallet untouched.
  */
 interface BackupRepository {
-    /** Serializes the entire wallet (all tables) into one portable string. */
-    suspend fun exportBackup(): String
+    /**
+     * Reads one consistent wallet snapshot and checks it as restore would, before the caller opens
+     * any document. A wallet that restore would refuse throws `WalletException.BackupInvalid` here,
+     * so a refused export never truncates the file it was going to replace.
+     */
+    suspend fun prepareBackup(): PreparedBackup
 
-    /** Replaces the entire wallet with the contents of [serialized], all-or-nothing. */
-    suspend fun restoreBackup(serialized: String)
+    /** Validates [input] before replacing the entire wallet in one transaction. */
+    suspend fun restoreBackup(input: InputStream)
+}
+
+/** A wallet snapshot that has already passed the restore checks; only the write itself can fail. */
+fun interface PreparedBackup {
+    /** Writes the snapshot to a caller-owned [output], which stays open. */
+    suspend fun writeTo(output: OutputStream)
 }

@@ -12,7 +12,7 @@ class RestoreBackupTest {
     fun forwardsTheSerializedStringToTheRepository() = runTest {
         val backups = FakeBackupRepository()
 
-        RestoreBackup(backups).invoke("payload")
+        RestoreBackup(backups).invoke("payload".byteInputStream())
 
         assertEquals("payload", backups.restoredWith)
     }
@@ -21,13 +21,13 @@ class RestoreBackupTest {
     @Test(expected = WalletException.BackupInvalid::class)
     fun propagatesBackupInvalid() = runTest {
         val backups = FakeBackupRepository(restoreFailure = WalletException.BackupInvalid())
-        RestoreBackup(backups).invoke("whatever")
+        RestoreBackup(backups).invoke("whatever".byteInputStream())
     }
 
     // Restoring a file written by a newer format must fail loud, not partially apply.
     @Test(expected = WalletException.BackupVersionUnsupported::class)
     fun propagatesBackupVersionUnsupported() = runTest {
         val backups = FakeBackupRepository(restoreFailure = WalletException.BackupVersionUnsupported(2))
-        RestoreBackup(backups).invoke("whatever")
+        RestoreBackup(backups).invoke("whatever".byteInputStream())
     }
 }

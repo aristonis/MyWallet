@@ -207,6 +207,7 @@ class RoomBackupRepositoryTest {
         database, database.accountDao(), database.entryDao(), database.categoryDao(),
         database.currencyDao(), database.rateDao(), database.settingsDao(),
         database.categoryRoleDao(), database.legacyRowDao(), database.debtDao(), database.deductionDao(),
+        ApplicationProvider.getApplicationContext<android.content.Context>().cacheDir,
     )
 
     private fun anotherDatabase(): WalletDatabase = Room.inMemoryDatabaseBuilder(
@@ -614,6 +615,62 @@ class RoomBackupRepositoryTest {
         assertRejected(BackupV2Samples.versionOneText(twoRowsWithOneId))
     }
 
+    @Test
+    fun freshRestoreKeepsPaidAndOwedDeductionsFeesLimitsAndStoredRates() = runTest {
+        val base = BackupV2Samples.wallet()
+        val incomeId = BackupV2Samples.INCOME_ENTRY
+        val rich = base.copy(
+            accounts = base.accounts.map {
+                if (it.id == BackupV2Samples.CASH) {
+                    it.copy(typeKey = "credit_card", creditLimit = "1500.00",
+                        defaultFeeMode = "PERCENT", defaultFeeValue = "2.50")
+                } else it
+            },
+            debts = listOf(DebtDto(8, "Family", "family", "I_OWE", "USD", null, "saved debt")),
+            deductionItems = listOf(
+                DeductionItemDto(5, "Tax", "tax", "PERCENT", "10.00", null, "NOW", 35, true, 0),
+                DeductionItemDto(6, "Family", "family", "FIXED", "50.000", "USD", "LATER", 35, true, 1),
+            ),
+            deductionAutoCategories = listOf(DeductionAutoCategoryDto(5, BackupV2Samples.SALARY)),
+            deductionLines = listOf(
+                DeductionLineDto(1, incomeId, 5, 0, "Tax as paid", "PERCENT", "10.00", null, "NOW"),
+                DeductionLineDto(2, incomeId, 6, 1, "Family as owed", "FIXED", "50.000", "USD", "LATER"),
+            ),
+            legs = base.legs.map {
+                when {
+                    it.entryId == incomeId && it.role == "ACCOUNT" -> it.copy(amount = "1110.60")
+                    it.entryId == 3L && it.role == "DEST" -> it.copy(amount = "17.94")
+                    else -> it
+                }
+            } + listOf(
+                LegDto(incomeId, "DEDUCTION", 0, null, null, 35, null, "123.40", "USD", "1.000"),
+                LegDto(incomeId, "DEDUCTION", 1, null, null, 35, null, "50.00", "USD", "1.000"),
+                LegDto(incomeId, "DEDUCTION_DEBT", 1, null, 8, null, null, "50.00", "USD", null),
+                LegDto(3, "FEE", 0, null, null, 32, null, "0.50", "USD", "1.000"),
+            ),
+        )
+        restore(rich)
+        val exported = repository.exportBackup()
+        val fresh = anotherDatabase()
+        newRepository(fresh).restoreBackup(exported)
+        assertSameContent(rich, BackupCodec.decodeV2(newRepository(fresh).exportBackup()))
+        assertEquals(snapshot(), snapshot(fresh))
+    }
+
+    @Test
+    fun exportRefusesInvalidStoredFeeBeforeAnyDocumentIsOpened() = runTest {
+        restore(BackupV2Samples.wallet())
+        sqlite.execSQL("UPDATE accounts SET defaultFeeMode = 'PERCENT', defaultFeeValue = '101' WHERE id = 1")
+        var thrown: Throwable? = null
+        try {
+            // Preparing takes no stream: the refusal comes before there is anything to write to.
+            repository.prepareBackup()
+        } catch (error: WalletException.BackupInvalid) {
+            thrown = error
+        }
+        assertTrue(thrown is WalletException.BackupInvalid)
+    }
+
     private companion object {
         const val RAW_COPIES_SQL =
             "SELECT id, type, date, note, primaryAccountId, primaryAmount, primaryCurrency, categoryId, subCategoryId, " +
@@ -628,8 +685,23 @@ class RoomBackupRepositoryTest {
             "SELECT * FROM entries ORDER BY id",
             "SELECT entryId, role, position, accountId, debtId, categoryId, subCategoryId, amount, currencyCode, rateToBase " +
                 "FROM entry_legs ORDER BY entryId, role, position",
+            "SELECT * FROM debts ORDER BY id",
+            "SELECT * FROM deduction_items ORDER BY id",
+            "SELECT * FROM deduction_item_auto_categories ORDER BY itemId, incomeCategoryId",
+            "SELECT * FROM income_deduction_lines ORDER BY id",
             "SELECT * FROM category_roles ORDER BY role",
             RAW_COPIES_SQL + " ORDER BY id",
         )
     }
+}
+
+/** Fixture convenience only; production callers pass their document streams directly. */
+private suspend fun RoomBackupRepository.exportBackup(): String {
+    val output = java.io.ByteArrayOutputStream()
+    prepareBackup().writeTo(output)
+    return output.toString("UTF-8")
+}
+
+private suspend fun RoomBackupRepository.restoreBackup(text: String) {
+    text.byteInputStream().use { restoreBackup(it) }
 }

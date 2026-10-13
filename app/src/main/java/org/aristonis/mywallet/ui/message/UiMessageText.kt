@@ -89,6 +89,7 @@ fun UiMessage.text(): String = when (this) {
 
     UiMessage.BackupSaved -> stringResource(R.string.msg_backup_saved)
     UiMessage.BackupSaveFailed -> stringResource(R.string.msg_backup_save_failed)
+    UiMessage.BackupWalletNeedsFixing -> stringResource(R.string.msg_backup_wallet_needs_fixing)
     UiMessage.BackupFileUnreadable -> stringResource(R.string.msg_backup_file_unreadable)
     UiMessage.BackupRestored -> stringResource(R.string.msg_backup_restored)
     UiMessage.BackupNotRecognized -> stringResource(R.string.msg_backup_not_recognized)

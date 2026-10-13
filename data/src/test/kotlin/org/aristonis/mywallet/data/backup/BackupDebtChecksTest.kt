@@ -35,7 +35,7 @@ class BackupDebtChecksTest {
 
     private fun deductionItem(id: Long, name: String, key: String) = DeductionItemDto(
         id = id, name = name, nameKey = key, mode = "PERCENT", value = "10", valueCurrencyCode = null,
-        timing = "BEFORE_TAX", expenseCategoryId = BackupV2Samples.TAX, enabled = true, sortOrder = 0,
+        timing = "NOW", expenseCategoryId = BackupV2Samples.TAX, enabled = true, sortOrder = 0,
     )
 
     // --- Debt keys ---

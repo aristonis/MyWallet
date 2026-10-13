@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.data.db
 
 import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -51,6 +52,7 @@ class MigrationBackupRoundTripTest {
         database, database.accountDao(), database.entryDao(), database.categoryDao(),
         database.currencyDao(), database.rateDao(), database.settingsDao(),
         database.categoryRoleDao(), database.legacyRowDao(), database.debtDao(), database.deductionDao(),
+        ApplicationProvider.getApplicationContext<android.content.Context>().cacheDir,
     )
 
     /** Children before parents, so no key is violated on the way. */
@@ -161,4 +163,15 @@ class MigrationBackupRoundTripTest {
             "SELECT * FROM income_deduction_lines ORDER BY id",
         )
     }
+}
+
+/** Fixture convenience only; production callers pass their document streams directly. */
+private suspend fun RoomBackupRepository.exportBackup(): String {
+    val output = java.io.ByteArrayOutputStream()
+    prepareBackup().writeTo(output)
+    return output.toString("UTF-8")
+}
+
+private suspend fun RoomBackupRepository.restoreBackup(text: String) {
+    text.byteInputStream().use { restoreBackup(it) }
 }

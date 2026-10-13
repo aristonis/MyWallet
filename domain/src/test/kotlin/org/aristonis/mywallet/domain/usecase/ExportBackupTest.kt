@@ -12,8 +12,9 @@ class ExportBackupTest {
         val serialized = """{"version":1}"""
         val backups = FakeBackupRepository(exported = serialized)
 
-        val result = ExportBackup(backups).invoke()
+        val result = java.io.ByteArrayOutputStream()
+        ExportBackup(backups).invoke().writeTo(result)
 
-        assertEquals(serialized, result)
+        assertEquals(serialized, result.toString("UTF-8"))
     }
 }
