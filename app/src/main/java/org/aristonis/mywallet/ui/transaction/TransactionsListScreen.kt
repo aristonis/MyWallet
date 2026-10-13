@@ -5,6 +5,7 @@ package org.aristonis.mywallet.ui.transaction
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,12 +26,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,6 +62,8 @@ import java.time.LocalDate
 
 /** Gap between the date bar and the screen edges, matching the rest of the screen's content. */
 private val SCREEN_PADDING = 16.dp
+private val FAB_EDGE_GAP = 16.dp
+private val FAB_LIST_GAP = 16.dp
 
 /**
  * The history, newest first and grouped by day. Tapping a row opens it in the editor. This is a
@@ -106,6 +114,9 @@ internal fun TransactionsListContent(
     onLoadMore: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    var addActionHeightPx by remember { mutableIntStateOf(0) }
+    val listBottomPadding = with(LocalDensity.current) { addActionHeightPx.toDp() } +
+        FAB_EDGE_GAP + FAB_LIST_GAP
     SavedOutsideSnackbar(
         savedOn = state.savedOutsideWindow,
         snackbarHostState = snackbarHostState,
@@ -123,7 +134,10 @@ internal fun TransactionsListContent(
         floatingActionButton = {
             // The same action as Home's, in the same place: recording a transaction is what the user
             // came here to do, whichever of the two lists they are looking at.
-            ExtendedFloatingActionButton(onClick = onAddTransaction) {
+            ExtendedFloatingActionButton(
+                onClick = onAddTransaction,
+                modifier = Modifier.onSizeChanged { addActionHeightPx = it.height },
+            ) {
                 Icon(imageVector = WalletIcons.Add, contentDescription = null)
                 Text(
                     text = stringResource(R.string.home_add_transaction),
@@ -140,6 +154,7 @@ internal fun TransactionsListContent(
             )
             TransactionsBody(
                 state = state,
+                listBottomPadding = listBottomPadding,
                 onEditTransaction = onEditTransaction,
                 onRetry = onRetry,
                 onLoadMore = onLoadMore,
@@ -182,6 +197,7 @@ private fun SavedOutsideSnackbar(
 @Composable
 private fun TransactionsBody(
     state: TransactionsUiState,
+    listBottomPadding: Dp,
     onEditTransaction: (Long) -> Unit,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
@@ -214,6 +230,7 @@ private fun TransactionsBody(
 
         else -> TransactionDays(
             sections = state.sections,
+            listBottomPadding = listBottomPadding,
             hasMore = state.hasMore,
             isLoadingMore = state.isLoadingMore,
             rowCount = state.rowCount,
@@ -232,6 +249,7 @@ private fun TransactionsBody(
 @Composable
 private fun TransactionDays(
     sections: List<TransactionSection>,
+    listBottomPadding: Dp,
     hasMore: Boolean,
     isLoadingMore: Boolean,
     rowCount: Int,
@@ -243,7 +261,11 @@ private fun TransactionDays(
     // for the whole list rather than re-derived per row.
     val formatDay = rememberDayFormatter(currentYear = LocalDate.now().year)
 
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    // The final row needs scrollable space beyond the measured FAB, including at large font sizes.
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = listBottomPadding),
+    ) {
         sections.forEach { section ->
             item(key = "day-${section.date}") {
                 DayHeader(text = dayHeaderText(section, formatDay))
