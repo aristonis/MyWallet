@@ -29,9 +29,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,6 +62,7 @@ import kotlin.coroutines.cancellation.CancellationException
 private val SCREEN_PADDING = 16.dp
 private val REGION_SPACING = 16.dp
 private val LINE_SPACING = 8.dp
+private const val LARGE_TEXT_SCALE = 1.8f
 
 /**
  * Tracking: income / expense / net and both by-category breakdowns over a chosen span. Read-only.
@@ -237,9 +242,27 @@ private fun SummaryLine(
     amountColor: Color,
     labelStyle: TextStyle = MaterialTheme.typography.bodyLarge,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = labelStyle, modifier = Modifier.weight(1f))
-        MoneyText(amount, style = MaterialTheme.typography.titleMedium, color = amountColor)
+    if (LocalDensity.current.fontScale >= LARGE_TEXT_SCALE) {
+        // Give wide figures the full line: tight intrinsic width can clip glyph overhang at 2x text.
+        val amountAlignment = if (LocalLayoutDirection.current == LayoutDirection.Rtl) {
+            TextAlign.Start
+        } else {
+            TextAlign.End
+        }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(label, style = labelStyle)
+            MoneyText(
+                amount,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium.copy(textAlign = amountAlignment),
+                color = amountColor,
+            )
+        }
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = labelStyle, modifier = Modifier.weight(1f))
+            MoneyText(amount, style = MaterialTheme.typography.titleMedium, color = amountColor)
+        }
     }
 }
 
