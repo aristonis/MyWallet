@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -51,7 +52,7 @@ class OfflineIdentityScreenTest {
         compose.onNodeWithText("Apache License", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.identity_app_license_notice), substring = true)
             .performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.cd_navigate_back)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.cd_navigate_back)).performClick()
         compose.onNodeWithText(BuildConfig.VERSION_NAME, substring = true).assertIsDisplayed()
     }
 
