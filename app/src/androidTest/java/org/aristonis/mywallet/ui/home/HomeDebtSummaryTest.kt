@@ -1,19 +1,31 @@
 package org.aristonis.mywallet.ui.home
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.CreditStatus
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,6 +53,48 @@ class HomeDebtSummaryTest {
         compose.onNode(hasText("Owed to me") and hasClickAction()).performClick()
         compose.onNode(hasText("I owe") and hasClickAction()).performClick()
         compose.runOnIdle { assertEquals(2, openings) }
+    }
+
+    @Test fun clickableDebtRowsHaveFortyEightDpTouchTargetsAtSmallTextSize() {
+        showWithScale(0.85f)
+
+        compose.onNode(hasText("Owed to me") and hasClickAction()).assertHeightIsAtLeast(48.dp)
+        compose.onNode(hasText("I owe") and hasClickAction()).assertHeightIsAtLeast(48.dp)
+        compose.onNode(hasText("In my pocket") and hasClickAction()).assertDoesNotExist()
+    }
+
+    @Test fun clickableDebtRowsRemainReachableAtCompactWidthAndTwoHundredPercentRtl() {
+        var openings = 0
+        showWithScale(2f, onDebts = { openings++ })
+
+        for (label in listOf("Owed to me", "I owe")) {
+            val row = compose.onNode(hasText(label) and hasClickAction()).performScrollTo().assertIsDisplayed()
+            val bounds = row.getBoundsInRoot()
+            assertTrue("$label touch area must be at least 48dp", bounds.bottom - bounds.top >= 48.dp)
+            row.performClick()
+        }
+        compose.runOnIdle { assertEquals(2, openings) }
+    }
+
+    private fun showWithScale(fontScale: Float, onDebts: () -> Unit = {}) {
+        val state = HomeUiState(
+            summary = HomeSummaryState.Amounts("700.00 USD", "300.00 USD", "1,450.00 USD", "-450.00 USD"),
+            isLoading = false,
+        )
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalLayoutDirection provides LayoutDirection.Rtl,
+                LocalDensity provides Density(density.density, fontScale),
+            ) {
+                MyWalletTheme(dynamicColor = false) {
+                    Box(Modifier.width(360.dp)) {
+                        HomeContent(state, onAddTransaction = {}, onAddAccount = {}, onManageAccounts = {},
+                            onManageRates = {}, onSettings = {}, onDebts = onDebts, onRetry = {})
+                    }
+                }
+            }
+        }
     }
 
     @Test fun negativeDebtWarningRemainsActionableWhenTheTotalNeedsAnExchangeRate() {

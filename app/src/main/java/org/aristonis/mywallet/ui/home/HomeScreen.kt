@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -215,7 +216,7 @@ private fun HomeSummaryHero(summary: HomeSummaryState, onManageRates: () -> Unit
 
 @Composable
 private fun SummaryAmount(label: String, amount: String, onClick: (() -> Unit)? = null) {
-    val tappable = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier
+    val tappable = if (onClick != null) Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick) else Modifier
     Column(Modifier.fillMaxWidth().then(tappable)) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         MoneyText(amount, style = MaterialTheme.typography.titleMedium)
