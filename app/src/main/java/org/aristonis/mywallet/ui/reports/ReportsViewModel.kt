@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.reports
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -29,15 +30,18 @@ import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.usecase.CategoryBreakdownResult
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
+import org.aristonis.mywallet.domain.usecase.ExportTrackingCsv
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.label
 import org.aristonis.mywallet.ui.load.ReadAttempts
-import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.load.loadFailure
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.settings.DocumentIo
 import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.window.TrackingWindowHolder
+import java.io.OutputStream
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
@@ -122,7 +126,7 @@ data class ReportsUiState(
 @HiltViewModel
 class ReportsViewModel @Inject constructor(
     private val computeCategoryBreakdown: ComputeCategoryBreakdown,
-    observeLedgerHealth: ObserveLedgerHealth,
+    private val observeLedgerHealth: ObserveLedgerHealth,
     categories: CategoryRepository,
     currencies: CurrencyRepository,
     private val moneyFormatter: MoneyFormatter,
@@ -130,6 +134,8 @@ class ReportsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     private val errors: ErrorReporter,
+    exportTrackingCsv: ExportTrackingCsv,
+    documentIo: DocumentIo,
 ) : ViewModel() {
 
     private val holder = TrackingWindowHolder(
@@ -138,6 +144,29 @@ class ReportsViewModel @Inject constructor(
         today = today,
         defaultWindow = { TrackingWindow.Period(TrackingPeriod.MONTH, it) },
     )
+
+    private val csvExport = TrackingCsvExport(
+        viewModelScope, defaultDispatcher, observeLedgerHealth, exportTrackingCsv, documentIo, errors, savedStateHandle,
+    )
+
+    /** Separate from report reads so an export never replaces or freezes the visible totals. */
+    val exportState: StateFlow<ReportsExportState> = csvExport.state
+
+    /** Captures the window now, before asynchronous preflight and the document picker. */
+    fun prepareExport() = csvExport.prepare(holder.window.value.range)
+
+    /** Consumes Ready before launching SAF, avoiding a second picker after recomposition. */
+    fun onExportPickerLaunched() = csvExport.pickerLaunched()
+
+    fun onExportPickerFailed(error: Exception) = csvExport.pickerFailed(error)
+
+    /** A cancelled destination clears the private artifact; a chosen destination writes it once. */
+    fun completeExport(uri: Uri?) = csvExport.complete(uri)
+
+    /** URI-free stream seam for testing the artifact and the document-close outcome. */
+    internal suspend fun runCsvWrite(open: suspend (suspend (OutputStream) -> Unit) -> Unit) = csvExport.write(open)
+
+    fun consumeExportResult() = csvExport.consumeResult()
 
     /** The date bar's callbacks, already wired to this screen's window. */
     val windowActions: DateWindowActions get() = holder.actions

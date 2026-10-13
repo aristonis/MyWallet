@@ -105,6 +105,8 @@ class ReportsViewModelTest {
             savedStateHandle = savedState,
             defaultDispatcher = work,
             errors = errors,
+            exportTrackingCsv = unusedTrackingCsvExport(),
+            documentIo = UnusedReportsDocumentIo,
         )
     }
 

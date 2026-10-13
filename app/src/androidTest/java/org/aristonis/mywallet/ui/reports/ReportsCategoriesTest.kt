@@ -79,6 +79,9 @@ class ReportsCategoriesTest {
                     ),
                     windowActions = DateWindowActions.None,
                     onRetry = {},
+                    exportState = ReportsExportState.Idle,
+                    onExport = {},
+                    onExportResultShown = {},
                 )
             }
         }

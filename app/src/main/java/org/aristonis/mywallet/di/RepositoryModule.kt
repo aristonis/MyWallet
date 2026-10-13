@@ -7,6 +7,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import org.aristonis.mywallet.data.backup.RoomBackupRepository
+import org.aristonis.mywallet.data.csv.RfcCsvEncoder
 import org.aristonis.mywallet.data.db.AccountDao
 import org.aristonis.mywallet.data.db.CategoryDao
 import org.aristonis.mywallet.data.db.CategoryRoleDao
@@ -23,6 +24,7 @@ import org.aristonis.mywallet.data.repo.RoomAccountRepository
 import org.aristonis.mywallet.data.repo.RoomBaseCurrencyRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRepository
 import org.aristonis.mywallet.data.repo.RoomCategoryRoleRepository
+import org.aristonis.mywallet.data.repo.RoomCsvExportSource
 import org.aristonis.mywallet.data.repo.RoomCurrencyRepository
 import org.aristonis.mywallet.data.repo.RoomDebtRepository
 import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
@@ -37,6 +39,8 @@ import org.aristonis.mywallet.domain.port.BackupRepository
 import org.aristonis.mywallet.domain.port.BaseCurrencyRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CategoryRoleRepository
+import org.aristonis.mywallet.domain.port.CsvEncoder
+import org.aristonis.mywallet.domain.port.CsvExportSource
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.DeductionItemRepository
@@ -93,6 +97,13 @@ object RepositoryModule {
     @Provides @Singleton
     fun provideDeductionItemRepository(db: WalletDatabase): DeductionItemRepository =
         RoomDeductionItemRepository(db)
+
+    @Provides @Singleton
+    fun provideCsvEncoder(): CsvEncoder = RfcCsvEncoder()
+
+    @Provides @Singleton
+    fun provideCsvExportSource(database: WalletDatabase, fx: FxRepository): CsvExportSource =
+        RoomCsvExportSource(database, fx)
 
     @Provides @Singleton
     fun provideBackupRepository(

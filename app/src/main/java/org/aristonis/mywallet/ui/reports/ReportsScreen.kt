@@ -3,6 +3,8 @@ package org.aristonis.mywallet.ui.reports
 // Amounts arrive pre-formatted from the view-model (per currency + locale), so this screen never
 // formats money itself.
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,8 +17,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +45,7 @@ import org.aristonis.mywallet.ui.components.StatusCard
 import org.aristonis.mywallet.ui.components.StatusTone
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.AmountRole
+import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.theme.amountColor
 import org.aristonis.mywallet.ui.window.DateRangeAction
@@ -47,6 +53,7 @@ import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.aristonis.mywallet.ui.window.DateWindowBar
 import org.aristonis.mywallet.ui.window.RefreshOnStart
 import java.time.LocalDate
+import kotlin.coroutines.cancellation.CancellationException
 
 private val SCREEN_PADDING = 16.dp
 private val REGION_SPACING = 16.dp
@@ -62,7 +69,23 @@ private val LINE_SPACING = 8.dp
 fun ReportsScreen(viewModel: ReportsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     RefreshOnStart { viewModel.onScreenStart() }
-    ReportsContent(state = state, windowActions = viewModel.windowActions, onRetry = viewModel::retry)
+    val exportState by viewModel.exportState.collectAsStateWithLifecycle()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {
+        viewModel.completeExport(it)
+    }
+    LaunchedEffect(exportState) {
+        val ready = exportState as? ReportsExportState.Ready ?: return@LaunchedEffect
+        viewModel.onExportPickerLaunched()
+        try {
+            launcher.launch(ready.fileName)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            viewModel.onExportPickerFailed(error)
+        }
+    }
+    ReportsContent(state = state, windowActions = viewModel.windowActions, onRetry = viewModel::retry,
+        exportState = exportState, onExport = viewModel::prepareExport,
+        onExportResultShown = viewModel::consumeExportResult)
 }
 
 /**
@@ -80,16 +103,39 @@ internal fun ReportsContent(
     state: ReportsUiState,
     windowActions: DateWindowActions,
     onRetry: () -> Unit,
+    exportState: ReportsExportState,
+    onExport: () -> Unit,
+    onExportResultShown: () -> Unit,
 ) {
+    val snackbar = remember { SnackbarHostState() }
+    val exportMessage = when (exportState) {
+        ReportsExportState.Success -> stringResource(R.string.tracking_export_saved)
+        is ReportsExportState.Error -> exportState.message.text()
+        else -> null
+    }
+    LaunchedEffect(exportMessage) {
+        if (exportMessage != null) {
+            snackbar.showSnackbar(exportMessage)
+            onExportResultShown()
+        }
+    }
     val expanded = rememberSaveable(stateSaver = ExpandedIdsSaver) { mutableStateOf(emptySet<Long>()) }
     val onToggle: (Long) -> Unit = remember(expanded) {
         { id -> expanded.value = if (id in expanded.value) expanded.value - id else expanded.value + id }
     }
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             WalletTopAppBar(
                 title = stringResource(R.string.tracking_title),
-                actions = { DateRangeAction(window = state.window, onSelectRange = windowActions.onSelectRange) },
+                actions = {
+                    DateRangeAction(window = state.window, onSelectRange = windowActions.onSelectRange)
+                    TrackingExportMenu(
+                        enabled = !state.loadFailed && state.data is ReportsData.Ready &&
+                            exportState == ReportsExportState.Idle,
+                        onExport = onExport,
+                    )
+                },
             )
         },
     ) { innerPadding ->
@@ -226,6 +272,9 @@ private fun ReportsPreview() {
             ),
             windowActions = DateWindowActions.None,
             onRetry = {},
+            exportState = ReportsExportState.Idle,
+            onExport = {},
+            onExportResultShown = {},
         )
     }
 }

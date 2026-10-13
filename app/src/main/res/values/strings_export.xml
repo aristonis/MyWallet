@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracking_more_options">More options</string>
+    <string name="tracking_export_csv">Export these dates (CSV)</string>
+    <string name="tracking_export_saved">CSV saved</string>
+</resources>

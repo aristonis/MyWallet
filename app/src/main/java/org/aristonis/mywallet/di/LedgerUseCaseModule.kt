@@ -7,6 +7,8 @@ import dagger.hilt.components.SingletonComponent
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
 import org.aristonis.mywallet.domain.port.CategoryRoleRepository
+import org.aristonis.mywallet.domain.port.CsvEncoder
+import org.aristonis.mywallet.domain.port.CsvExportSource
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.DeductionItemRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
@@ -16,6 +18,7 @@ import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.service.RoleCategories
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
+import org.aristonis.mywallet.domain.usecase.ExportTrackingCsv
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
 import org.aristonis.mywallet.domain.usecase.SetExchangeRate
@@ -29,6 +32,10 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object LedgerUseCaseModule {
+
+    @Provides @Singleton
+    fun provideExportTrackingCsv(source: CsvExportSource, encoder: CsvEncoder): ExportTrackingCsv =
+        ExportTrackingCsv(source, encoder)
 
     @Provides @Singleton
     fun provideRoleCategories(roles: CategoryRoleRepository, categories: CategoryRepository): RoleCategories =

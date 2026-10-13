@@ -64,6 +64,8 @@ class ReportsLedgerHealthTest {
             savedStateHandle = SavedStateHandle(),
             defaultDispatcher = dispatcher,
             errors = errors,
+            exportTrackingCsv = unusedTrackingCsvExport(),
+            documentIo = UnusedReportsDocumentIo,
         )
     }
 

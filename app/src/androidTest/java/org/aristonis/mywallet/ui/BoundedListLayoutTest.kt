@@ -23,6 +23,7 @@ import org.aristonis.mywallet.ui.rates.ManageRatesContent
 import org.aristonis.mywallet.ui.rates.ManageRatesUiState
 import org.aristonis.mywallet.ui.rates.RateRow
 import org.aristonis.mywallet.ui.reports.CategoryRow
+import org.aristonis.mywallet.ui.reports.ReportsExportState
 import org.aristonis.mywallet.ui.reports.ReportsContent
 import org.aristonis.mywallet.ui.reports.ReportsData
 import org.aristonis.mywallet.ui.reports.ReportsUiState
@@ -228,6 +229,9 @@ class BoundedListLayoutTest {
                 ),
                 windowActions = DateWindowActions.None,
                 onRetry = {},
+                exportState = ReportsExportState.Idle,
+                onExport = {},
+                onExportResultShown = {},
             )
         }
 
