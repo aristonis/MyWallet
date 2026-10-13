@@ -21,11 +21,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -44,6 +48,9 @@ import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
+
+private val FAB_EDGE_GAP = 16.dp
+private val FAB_LIST_GAP = 16.dp
 
 /**
  * Manage Accounts: archive/unarchive and delete existing accounts. Archived accounts are listed here
@@ -84,6 +91,9 @@ internal fun ManageAccountsContent(
 ) {
     // Deleting an account is destructive, so it goes through a confirm dialog keyed on the pending id.
     var pendingDelete by remember { mutableStateOf<ManageAccountRow?>(null) }
+    var addActionHeightPx by remember { mutableIntStateOf(0) }
+    val listBottomPadding = with(LocalDensity.current) { addActionHeightPx.toDp() } +
+        FAB_EDGE_GAP + FAB_LIST_GAP
 
     Scaffold(
         topBar = {
@@ -92,7 +102,10 @@ internal fun ManageAccountsContent(
         floatingActionButton = {
             // Adding an account lives here rather than on Home: it is a setup action, and Home's one
             // button belongs to the thing users do every day.
-            ExtendedFloatingActionButton(onClick = onAddAccount) {
+            ExtendedFloatingActionButton(
+                onClick = onAddAccount,
+                modifier = Modifier.onSizeChanged { addActionHeightPx = it.height },
+            ) {
                 Icon(imageVector = WalletIcons.Add, contentDescription = null)
                 Text(
                     text = stringResource(R.string.home_add_account),
@@ -135,7 +148,7 @@ internal fun ManageAccountsContent(
                     // of them past the bottom of the screen where no scroll can reach them.
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 88.dp),
+                    contentPadding = PaddingValues(bottom = listBottomPadding),
                 ) {
                     items(state.rows, key = { it.account.id }) { row ->
                         AccountManageCard(
@@ -177,7 +190,7 @@ private fun AccountManageCard(
     onUnarchive: () -> Unit,
     onDeleteRequest: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth().testTag("account-row-${row.account.id}")) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(row.account.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
