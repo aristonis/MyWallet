@@ -1,14 +1,28 @@
 package org.aristonis.mywallet.ui.navigation
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -71,5 +85,63 @@ class WalletNavigationBarTest {
 
         compose.onNodeWithText("Home").assertIsDisplayed()
         compose.onNodeWithText("Home").assertIsNotSelected()
+    }
+
+    @Test
+    fun labelsDoNotSplitAcrossLinesAtTwoHundredPercentInRtl() {
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalLayoutDirection provides LayoutDirection.Rtl,
+                LocalDensity provides Density(density.density, 2f),
+            ) {
+                MyWalletTheme(dynamicColor = false) {
+                    WalletNavigationBar(selected = WalletTab.HOME, onSelect = {})
+                }
+            }
+        }
+
+        listOf("Home", "Transactions", "Tracking", "Settings").forEach { label ->
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(label, useUnmergedTree = true).assertIsDisplayed()
+                .fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+            val layout = layouts.single()
+            assertEquals("$label must not split across lines", 1, layout.lineCount)
+            assertFalse(
+                "$label must remain fully visible: size=${layout.size}, " +
+                    "overflowWidth=${layout.didOverflowWidth}, overflowHeight=${layout.didOverflowHeight}",
+                layout.hasVisualOverflow,
+            )
+        }
+    }
+
+    @Test
+    fun largeTextRtlTabsStaySelectableAndTouchSized() {
+        var requested: WalletTab? = null
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalLayoutDirection provides LayoutDirection.Rtl,
+                LocalDensity provides Density(density.density, 2f),
+            ) {
+                MyWalletTheme(dynamicColor = false) {
+                    WalletNavigationBar(selected = WalletTab.SETTINGS, onSelect = { requested = it })
+                }
+            }
+        }
+
+        compose.onNodeWithText("Settings").assertIsSelected()
+        val tabs = compose.onAllNodes(isSelectable())
+        assertEquals(4, tabs.fetchSemanticsNodes().size)
+        repeat(4) { index ->
+            val tab = tabs[index]
+            assertEquals(Role.Tab, tab.fetchSemanticsNode().config[SemanticsProperties.Role])
+            val bounds = tab.getUnclippedBoundsInRoot()
+            assertTrue("Tab width must be at least 48dp", bounds.right - bounds.left >= 48.dp)
+            assertTrue("Tab height must be at least 48dp", bounds.bottom - bounds.top >= 48.dp)
+        }
+
+        compose.onNodeWithText("Tracking").performClick()
+        assertEquals(WalletTab.TRACKING, requested)
     }
 }
