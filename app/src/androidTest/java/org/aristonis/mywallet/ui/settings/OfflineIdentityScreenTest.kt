@@ -3,7 +3,11 @@ package org.aristonis.mywallet.ui.settings
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.BuildConfig
 import org.aristonis.mywallet.R
@@ -12,6 +16,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.security.MessageDigest
 
 @RunWith(AndroidJUnit4::class)
 class OfflineIdentityScreenTest {
@@ -20,11 +25,49 @@ class OfflineIdentityScreenTest {
 
     @Test
     fun aboutShowsInstalledVersionAndExplainsChosenExportDestination() {
-        compose.setContent { MyWalletTheme(dynamicColor = false) { AboutScreen(onDone = {}) } }
+        compose.setContent { MyWalletTheme(dynamicColor = false) { AboutScreen(onDone = {}, onLicense = {}) } }
 
         compose.onNodeWithText(BuildConfig.VERSION_NAME, substring = true).assertIsDisplayed()
         compose.onNodeWithText("MyWallet by Aristonis", substring = true).assertIsDisplayed()
         compose.onNodeWithText("export", substring = true, ignoreCase = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun aboutOpensTheOfflineApacheLicenseAndReturns() {
+        var showingLicense by mutableStateOf(false)
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                if (showingLicense) {
+                    AppLicenseScreen(onDone = { showingLicense = false })
+                } else {
+                    AboutScreen(onDone = {}, onLicense = { showingLicense = true })
+                }
+            }
+        }
+
+        compose.onNodeWithText(context.getString(R.string.identity_app_license_action))
+            .performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.identity_app_license_title)).assertIsDisplayed()
+        compose.onNodeWithText("Apache License", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.identity_app_license_notice), substring = true)
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.cd_navigate_back)).performClick()
+        compose.onNodeWithText(BuildConfig.VERSION_NAME, substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun packagedProjectLicenseMatchesTheOfficialApacheText() {
+        val license = context.assets.open("LICENSE").use { it.readBytes() }
+        val digest = MessageDigest.getInstance("SHA-256").digest(license)
+            .joinToString("") { "%02x".format(it) }
+
+        org.junit.Assert.assertEquals(
+            "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+            digest,
+        )
+        org.junit.Assert.assertTrue(context.assets.open("NOTICE").bufferedReader().use {
+            it.readText().contains("Copyright (c) 2025 Aristonis")
+        })
     }
 
     @Test

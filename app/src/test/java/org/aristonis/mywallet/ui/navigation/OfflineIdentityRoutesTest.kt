@@ -7,7 +7,7 @@ import org.junit.Test
 class OfflineIdentityRoutesTest {
     @Test
     fun eachOfflineInformationPageKeepsTheSettingsTabBar() {
-        listOf(Leaf.PRIVACY, Leaf.SUPPORT).forEach { leaf ->
+        listOf(Leaf.PRIVACY, Leaf.SUPPORT, Leaf.APP_LICENSE).forEach { leaf ->
             val route = WalletTab.SETTINGS.child(leaf)
             assertTrue(leaf in Leaf.all)
             assertTrue(showsNavigationBar(route))

@@ -3,6 +3,9 @@
     <string name="identity_brand">MyWallet by Aristonis</string>
     <string name="identity_about_body">MyWallet is a manual wallet for recording accounts and transactions. Your records are stored on this device for offline use. Device backup settings may also apply.</string>
     <string name="identity_about_export">When you export a backup or a Tracking CSV, you choose where to save the copy. Keep it somewhere you trust.</string>
+    <string name="identity_app_license_action">App license and notice</string>
+    <string name="identity_app_license_title">App license</string>
+    <string name="identity_app_license_notice">Copyright and notice</string>
     <string name="identity_privacy_title">Privacy information</string>
     <string name="identity_privacy_storage_heading">Records on your device</string>
     <string name="identity_privacy_storage">The accounts and transactions you enter are stored in this app on your device. Android backup settings may also apply to app data.</string>

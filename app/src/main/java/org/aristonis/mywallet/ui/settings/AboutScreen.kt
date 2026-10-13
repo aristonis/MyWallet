@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -26,7 +27,7 @@ import org.aristonis.mywallet.ui.theme.MyWalletTheme
  * wrong, and asking a user to find it in the system settings is asking them to give up.
  */
 @Composable
-fun AboutScreen(onDone: () -> Unit) {
+fun AboutScreen(onDone: () -> Unit, onLicense: () -> Unit) {
     Scaffold(
         topBar = { WalletTopAppBar(title = stringResource(R.string.settings_about), onBack = onDone) },
     ) { innerPadding ->
@@ -46,6 +47,9 @@ fun AboutScreen(onDone: () -> Unit) {
             )
             Text(stringResource(R.string.identity_about_body), style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.identity_about_export), style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = onLicense) {
+                Text(stringResource(R.string.identity_app_license_action))
+            }
         }
     }
 }
@@ -53,5 +57,5 @@ fun AboutScreen(onDone: () -> Unit) {
 @Preview(showBackground = true)
 @Composable
 private fun AboutPreview() {
-    MyWalletTheme(dynamicColor = false) { AboutScreen(onDone = {}) }
+    MyWalletTheme(dynamicColor = false) { AboutScreen(onDone = {}, onLicense = {}) }
 }

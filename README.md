@@ -64,4 +64,4 @@ passed the automated tests before it went into a release.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

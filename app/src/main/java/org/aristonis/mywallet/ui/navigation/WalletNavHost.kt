@@ -30,6 +30,7 @@ import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen
 import org.aristonis.mywallet.ui.settings.AboutScreen
+import org.aristonis.mywallet.ui.settings.AppLicenseScreen
 import org.aristonis.mywallet.ui.settings.PrivacyInformationScreen
 import org.aristonis.mywallet.ui.settings.SettingsScreen
 import org.aristonis.mywallet.ui.settings.SupportFaqScreen
@@ -284,7 +285,13 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
             ChangeBaseCurrencyScreen(onDone = { nav.popBackStack() })
         }
         composable(tab.child(Leaf.ABOUT)) {
-            AboutScreen(onDone = { nav.popBackStack() })
+            AboutScreen(
+                onDone = { nav.popBackStack() },
+                onLicense = { nav.navigate(tab.child(Leaf.APP_LICENSE)) },
+            )
+        }
+        composable(tab.child(Leaf.APP_LICENSE)) {
+            AppLicenseScreen(onDone = { nav.popBackStack() })
         }
         composable(tab.child(Leaf.PRIVACY)) {
             PrivacyInformationScreen(onDone = { nav.popBackStack() })
