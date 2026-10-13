@@ -193,18 +193,18 @@ private fun ReportList(
     LazyColumn(modifier = modifier) {
         item(key = "summary") { SummaryCard(data) }
         categorySection(
-            section = CategorySection.INCOME,
-            title = R.string.reports_income_by_category,
-            emptyText = R.string.reports_no_income,
-            rows = data.incomeCategories,
-            expandedIds = expandedIds,
-            onToggle = onToggle,
-        )
-        categorySection(
             section = CategorySection.EXPENSE,
             title = R.string.reports_spending_by_category,
             emptyText = R.string.reports_no_spending,
             rows = data.expenseCategories,
+            expandedIds = expandedIds,
+            onToggle = onToggle,
+        )
+        categorySection(
+            section = CategorySection.INCOME,
+            title = R.string.reports_income_by_category,
+            emptyText = R.string.reports_no_income,
+            rows = data.incomeCategories,
             expandedIds = expandedIds,
             onToggle = onToggle,
         )

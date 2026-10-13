@@ -17,6 +17,7 @@ import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.window.DateWindowActions
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,7 +64,10 @@ class ReportsCategoriesTest {
         return compose.onNode(matcher)
     }
 
-    private fun show() {
+    private fun show(
+        incomeCategories: List<CategoryRow> = listOf(salary),
+        expenseCategories: List<CategoryRow> = listOf(food, transport),
+    ) {
         compose.setContent {
             MyWalletTheme(dynamicColor = false) {
                 ReportsContent(
@@ -73,8 +77,8 @@ class ReportsCategoriesTest {
                             incomeDisplay = "100.00 USD",
                             expenseDisplay = "44.00 USD",
                             netDisplay = "56.00 USD",
-                            incomeCategories = listOf(salary),
-                            expenseCategories = listOf(food, transport),
+                            incomeCategories = incomeCategories,
+                            expenseCategories = expenseCategories,
                         ),
                     ),
                     windowActions = DateWindowActions.None,
@@ -94,6 +98,17 @@ class ReportsCategoriesTest {
         scrollTo(hasText("Income by category")).assertIsDisplayed()
         scrollTo(hasText("Salary")).assertIsDisplayed()
         scrollTo(hasText("Spending by category")).assertIsDisplayed()
+    }
+
+    @Test
+    fun spendingSectionAppearsBeforeIncomeSection() {
+        show(incomeCategories = emptyList(), expenseCategories = emptyList())
+
+        val spending = compose.onNodeWithText("Spending by category").assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot
+        val income = compose.onNodeWithText("Income by category").assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue("Spending should be shown above Income", spending.bottom <= income.top)
     }
 
     @Test
