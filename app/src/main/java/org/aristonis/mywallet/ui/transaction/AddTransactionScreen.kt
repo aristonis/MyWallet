@@ -1,7 +1,12 @@
 package org.aristonis.mywallet.ui.transaction
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +15,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -34,9 +41,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -373,9 +386,11 @@ private fun AddTransactionPreview() {
     }
 }
 
+private val MIN_SEGMENTED_SELECTOR_WIDTH = 320.dp
+
 /**
- * Income, expense or transfer, as one connected control. Exactly one always applies, and tabs would
- * suggest three views of the same thing rather than three kinds of entry.
+ * Income, expense or transfer, as one choice. It uses connected segments when they fit and stacked
+ * choices at larger text scales. Exactly one always applies.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -383,14 +398,65 @@ internal fun TransactionTypeSelector(
     selected: TransactionType,
     onSelect: (TransactionType) -> Unit,
 ) {
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        standardTransactionTypes.forEachIndexed { index, type ->
-            SegmentedButton(
-                selected = selected == type,
-                onClick = { onSelect(type) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = standardTransactionTypes.size),
+    val fontScale = LocalDensity.current.fontScale
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // Three equal segments cannot keep whole labels when their available width shrinks with text scale.
+        if (maxWidth / fontScale < MIN_SEGMENTED_SELECTOR_WIDTH) {
+            Column(
+                modifier = Modifier.selectableGroup(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(typeLabel(type), maxLines = 1)
+                standardTransactionTypes.forEach { type ->
+                    val isSelected = selected == type
+                    val shape = SegmentedButtonDefaults.itemShape(index = 0, count = 1)
+                    val containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.surface
+                    val labelColor = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer
+                        else MaterialTheme.colorScheme.onSurface
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clip(shape)
+                            .background(containerColor)
+                            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline), shape)
+                            .selectable(
+                                selected = isSelected,
+                                onClick = { onSelect(type) },
+                                role = Role.RadioButton,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = WalletIcons.Selected,
+                                contentDescription = null,
+                                tint = labelColor,
+                                modifier = Modifier.align(Alignment.CenterStart)
+                                    .padding(start = 16.dp)
+                                    .testTag("selected-type-${type.name}"),
+                            )
+                        }
+                        Text(
+                            typeLabel(type),
+                            color = labelColor,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 8.dp),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+        } else {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                standardTransactionTypes.forEachIndexed { index, type ->
+                    SegmentedButton(
+                        selected = selected == type,
+                        onClick = { onSelect(type) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = standardTransactionTypes.size),
+                    ) {
+                        Text(typeLabel(type), maxLines = 1)
+                    }
+                }
             }
         }
     }
