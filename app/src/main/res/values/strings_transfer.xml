@@ -1,0 +1,4 @@
+<resources>
+    <string name="transfer_add_first_account">Add an account first</string>
+    <string name="transfer_add_second_account">Add a second account first</string>
+</resources>

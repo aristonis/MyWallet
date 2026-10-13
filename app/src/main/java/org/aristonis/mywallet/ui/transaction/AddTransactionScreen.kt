@@ -182,15 +182,25 @@ internal fun AddTransactionContent(
 
             when (state.type) {
                 TransactionType.TRANSFER -> {
-                    val dest = state.accounts.firstOrNull { it.id == state.destAccountId }
-                    LabeledDropdown(
-                        label = stringResource(R.string.field_to_account),
-                        selectedText = dest?.let { accountLabel(it) }
-                            ?: stringResource(R.string.value_select_prompt),
-                        items = state.destAccounts,
-                        itemLabel = { accountLabel(it) },
-                        onSelect = { onDestAccountSelected(it.id) },
-                    )
+                    if (state.accounts.size <= 1 || state.destAccounts.isEmpty()) {
+                        Text(
+                            text = stringResource(
+                                if (state.accounts.isEmpty()) R.string.transfer_add_first_account
+                                else R.string.transfer_add_second_account,
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        val dest = state.accounts.firstOrNull { it.id == state.destAccountId }
+                        LabeledDropdown(
+                            label = stringResource(R.string.field_to_account),
+                            selectedText = dest?.let { accountLabel(it) }
+                                ?: stringResource(R.string.value_select_prompt),
+                            items = state.destAccounts,
+                            itemLabel = { accountLabel(it) },
+                            onSelect = { onDestAccountSelected(it.id) },
+                        )
+                    }
                 }
                 else -> if (rule.requiresCategory) {
                     val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
