@@ -307,14 +307,14 @@ private fun ThemePreference.labelRes(): Int = themeOptions.first { it.first == t
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThemePickerSheet(
+internal fun ThemePickerSheet(
     currentTheme: ThemePreference,
     onThemeSelected: (ThemePreference) -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
             Text(
