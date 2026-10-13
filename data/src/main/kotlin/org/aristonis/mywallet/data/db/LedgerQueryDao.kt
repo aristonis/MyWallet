@@ -25,7 +25,7 @@ const val DEBT_LEGS_SQL =
 /** The columns both category-leg reads return, by the names [CategoryLegRow] expects. */
 private const val CATEGORY_LEG_COLUMNS =
     "SELECT e.id AS entryId, e.date AS date, e.kind AS entryKind, l.role AS role, l.categoryId AS categoryId, " +
-        "l.subCategoryId AS subCategoryId, l.amount AS amount, " +
+        "l.position AS position, l.subCategoryId AS subCategoryId, l.amount AS amount, " +
         "l.currencyCode AS currencyCode, l.rateToBase AS rateToBase "
 
 /**
@@ -90,6 +90,7 @@ data class CategoryLegRow(
     val date: LocalDate,
     val entryKind: String,
     val role: String,
+    val position: Int,
     val categoryId: Long?,
     val subCategoryId: Long?,
     val amount: String,
@@ -129,6 +130,14 @@ interface LedgerQueryDao {
     @Query("$DEBT_LEGS_SQL WHERE l.debtId IN (:debtIds)")
     suspend fun debtLegs(debtIds: List<Long>): List<DebtLegRow>
 
+    /** One-shot range projection for a consistent export transaction. */
+    @Query(CATEGORY_LEGS_SQL)
+    suspend fun readCategoryLegs(start: LocalDate, end: LocalDate): List<CategoryLegRow>
+
+    /** All-time export uses the same query as all-time Tracking. */
+    @Query(CATEGORY_LEGS_ALL_TIME_SQL)
+    suspend fun readAllCategoryLegs(): List<CategoryLegRow>
+
     @Query(CATEGORY_LEGS_SQL)
     fun observeCategoryLegs(start: LocalDate, end: LocalDate): Flow<List<CategoryLegRow>>
 
@@ -156,6 +165,10 @@ interface LedgerQueryDao {
     /** The first entry, by id, whose kind is not in [known]; null when there is none. */
     @Query("SELECT id, kind FROM entries WHERE kind NOT IN (:known) ORDER BY id LIMIT 1")
     fun observeFirstUnknownKind(known: List<String>): Flow<UnknownKindRow?>
+
+    /** The global health guard read inside an export's snapshot transaction, without a live Flow. */
+    @Query("SELECT id, kind FROM entries WHERE kind NOT IN (:known) ORDER BY id LIMIT 1")
+    suspend fun firstUnknownKind(known: List<String>): UnknownKindRow?
 
     @Query(ACCOUNT_IN_USE_SQL)
     suspend fun isAccountInUse(accountId: Long): Boolean

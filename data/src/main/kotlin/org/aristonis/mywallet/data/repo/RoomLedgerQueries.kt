@@ -109,7 +109,7 @@ private val LEG_ROLE_BY_NAME: Map<String, LegRole> = LegRole.entries.associateBy
  * that does not parse is bad stored data, reported as the entry it belongs to. The category row is
  * not read: a leg on a category that is gone still counts, by its entry's kind, under its id.
  */
-private fun CategoryLegRow.toCategoryLeg(): CategoryLeg = try {
+internal fun CategoryLegRow.toCategoryLeg(): CategoryLeg = try {
     CategoryLeg(
         entryId = entryId,
         date = date,

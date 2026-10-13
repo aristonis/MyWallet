@@ -4,7 +4,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.EntryRecipes
-import org.aristonis.mywallet.domain.ledger.TrackingRule
+import org.aristonis.mywallet.domain.ledger.trackingAmount
+import org.aristonis.mywallet.domain.ledger.trackingSide
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.CategoryBreakdown
 import org.aristonis.mywallet.domain.model.CategoryTotal
 import org.aristonis.mywallet.domain.model.DateRange
@@ -15,7 +17,6 @@ import org.aristonis.mywallet.domain.port.CategoryLeg
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.service.CurrencyConverter
-import java.math.RoundingMode
 
 /**
  * The result of computing a category breakdown: either the income / expense totals, or a signal that
@@ -44,7 +45,7 @@ sealed interface CategoryBreakdownResult {
  * of today's rate never moves a past month. A leg already in the base currency is kept as written;
  * any other leg is multiplied by its stored rate and rounded HALF_UP to the base's decimals, once,
  * and every total above it is an exact sum of those legs. Before that rounding the product is cut to
- * [PRODUCT_SCALE] decimals, HALF_EVEN: a base change divides stored rates, and switching away and
+ * 20 decimals, HALF_EVEN: a base change divides stored rates, and switching away and
  * back leaves a residue far past that point (1.4999...97 instead of 1.5). Cut first, the residue
  * goes and a half-way leg rounds as it did before the round trip; any product that does not reach
  * that many decimals is unchanged.
@@ -66,7 +67,7 @@ class ComputeCategoryBreakdown(
         val base = snapshot.baseCurrencyCode
         // Every leg must be placeable before anything is reported, so an unreadable row is never
         // hidden behind a missing rate or left out of a total.
-        val sides = legs.map { it.side() }
+        val sides = legs.map { it.trackingSide() }
 
         val missing = legs.asSequence()
             .filter { it.amount.currencyCode != base && it.rateToBase == null }
@@ -75,40 +76,15 @@ class ComputeCategoryBreakdown(
 
         val decimals = snapshot.decimalPlaces[base] ?: CurrencyConverter.DEFAULT_DECIMALS
         val counted = legs.mapIndexed { index, leg ->
-            CountedLeg(sides[index], leg.categoryId, leg.subCategoryId, leg.inBase(base, decimals))
+            CountedLeg(sides[index], leg.categoryId, leg.subCategoryId, leg.trackingAmount(base, decimals))
         }
         return CategoryBreakdownResult.Resolved(
             CategoryBreakdown(
-                income = totalsOf(counted.filter { it.side == Side.INCOME }, base),
-                expense = totalsOf(counted.filter { it.side == Side.EXPENSE }, base),
+                income = totalsOf(counted.filter { it.side == CategoryKind.INCOME }, base),
+                expense = totalsOf(counted.filter { it.side == CategoryKind.EXPENSE }, base),
                 baseCurrencyCode = base,
             ),
         )
-    }
-
-    /**
-     * The side this leg counts on, from its entry kind's rule for its role. A refund's rule keeps it
-     * on the expense side; its negative amount does the reducing. No `else`: a new rule fails to
-     * compile here instead of dropping out of every total.
-     */
-    private fun CategoryLeg.side(): Side = when (EntryRecipes.trackingRule(entryKind, role)) {
-        TrackingRule.INCOME -> Side.INCOME
-        TrackingRule.EXPENSE, TrackingRule.REDUCES_EXPENSE -> Side.EXPENSE
-        TrackingRule.NOT_COUNTED, null -> throw WalletException.UnreadableRow(entryId, entryKind)
-    }
-
-    /**
-     * This leg in [base]. Only called once no leg outside the base lacks a rate, so [rateToBase] is
-     * set wherever it is read.
-     */
-    private fun CategoryLeg.inBase(base: String, decimals: Int): Money {
-        if (amount.currencyCode == base) return amount
-        val rate = checkNotNull(rateToBase) { "leg of entry $entryId reached conversion with no rate" }
-        val exact = amount.amount.multiply(rate)
-        // Padding a short product out to the guard scale changes nothing but turns it into a big
-        // integer, which is slow; only a product longer than the guard needs trimming.
-        val product = if (exact.scale() > PRODUCT_SCALE) exact.setScale(PRODUCT_SCALE, RoundingMode.HALF_EVEN) else exact
-        return Money.of(product.setScale(decimals, CurrencyConverter.ROUNDING), base)
     }
 
     /**
@@ -131,25 +107,15 @@ class ComputeCategoryBreakdown(
     private fun List<CountedLeg>.sumIn(base: String): Money =
         fold(Money.zero(base)) { acc, leg -> acc + leg.amount }
 
-    /** Which half of the breakdown a leg lands in. */
-    private enum class Side { INCOME, EXPENSE }
-
     /** A category leg placed on its side, with its amount already in the base currency. */
     private data class CountedLeg(
-        val side: Side,
+        val side: CategoryKind,
         val categoryId: Long,
         val subCategoryId: Long?,
         val amount: Money,
     )
 
     private companion object {
-        /**
-         * Decimals a leg's amount times its rate keeps before it is rounded to the base's decimals.
-         * Far past any currency's decimals and any rate a user types, and far short of the 34
-         * significant digits a base change divides with.
-         */
-        const val PRODUCT_SCALE = 20
-
         /**
          * Orders legs so the newest entry is the greatest, whatever order the ledger lists them in.
          * Legs of one entry tie; every category leg of an entry is in that entry's currency in every
