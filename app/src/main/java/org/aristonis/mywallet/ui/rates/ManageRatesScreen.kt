@@ -5,9 +5,9 @@ package org.aristonis.mywallet.ui.rates
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,10 +21,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -137,26 +140,33 @@ private fun RateRowCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                val rateLabel = base?.let { stringResource(R.string.field_rate_in_base, it) }
+                    ?: stringResource(R.string.field_rate)
+                Text(rateLabel, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(
                     value = row.input,
                     onValueChange = { onInputChanged(row.currencyCode, it) },
-                    label = {
-                        Text(
-                            base?.let { stringResource(R.string.field_rate_in_base, it) }
-                                ?: stringResource(R.string.field_rate),
-                        )
-                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = row.error != null,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("rate-input-${row.currencyCode}")
+                        .semantics { contentDescription = rateLabel },
                 )
-                Button(onClick = { onSave(row.currencyCode) }) {
-                    Text(stringResource(R.string.action_save_rate))
+                Button(
+                    onClick = { onSave(row.currencyCode) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.action_save_rate),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
 
