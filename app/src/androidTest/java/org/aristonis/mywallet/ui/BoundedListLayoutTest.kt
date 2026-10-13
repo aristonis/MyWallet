@@ -171,6 +171,7 @@ class BoundedListLayoutTest {
                 onEdit = {},
                 onAddAccount = {},
                 onDone = {},
+                onRetry = {},
             )
         }
 

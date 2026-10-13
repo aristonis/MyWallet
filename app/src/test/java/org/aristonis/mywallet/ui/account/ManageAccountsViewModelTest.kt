@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.aristonis.mywallet.RecordingErrorReporter
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
@@ -42,7 +43,8 @@ class ManageAccountsViewModelTest {
         ledger: HealthLedger = HealthLedger().apply { this.accountsInUse = accountsInUse },
     ): ManageAccountsViewModel {
         val accountRepo = FakeAccountRepository(accounts)
-        return ManageAccountsViewModel(accountRepo, ledger, SetAccountArchived(accountRepo), DeleteAccount(accountRepo, ledger))
+        return ManageAccountsViewModel(accountRepo, ledger, SetAccountArchived(accountRepo),
+            DeleteAccount(accountRepo, ledger), ledger.health(), RecordingErrorReporter())
     }
 
     private fun ManageAccountsViewModel.rowsById() = state.value.rows.associateBy { it.account.id }
@@ -106,6 +108,24 @@ class ManageAccountsViewModelTest {
         vm.delete(1); advanceUntilIdle()
         assertNotNull(vm.state.value.error) // fail-loud: "archive it instead"
         assertEquals(1, vm.state.value.rows.size) // nothing deleted
+    }
+
+    @Test
+    fun aRefusedActionKeepsItsMessageWhenTheListReadsAgain() = runTest {
+        val ledger = HealthLedger().apply { accountsInUse = setOf(1) }
+        val vm = buildVm(accounts = listOf(account(1), account(2)), ledger = ledger)
+        backgroundScope.launch { vm.state.collect {} }
+        advanceUntilIdle()
+        vm.delete(1); advanceUntilIdle()
+        val refused = vm.state.value.error
+        assertNotNull(refused)
+
+        // Any later write to the ledger re-emits the list; the owner must still see why Delete failed.
+        ledger.accountsInUse = setOf(1, 2)
+        advanceUntilIdle()
+
+        assertTrue(vm.rowsById().getValue(2).hasTransactions)
+        assertEquals(refused, vm.state.value.error)
     }
 }
 

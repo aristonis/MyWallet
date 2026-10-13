@@ -3,6 +3,9 @@ package org.aristonis.mywallet.data.usecase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.aristonis.mywallet.data.db.AccountEntity
@@ -24,12 +27,15 @@ import org.aristonis.mywallet.data.repo.RoomRateRepository
 import org.aristonis.mywallet.data.repo.RoomSettingsRepository
 import org.aristonis.mywallet.data.repo.RoomTransactionRunner
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.DebtRef
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.service.RoleCategories
+import org.aristonis.mywallet.domain.usecase.DeleteCategory
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
@@ -223,6 +229,44 @@ class SaveEntryOnRoomTest {
         assertEquals("injected after Room insert", failure?.message)
         assertTrue(db.debtDao().getAll().isEmpty())
         assertTrue(db.entryDao().getAll().isEmpty())
+    }
+
+    @Test
+    fun aRefundRemainsReadableAfterItsExpenseCategoryIsDeleted() = runBlocking {
+        val refund = Transaction.Refund(accountId = 1, amount = Money.of("5.00", "USD"), categoryId = 6, date = day)
+        val saved = saveEntry(refund, emptyMap())
+        val categories = RoomCategoryRepository(db.categoryDao())
+        assertEquals(1, DeleteCategory(categories)(6))
+        val bucket = requireNotNull(
+            db.categoryDao().findBySystemKey(Category.uncategorizedKeyFor(CategoryKind.EXPENSE)),
+        )
+        val restored = entries.findById(saved.id) as Transaction.Refund
+        assertEquals(bucket.id, restored.categoryId)
+        assertEquals(refund.amount, restored.amount)
+        assertNull(categories.findById(6))
+        val storedLegs = db.entryDao().getAllLegs().filter { it.entryId == saved.id }
+        assertEquals(Money.of("5", "USD"), Money.of(storedLegs.single { it.role == "ACCOUNT" }.amount, "USD"))
+        assertEquals(Money.of("-5", "USD"), Money.of(storedLegs.single { it.role == "MAIN" }.amount, "USD"))
+    }
+
+    @Test
+    fun concurrentSavesResolveOneFallbackBucketWithoutLosingEitherEntry() = runBlocking {
+        val start = CompletableDeferred<Unit>()
+        val draft = Transaction.Expense(accountId = 1, amount = Money.of("10", "USD"), categoryId = 6,
+            date = day, fee = Money.of("1", "USD"))
+        val first = async(Dispatchers.Default) { start.await(); saveEntry(draft, emptyMap()) }
+        val second = async(Dispatchers.Default) { start.await(); saveEntry(draft, emptyMap()) }
+        start.complete(Unit)
+        val saved = withTimeout(RETURN_WITHIN_MS) { listOf(first.await(), second.await()) }
+        assertEquals(2, saved.map { it.id }.toSet().size)
+        val buckets = db.categoryDao().getAll().filter {
+            it.systemKey == Category.uncategorizedKeyFor(CategoryKind.EXPENSE)
+        }
+        assertEquals(1, buckets.size)
+        val fees = saved.map { entries.findById(it.id) as Transaction.Expense }
+        assertTrue(fees.all { it.feeCategoryId == buckets.single().id && it.fee == Money.of("1", "USD") })
+        assertEquals(2, db.entryDao().getAll().size)
+        assertEquals(2, db.entryDao().getAllLegs().count { it.role == "FEE" })
     }
 
     private companion object {

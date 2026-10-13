@@ -68,6 +68,7 @@ class RowActionsTest {
             onEdit = onEdit,
             onAddAccount = {},
             onDone = {},
+            onRetry = {},
         )
     }
 

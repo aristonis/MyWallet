@@ -12,9 +12,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -33,14 +33,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.EmptyState
+import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.MenuAction
 import org.aristonis.mywallet.ui.components.OverflowMenu
-import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
+import org.aristonis.mywallet.ui.icons.WalletIcons
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
 /**
@@ -65,6 +67,7 @@ fun ManageAccountsScreen(
         onEdit = onEditAccount,
         onAddAccount = onAddAccount,
         onDone = onDone,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -77,6 +80,7 @@ internal fun ManageAccountsContent(
     onEdit: (Long) -> Unit,
     onAddAccount: () -> Unit,
     onDone: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     // Deleting an account is destructive, so it goes through a confirm dialog keyed on the pending id.
     var pendingDelete by remember { mutableStateOf<ManageAccountRow?>(null) }
@@ -114,6 +118,11 @@ internal fun ManageAccountsContent(
 
             when {
                 state.isLoading -> CircularProgressIndicator()
+
+                state.loadFailed -> LoadFailedState(
+                    message = (state.loadFailure ?: UiMessage.DataUnreadable).text(),
+                    onRetry = onRetry,
+                )
 
                 state.rows.isEmpty() -> EmptyState(
                     message = stringResource(R.string.manage_accounts_empty),
@@ -256,7 +265,7 @@ private fun ManageAccountsPreview() {
                     ),
                 ),
             ),
-            onArchive = {}, onUnarchive = {}, onDelete = {}, onEdit = {}, onAddAccount = {}, onDone = {},
+            onArchive = {}, onUnarchive = {}, onDelete = {}, onEdit = {}, onAddAccount = {}, onDone = {}, onRetry = {},
         )
     }
 }
