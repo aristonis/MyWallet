@@ -10,11 +10,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.ui.components.WalletListRow
 import org.aristonis.mywallet.ui.icons.WalletIcons
+
+private const val DISABLED_ROW_ALPHA = 0.38f
 
 /**
  * One line of settings: what it is, what it is currently set to, and a chevron saying there is more
@@ -31,12 +36,15 @@ fun SettingsRow(
     value: String? = null,
     supporting: String? = null,
     icon: ImageVector? = null,
+    enabled: Boolean = true,
 ) {
     WalletListRow(
         headline = label,
         supporting = supporting,
         leadingIcon = icon,
-        modifier = modifier,
+        modifier = if (enabled) modifier else modifier
+            .alpha(DISABLED_ROW_ALPHA)
+            .semantics(mergeDescendants = true) { disabled() },
         trailing = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -53,7 +61,7 @@ fun SettingsRow(
                 Icon(imageVector = WalletIcons.Forward, contentDescription = null)
             }
         },
-        onClick = onClick,
+        onClick = onClick.takeIf { enabled },
     )
 }
 

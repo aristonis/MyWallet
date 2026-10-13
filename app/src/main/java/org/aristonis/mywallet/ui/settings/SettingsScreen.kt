@@ -127,7 +127,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsContent(
+internal fun SettingsContent(
     state: BackupUiState,
     currentTheme: ThemePreference,
     baseCurrencyCode: String?,
@@ -224,6 +224,7 @@ private fun SettingsContent(
                     label = stringResource(R.string.settings_export),
                     supporting = stringResource(R.string.settings_export_body),
                     icon = WalletIcons.Backup,
+                    enabled = !isWorking,
                     onClick = { if (!isWorking) onExport() },
                 )
                 SettingsRow(
@@ -231,6 +232,7 @@ private fun SettingsContent(
                     // Kept because it is the one action here that cannot be taken back.
                     supporting = stringResource(R.string.settings_restore_body),
                     icon = WalletIcons.Restore,
+                    enabled = !isWorking,
                     onClick = { if (!isWorking) onImport() },
                 )
                 if (isWorking) {
