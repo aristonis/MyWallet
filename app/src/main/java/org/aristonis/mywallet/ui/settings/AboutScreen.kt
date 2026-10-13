@@ -38,13 +38,14 @@ fun AboutScreen(onDone: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.identity_brand), style = MaterialTheme.typography.headlineSmall)
             Text(
                 text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(stringResource(R.string.about_body), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.identity_about_body), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.identity_about_export), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

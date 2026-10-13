@@ -73,13 +73,15 @@ object Leaf {
     const val EDIT_DEDUCTION = "editDeduction"
     const val BASE_CURRENCY = "baseCurrency"
     const val ABOUT = "about"
+    const val PRIVACY = "privacy"
+    const val SUPPORT = "support"
     const val DEBTS = "debts"
     const val DEBT_DETAIL = "debtDetail"
     const val RECORD_REPAYMENT = "recordRepayment"
 
     /** Every supporting screen a tab can push that needs no argument. [ROOT] is the tab itself. */
     val all = listOf(ADD_TRANSACTION, ADD_ACCOUNT, MANAGE_ACCOUNTS, RATES, CATEGORIES, BASE_CURRENCY,
-        ABOUT, DEBTS, DEDUCTIONS, ADD_DEDUCTION)
+        ABOUT, PRIVACY, SUPPORT, DEBTS, DEDUCTIONS, ADD_DEDUCTION)
 
     /** Every leaf that edits one row. */
     val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL, RECORD_REPAYMENT, EDIT_DEDUCTION)

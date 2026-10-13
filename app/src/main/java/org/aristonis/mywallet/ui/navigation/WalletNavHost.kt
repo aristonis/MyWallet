@@ -30,7 +30,9 @@ import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen
 import org.aristonis.mywallet.ui.settings.AboutScreen
+import org.aristonis.mywallet.ui.settings.PrivacyInformationScreen
 import org.aristonis.mywallet.ui.settings.SettingsScreen
+import org.aristonis.mywallet.ui.settings.SupportFaqScreen
 import org.aristonis.mywallet.ui.deduction.DeductionsScreen
 import org.aristonis.mywallet.ui.deduction.DeductionEditorScreen
 import org.aristonis.mywallet.ui.transaction.AddTransactionScreen
@@ -244,6 +246,8 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
                 onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
                 onChangeBaseCurrency = { nav.navigate(tab.child(Leaf.BASE_CURRENCY)) },
                 onAbout = { nav.navigate(tab.child(Leaf.ABOUT)) },
+                onPrivacy = { nav.navigate(tab.child(Leaf.PRIVACY)) },
+                onSupport = { nav.navigate(tab.child(Leaf.SUPPORT)) },
             )
         }
         composable(tab.child(Leaf.MANAGE_ACCOUNTS)) {
@@ -281,6 +285,12 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
         }
         composable(tab.child(Leaf.ABOUT)) {
             AboutScreen(onDone = { nav.popBackStack() })
+        }
+        composable(tab.child(Leaf.PRIVACY)) {
+            PrivacyInformationScreen(onDone = { nav.popBackStack() })
+        }
+        composable(tab.child(Leaf.SUPPORT)) {
+            SupportFaqScreen(onDone = { nav.popBackStack() })
         }
     }
 }

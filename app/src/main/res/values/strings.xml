@@ -207,7 +207,6 @@
     <string name="settings_theme">Theme</string>
     <string name="settings_about">About My Wallet</string>
     <string name="about_version">Version %1$s</string>
-    <string name="about_body">An offline wallet. Everything you record stays on this device — nothing is uploaded, and there is no account to sign in to.</string>
     <string name="settings_export_body">Save everything to a file you keep.</string>
     <string name="settings_restore_body">Replaces everything currently in the app.</string>
     <string name="settings_export">Export backup</string>

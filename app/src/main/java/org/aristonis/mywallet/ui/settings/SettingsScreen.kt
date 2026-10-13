@@ -71,6 +71,8 @@ fun SettingsScreen(
     onManageRates: () -> Unit,
     onChangeBaseCurrency: () -> Unit,
     onAbout: () -> Unit,
+    onPrivacy: () -> Unit,
+    onSupport: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -109,6 +111,8 @@ fun SettingsScreen(
         onManageRates = onManageRates,
         onChangeBaseCurrency = onChangeBaseCurrency,
         onAbout = onAbout,
+        onPrivacy = onPrivacy,
+        onSupport = onSupport,
     )
 
     pendingRestoreUri?.let { uri ->
@@ -139,6 +143,8 @@ private fun SettingsContent(
     onManageRates: () -> Unit,
     onChangeBaseCurrency: () -> Unit,
     onAbout: () -> Unit,
+    onPrivacy: () -> Unit,
+    onSupport: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val isWorking = state.status is BackupStatus.Working
@@ -254,6 +260,16 @@ private fun SettingsContent(
                     icon = WalletIcons.About,
                     onClick = onAbout,
                 )
+                SettingsRow(
+                    label = stringResource(R.string.identity_privacy_title),
+                    icon = WalletIcons.About,
+                    onClick = onPrivacy,
+                )
+                SettingsRow(
+                    label = stringResource(R.string.identity_support_title),
+                    icon = WalletIcons.About,
+                    onClick = onSupport,
+                )
             }
         }
     }
@@ -362,6 +378,8 @@ private fun SettingsPreview() {
             onManageRates = {},
             onChangeBaseCurrency = {},
             onAbout = {},
+            onPrivacy = {},
+            onSupport = {},
         )
     }
 }

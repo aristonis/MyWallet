@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="identity_brand">MyWallet by Aristonis</string>
+    <string name="identity_about_body">MyWallet is a manual wallet for recording accounts and transactions. Your records are stored on this device for offline use. Device backup settings may also apply.</string>
+    <string name="identity_about_export">When you export a backup or a Tracking CSV, you choose where to save the copy. Keep it somewhere you trust.</string>
+    <string name="identity_privacy_title">Privacy information</string>
+    <string name="identity_privacy_storage_heading">Records on your device</string>
+    <string name="identity_privacy_storage">The accounts and transactions you enter are stored in this app on your device. Android backup settings may also apply to app data.</string>
+    <string name="identity_privacy_export_heading">Copies you choose</string>
+    <string name="identity_privacy_export">Settings can export a wallet backup, and Tracking can export a CSV report. You choose where to save each copy. The destination you choose controls the exported file.</string>
+    <string name="identity_privacy_restore_heading">Restore</string>
+    <string name="identity_privacy_restore">Restore reads the backup file you select and replaces the current wallet data. Choose a file you trust.</string>
+    <string name="identity_support_title">Support and FAQ</string>
+    <string name="identity_support_start_heading">Getting started</string>
+    <string name="identity_support_start">Install the app, choose a base currency, then add your first account. You can use the wallet offline.</string>
+    <string name="identity_support_backup_heading">Backup and restore</string>
+    <string name="identity_support_backup">In Settings, export a backup to a destination you choose. Keep a copy somewhere safe. Restore replaces the current wallet with the selected backup; check the file before confirming.</string>
+    <string name="identity_support_report_heading">Report a problem safely</string>
+    <string name="identity_support_report">Report a problem in this project\'s GitHub Issues at https://github.com/aristonis/MyWallet/issues or email aristonis@outlook.com. Include the installed version shown in About, steps to reproduce the issue, what happened, and what you expected. Do not post wallet backups or screenshots with personal financial details in a public issue.</string>
+</resources>
