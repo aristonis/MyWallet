@@ -69,6 +69,9 @@ class AccountFeeMappersTest {
     fun aNegativeStoredFeeValueIsReportedAsAnUnreadableRow() = assertUnreadable(row("FIXED", "-1"))
 
     @Test
+    fun aStoredPercentAboveOneHundredIsReportedAsAnUnreadableRow() = assertUnreadable(row("PERCENT", "150"))
+
+    @Test
     fun aFeeModeWithoutAValueIsReportedAsAnUnreadableRow() = assertUnreadable(row("FIXED", null))
 
     @Test

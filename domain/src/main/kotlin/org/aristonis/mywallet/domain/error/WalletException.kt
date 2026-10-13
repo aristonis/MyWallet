@@ -141,6 +141,10 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     /** A fee can be absent or zero, but never negative. */
     class FeeValueNegative(val fee: Money) : WalletException("Fee $fee must not be negative")
 
+    /** A percentage fee above 100 would charge more than the whole amount sent. */
+    class FeePercentAboveHundred(val percent: BigDecimal) :
+        WalletException("Fee of $percent% is above 100%")
+
     /** The rounded fee would consume the amount being sent. */
     class FeeNotBelowAmount(val sent: Money, val fee: Money) :
         WalletException("Fee $fee must be less than amount sent $sent")

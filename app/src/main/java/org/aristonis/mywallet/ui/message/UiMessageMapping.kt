@@ -43,6 +43,7 @@ fun WalletException.toUiMessage(): UiMessage = when (this) {
     is WalletException.DeductionSnapshotInvalid -> UiMessage.DeductionSnapshotInvalid
     is WalletException.FeeNotBelowAmount -> UiMessage.FeeNotBelowAmount
     is WalletException.FeeValueNegative -> UiMessage.FeeValueNegative
+    is WalletException.FeePercentAboveHundred -> UiMessage.FeePercentAboveHundred
     is WalletException.NameBlank -> UiMessage.NameBlank
     is WalletException.DebtNotFound -> UiMessage.DebtNotFound
     is WalletException.DebtSideMismatch -> UiMessage.DebtSideMismatch

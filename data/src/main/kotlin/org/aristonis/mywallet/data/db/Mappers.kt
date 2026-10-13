@@ -44,6 +44,8 @@ private fun AccountEntity.readDefaultFee(): FeeRule? {
         )
     } catch (e: IllegalArgumentException) {
         throw WalletException.UnreadableRow(id, ACCOUNT_KIND, e)
+    } catch (e: WalletException.FeePercentAboveHundred) {
+        throw WalletException.UnreadableRow(id, ACCOUNT_KIND, e)
     }
 }
 

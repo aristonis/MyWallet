@@ -18,16 +18,10 @@ import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.FeeRule
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.format.bidiIsolate
-import org.aristonis.mywallet.ui.message.RefusedInputException
-import org.aristonis.mywallet.ui.message.UiMessage
-import java.math.BigDecimal
-
-/** A percent fee above this would charge more than the whole amount sent. */
-private val MAX_FEE_PERCENT = BigDecimal(100)
 
 /**
- * Parses a locale-aware exact value; None or blank removes the default. Negative values and a percent
- * above [MAX_FEE_PERCENT] are refused here so a bad default never reaches a transfer.
+ * Parses a locale-aware exact value; None or blank removes the default. Negative values are refused
+ * here, and [FeeRule] refuses a percent above 100, so a bad default never reaches a transfer.
  */
 internal fun parseDefaultFee(mode: FeeMode?, input: String, currencyCode: String, parser: MoneyParser): FeeRule? {
     if (mode == null || input.isBlank()) return null
@@ -36,9 +30,6 @@ internal fun parseDefaultFee(mode: FeeMode?, input: String, currencyCode: String
     val parsed = parser.parseOpeningBalance(input, currencyCode)
     // A percent is not money, but the account currency is the only code the typed error can carry.
     if (parsed.isNegative) throw WalletException.FeeValueNegative(parsed)
-    if (mode == FeeMode.PERCENT && parsed.amount > MAX_FEE_PERCENT) {
-        throw RefusedInputException(UiMessage.FeePercentAboveHundred)
-    }
     return FeeRule(mode, parsed.amount)
 }
 
