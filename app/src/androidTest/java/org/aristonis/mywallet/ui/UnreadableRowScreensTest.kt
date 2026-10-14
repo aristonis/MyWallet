@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModel
@@ -100,6 +101,8 @@ class UnreadableRowScreensTest {
         compose.onNodeWithText(text(R.string.action_delete)).performClick()
         compose.onNodeWithText(text(R.string.action_delete)).performClick()
         compose.waitUntil(TIMEOUT_MS) { !room.unusedAccountExists() }
+        // The row leaves the screen when the next read arrives, a moment after the stored row is gone.
+        compose.waitUntil(TIMEOUT_MS) { compose.onAllNodesWithText("Unused").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithText("Unused").assertDoesNotExist()
     }
 

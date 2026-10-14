@@ -1,6 +1,8 @@
 package org.aristonis.mywallet.ui.navigation
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -29,15 +31,19 @@ class OfflineIdentityNavigationTest {
         }
 
         compose.onNodeWithText("Settings").performClick()
+        compose.onNode(hasText("About MyWallet") and hasClickAction()).performScrollTo().performClick()
         compose.onNodeWithText("Privacy information").performScrollTo().performClick()
         compose.onNodeWithText("Records on your device").assertIsDisplayed()
         pressBack()
-        assertSettingsRoot()
+        assertRoute(WalletTab.SETTINGS.child(Leaf.ABOUT))
 
         compose.onNodeWithText("Support and FAQ").performScrollTo().performClick()
         compose.onNodeWithText("Getting started").assertIsDisplayed()
         pressBack()
-        assertSettingsRoot()
+        assertRoute(WalletTab.SETTINGS.child(Leaf.ABOUT))
+
+        pressBack()
+        assertRoute(WalletTab.SETTINGS.rootRoute)
     }
 
     private fun pressBack() {
@@ -45,9 +51,9 @@ class OfflineIdentityNavigationTest {
         compose.waitForIdle()
     }
 
-    private fun assertSettingsRoot() {
+    private fun assertRoute(route: String) {
         compose.runOnUiThread {
-            assertEquals(WalletTab.SETTINGS.rootRoute, nav.currentDestination?.route)
+            assertEquals(route, nav.currentDestination?.route)
         }
     }
 }

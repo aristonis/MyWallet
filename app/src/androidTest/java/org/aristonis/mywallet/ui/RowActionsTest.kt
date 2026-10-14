@@ -103,13 +103,13 @@ class RowActionsTest {
 
     /** Deleting a used account would orphan its history, so the action is absent, not merely dimmed. */
     @Test
-    fun anAccountWithHistoryCannotBeDeletedAndSaysWhy() {
+    fun anAccountWithHistoryCannotBeDeletedButCanBeArchived() {
         showAccounts(account("Cash", hasTransactions = true))
 
-        compose.onNodeWithText("Has transactions — archive instead").assertIsDisplayed()
         openMenuFor("Cash")
 
         compose.onNodeWithText("Edit").assertIsDisplayed()
+        compose.onNodeWithText("Archive").assertIsDisplayed()
         compose.onNodeWithText("Delete").assertDoesNotExist()
     }
 
