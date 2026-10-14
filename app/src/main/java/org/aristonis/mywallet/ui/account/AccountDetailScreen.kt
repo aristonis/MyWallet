@@ -49,6 +49,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.components.EmptyState
+import org.aristonis.mywallet.ui.components.MetricCell
 import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.SectionHeader
 import org.aristonis.mywallet.ui.components.StatusCard
@@ -445,32 +446,6 @@ private fun CreditBlock(credit: CreditDetail, modifier: Modifier) {
                 modifier = Modifier.testTag(TAG_OVER_LIMIT),
                 iconDescription = stringResource(R.string.cd_warning),
             )
-        }
-    }
-}
-
-/** A labelled figure. A missing [value] shows [missingText] in words, never a zero amount. */
-@Composable
-private fun MetricCell(label: String, value: String?, missingText: String, modifier: Modifier) {
-    val dimensions = WalletTheme.dimensions
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(dimensions.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(dimensions.grid),
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (value != null) {
-                MoneyText(amount = value, style = MaterialTheme.typography.titleMedium)
-            } else {
-                Text(text = missingText, style = MaterialTheme.typography.titleMedium)
-            }
         }
     }
 }
