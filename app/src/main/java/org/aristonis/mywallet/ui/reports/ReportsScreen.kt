@@ -5,37 +5,34 @@ package org.aristonis.mywallet.ui.reports
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Card
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,13 +41,14 @@ import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.components.LoadFailedState
-import org.aristonis.mywallet.ui.components.MoneyText
+import org.aristonis.mywallet.ui.components.MetricCell
 import org.aristonis.mywallet.ui.components.StatusCard
 import org.aristonis.mywallet.ui.components.StatusTone
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.AmountRole
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.theme.amountColor
 import org.aristonis.mywallet.ui.window.DateRangeAction
 import org.aristonis.mywallet.ui.window.DateWindowActions
@@ -59,10 +57,11 @@ import org.aristonis.mywallet.ui.window.RefreshOnStart
 import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
 
-private val SCREEN_PADDING = 16.dp
-private val REGION_SPACING = 16.dp
-private val LINE_SPACING = 8.dp
-private const val LARGE_TEXT_SCALE = 1.8f
+/** The narrowest width, after the text scale, at which Income and Expenses each keep a full amount. */
+private val PAIR_ROW_MIN_WIDTH = 288.dp
+
+/** The longest figure, in characters, that still fits a pair cell at 360dp; longer ones stack. */
+private const val PAIR_ROW_MAX_FIGURE_CHARS = 15
 
 /**
  * Tracking: income / expense / net and both by-category breakdowns over a chosen span. Read-only.
@@ -71,7 +70,7 @@ private const val LARGE_TEXT_SCALE = 1.8f
  * chance to notice that midnight has passed, so "this month" never quietly turns into last month.
  */
 @Composable
-fun ReportsScreen(viewModel: ReportsViewModel = hiltViewModel()) {
+fun ReportsScreen(onManageRates: () -> Unit, viewModel: ReportsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     RefreshOnStart { viewModel.onScreenStart() }
     val exportState by viewModel.exportState.collectAsStateWithLifecycle()
@@ -89,6 +88,7 @@ fun ReportsScreen(viewModel: ReportsViewModel = hiltViewModel()) {
         }
     }
     ReportsContent(state = state, windowActions = viewModel.windowActions, onRetry = viewModel::retry,
+        onManageRates = onManageRates,
         exportState = exportState, onExport = viewModel::prepareExport,
         onExportResultShown = viewModel::consumeExportResult)
 }
@@ -108,6 +108,7 @@ internal fun ReportsContent(
     state: ReportsUiState,
     windowActions: DateWindowActions,
     onRetry: () -> Unit,
+    onManageRates: () -> Unit,
     exportState: ReportsExportState,
     onExport: () -> Unit,
     onExportResultShown: () -> Unit,
@@ -128,6 +129,7 @@ internal fun ReportsContent(
     val onToggle: (Long) -> Unit = remember(expanded) {
         { id -> expanded.value = if (id in expanded.value) expanded.value - id else expanded.value + id }
     }
+    val dimensions = WalletTheme.dimensions
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
@@ -147,9 +149,9 @@ internal fun ReportsContent(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(SCREEN_PADDING)
+                .padding(dimensions.screenPadding)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(REGION_SPACING),
+            verticalArrangement = Arrangement.spacedBy(dimensions.regionGap),
         ) {
             DateWindowBar(window = state.window, actions = windowActions)
 
@@ -161,13 +163,9 @@ internal fun ReportsContent(
             when (val data = state.data) {
                 ReportsData.Loading -> CircularProgressIndicator()
 
-                is ReportsData.MissingRate -> StatusCard(
-                    tone = StatusTone.WARNING,
-                    message = stringResource(R.string.reports_missing_rate, data.currencyCode),
-                    iconDescription = stringResource(R.string.cd_warning),
-                )
+                is ReportsData.MissingRate -> MissingRateNotice(data.currencyCode, onManageRates)
 
-                is ReportsData.Ready -> ReportList(
+                is ReportsData.Ready -> if (data.isEmpty) EmptyWindowNote() else ReportList(
                     data = data,
                     expandedIds = expanded.value,
                     onToggle = onToggle,
@@ -191,7 +189,7 @@ private fun ReportList(
     modifier: Modifier,
 ) {
     LazyColumn(modifier = modifier) {
-        item(key = "summary") { SummaryCard(data) }
+        item(key = "summary") { SummaryMetrics(data) }
         categorySection(
             section = CategorySection.EXPENSE,
             title = R.string.reports_spending_by_category,
@@ -212,92 +210,124 @@ private fun ReportList(
 }
 
 /**
- * Income, expense and net in one restrained block. Net sits below a divider because it is the
- * conclusion of the two lines above it, not a third item of the same kind.
+ * Income and expenses side by side, Net below them as the conclusion. When the width, after the
+ * text scale, cannot give each pair cell a full amount, all three stack so no figure is cut or wraps.
  */
 @Composable
-private fun SummaryCard(data: ReportsData.Ready) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(SCREEN_PADDING),
-            verticalArrangement = Arrangement.spacedBy(LINE_SPACING),
-        ) {
-            SummaryLine(stringResource(R.string.reports_income), data.incomeDisplay, amountColor(AmountRole.INCOME))
-            SummaryLine(stringResource(R.string.reports_expenses), data.expenseDisplay, amountColor(AmountRole.EXPENSE))
-            HorizontalDivider()
-            SummaryLine(
-                label = stringResource(R.string.reports_net),
-                amount = data.netDisplay,
-                amountColor = MaterialTheme.colorScheme.onSurface,
-                labelStyle = MaterialTheme.typography.titleMedium,
-            )
+private fun SummaryMetrics(data: ReportsData.Ready) {
+    val dimensions = WalletTheme.dimensions
+    val income = stringResource(R.string.reports_income)
+    val expenses = stringResource(R.string.reports_expenses)
+    val net = stringResource(R.string.reports_net)
+    val noFigure = ""
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val sideBySide = maxWidth / LocalDensity.current.fontScale >= PAIR_ROW_MIN_WIDTH &&
+            maxOf(data.incomeDisplay.length, data.expenseDisplay.length) <= PAIR_ROW_MAX_FIGURE_CHARS
+        Column(verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
+            if (sideBySide) {
+                Row(horizontalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
+                    MetricCell(income, data.incomeDisplay, noFigure, Modifier.weight(1f), amountColor(AmountRole.INCOME))
+                    MetricCell(expenses, data.expenseDisplay, noFigure, Modifier.weight(1f), amountColor(AmountRole.EXPENSE))
+                }
+            } else {
+                MetricCell(income, data.incomeDisplay, noFigure, Modifier.fillMaxWidth(), amountColor(AmountRole.INCOME))
+                MetricCell(expenses, data.expenseDisplay, noFigure, Modifier.fillMaxWidth(), amountColor(AmountRole.EXPENSE))
+            }
+            MetricCell(net, data.netDisplay, noFigure, Modifier.fillMaxWidth())
         }
     }
 }
 
+/** A rate the report needs is missing: say which, and offer the screen that fixes it. */
 @Composable
-private fun SummaryLine(
-    label: String,
-    amount: String,
-    amountColor: Color,
-    labelStyle: TextStyle = MaterialTheme.typography.bodyLarge,
-) {
-    if (LocalDensity.current.fontScale >= LARGE_TEXT_SCALE) {
-        // Give wide figures the full line: tight intrinsic width can clip glyph overhang at 2x text.
-        val amountAlignment = if (LocalLayoutDirection.current == LayoutDirection.Rtl) {
-            TextAlign.Start
-        } else {
-            TextAlign.End
-        }
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(label, style = labelStyle)
-            MoneyText(
-                amount,
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.titleMedium.copy(textAlign = amountAlignment),
-                color = amountColor,
-            )
-        }
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = labelStyle, modifier = Modifier.weight(1f))
-            MoneyText(amount, style = MaterialTheme.typography.titleMedium, color = amountColor)
+private fun MissingRateNotice(currencyCode: String, onManageRates: () -> Unit) {
+    val dimensions = WalletTheme.dimensions
+    Column(verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
+        StatusCard(
+            tone = StatusTone.WARNING,
+            message = stringResource(R.string.reports_missing_rate, currencyCode),
+            iconDescription = stringResource(R.string.cd_warning),
+        )
+        TextButton(onClick = onManageRates, modifier = Modifier.heightIn(min = dimensions.minTouchTarget)) {
+            Text(stringResource(R.string.tracking_manage_rates))
         }
     }
 }
 
-@Preview(showBackground = true)
+/** The window has no income and no spending: one note, not a zero summary over two empty lists. */
 @Composable
-private fun ReportsPreview() {
-    MyWalletTheme(dynamicColor = false) {
-        ReportsContent(
-            state = ReportsUiState(
-                window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 10)),
-                data = ReportsData.Ready(
-                    incomeDisplay = "2,000.00 USD",
-                    expenseDisplay = "1,275.50 USD",
-                    netDisplay = "724.50 USD",
-                    incomeCategories = listOf(
-                        CategoryRow(10, CategoryLabel.Named("Salary"), "2,000.00 USD", subCategories = emptyList()),
-                    ),
-                    expenseCategories = listOf(
-                        CategoryRow(
-                            1, CategoryLabel.Named("Food"), "620.00 USD",
-                            subCategories = listOf(
-                                SubCategoryRow(11, CategoryLabel.Named("Groceries"), "500.00 USD"),
-                                SubCategoryRow(null, CategoryLabel.NoSubCategory, "120.00 USD"),
-                            ),
-                        ),
-                        CategoryRow(2, CategoryLabel.Named("Transport"), "410.50 USD", subCategories = emptyList()),
-                        CategoryRow(3, CategoryLabel.Named("Other"), "245.00 USD", subCategories = emptyList()),
-                    ),
-                ),
+private fun EmptyWindowNote() {
+    val dimensions = WalletTheme.dimensions
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(dimensions.cornerMedium))
+            .padding(dimensions.cardPadding),
+        verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
+    ) {
+        Text(stringResource(R.string.tracking_empty_title), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.tracking_empty_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private val PREVIEW_WINDOW = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 10))
+
+private val PREVIEW_READY = ReportsData.Ready(
+    incomeDisplay = "2,000.00 USD",
+    expenseDisplay = "1,275.50 USD",
+    netDisplay = "724.50 USD",
+    incomeCategories = listOf(
+        CategoryRow(10, CategoryLabel.Named("Salary"), "2,000.00 USD", subCategories = emptyList()),
+    ),
+    expenseCategories = listOf(
+        CategoryRow(
+            1, CategoryLabel.Named("Food"), "620.00 USD",
+            subCategories = listOf(
+                SubCategoryRow(11, CategoryLabel.Named("Groceries"), "500.00 USD"),
+                SubCategoryRow(12, CategoryLabel.Named("Dining"), "100.00 USD"),
+                SubCategoryRow(null, CategoryLabel.NoSubCategory, "20.00 USD"),
             ),
+        ),
+        CategoryRow(2, CategoryLabel.Named("Transport"), "410.50 USD", subCategories = emptyList()),
+        CategoryRow(3, CategoryLabel.Named("Other"), "245.00 USD", subCategories = emptyList()),
+    ),
+)
+
+@Composable
+private fun PreviewScreen(data: ReportsData, dark: Boolean = false) {
+    MyWalletTheme(darkTheme = dark, dynamicColor = false) {
+        ReportsContent(
+            state = ReportsUiState(window = PREVIEW_WINDOW, data = data),
             windowActions = DateWindowActions.None,
             onRetry = {},
+            onManageRates = {},
             exportState = ReportsExportState.Idle,
             onExport = {},
             onExportResultShown = {},
         )
     }
 }
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 720)
+@Composable
+private fun ReportsPreview() = PreviewScreen(PREVIEW_READY)
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 720, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun ReportsDarkPreview() = PreviewScreen(PREVIEW_READY, dark = true)
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 720, fontScale = 2f)
+@Composable
+private fun ReportsLargeTextPreview() = PreviewScreen(PREVIEW_READY)
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 480)
+@Composable
+private fun ReportsEmptyPreview() = PreviewScreen(PREVIEW_READY.copy(incomeCategories = emptyList(), expenseCategories = emptyList()))
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 480)
+@Composable
+private fun ReportsMissingRatePreview() = PreviewScreen(ReportsData.MissingRate("EUR"))

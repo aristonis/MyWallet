@@ -62,6 +62,14 @@ data class CategoryRow(
      * remainder would open onto a copy of itself, so it offers no toggle.
      */
     val canExpand: Boolean get() = subCategories.any { it.id != null }
+
+    /** The first sub-categories by name, shown on the collapsed row. Never the unlabelled remainder. */
+    val previewParts: List<CategoryLabel>
+        get() = subCategories.filter { it.id != null }.take(PREVIEW_COUNT).map { it.label }
+
+    private companion object {
+        const val PREVIEW_COUNT = 2
+    }
 }
 
 /** One part of a category's total. A null [id] is the share recorded without a sub-category. */
@@ -81,7 +89,10 @@ sealed interface ReportsData {
         val netDisplay: String,
         val incomeCategories: List<CategoryRow>,
         val expenseCategories: List<CategoryRow>,
-    ) : ReportsData
+    ) : ReportsData {
+        /** Nothing was counted in the window: no category on either side. */
+        val isEmpty: Boolean get() = incomeCategories.isEmpty() && expenseCategories.isEmpty()
+    }
 }
 
 /** What the Tracking screen renders: the span it covers, and the numbers for that span. */

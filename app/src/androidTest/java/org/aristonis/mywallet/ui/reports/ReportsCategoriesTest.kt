@@ -1,5 +1,9 @@
 package org.aristonis.mywallet.ui.reports
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
@@ -27,6 +31,8 @@ import java.time.LocalDate
  * A category only opens when there is something finer to show. Offering to expand a row that holds
  * nothing but its own remainder would be a control that does nothing.
  */
+private val TALL_VIEWPORT = 2000.dp
+
 @RunWith(AndroidJUnit4::class)
 class ReportsCategoriesTest {
 
@@ -67,9 +73,12 @@ class ReportsCategoriesTest {
     private fun show(
         incomeCategories: List<CategoryRow> = listOf(salary),
         expenseCategories: List<CategoryRow> = listOf(food, transport),
+        tall: Boolean = false,
     ) {
         compose.setContent {
             MyWalletTheme(dynamicColor = false) {
+                // A tall box lays every row out, so an order check does not depend on the screen's height.
+                Box(if (tall) Modifier.requiredHeight(TALL_VIEWPORT) else Modifier) {
                 ReportsContent(
                     state = ReportsUiState(
                         window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 7, 15)),
@@ -83,10 +92,12 @@ class ReportsCategoriesTest {
                     ),
                     windowActions = DateWindowActions.None,
                     onRetry = {},
+                    onManageRates = {},
                     exportState = ReportsExportState.Idle,
                     onExport = {},
                     onExportResultShown = {},
                 )
+                }
             }
         }
     }
@@ -102,19 +113,17 @@ class ReportsCategoriesTest {
 
     @Test
     fun spendingSectionAppearsBeforeIncomeSection() {
-        show(incomeCategories = emptyList(), expenseCategories = emptyList())
+        show(tall = true)
 
-        val spending = compose.onNodeWithText("Spending by category").assertIsDisplayed()
-            .fetchSemanticsNode().boundsInRoot
-        val income = compose.onNodeWithText("Income by category").assertIsDisplayed()
-            .fetchSemanticsNode().boundsInRoot
+        val spending = compose.onNodeWithText("Spending by category").fetchSemanticsNode().boundsInRoot
+        val income = compose.onNodeWithText("Income by category").fetchSemanticsNode().boundsInRoot
         assertTrue("Spending should be shown above Income", spending.bottom <= income.top)
     }
 
     @Test
     fun aCategoryOpensToShowItsSubCategories() {
         show()
-        compose.onNodeWithText("Groceries").assertDoesNotExist()
+        compose.onNodeWithText("No sub-category").assertDoesNotExist()
 
         scrollTo(hasContentDescription("Sub-categories of Food")).performClick()
 

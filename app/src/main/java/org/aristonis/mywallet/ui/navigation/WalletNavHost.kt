@@ -272,7 +272,7 @@ private fun NavGraphBuilder.transactionsGraph(nav: NavHostController) {
 private fun NavGraphBuilder.trackingGraph(nav: NavHostController) {
     val tab = WalletTab.TRACKING
     navigation(startDestination = tab.rootRoute, route = tab.route) {
-        composable(tab.rootRoute) { ReportsScreen() }
+        composable(tab.rootRoute) { ReportsScreen(onManageRates = { nav.navigate(tab.child(Leaf.RATES)) }) }
         composable(tab.child(Leaf.RATES)) {
             ManageRatesScreen(onDone = { nav.popBackStack() })
         }

@@ -144,7 +144,7 @@ class UnreadableRowScreensTest {
         return Binding(vm, { vm.state.value.loadFailed }, { !vm.state.value.loadFailed &&
             vm.state.value.data !is org.aristonis.mywallet.ui.reports.ReportsData.Loading }) {
             val state by vm.state.collectAsState()
-            ReportsContent(state, vm.windowActions, vm::retry, ReportsExportState.Idle, {}, {})
+            ReportsContent(state, vm.windowActions, vm::retry, {}, ReportsExportState.Idle, {}, {})
         }
     }
 

@@ -1,13 +1,16 @@
 package org.aristonis.mywallet.ui.reports
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +30,7 @@ import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.SectionHeader
 import org.aristonis.mywallet.ui.components.WalletListRow
 import org.aristonis.mywallet.ui.icons.WalletIcons
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.text
 
 /** The expand toggle's footprint; rows without one keep the same gap so every amount lines up. */
@@ -37,6 +41,7 @@ private val SUB_ROW_START = 32.dp
 private val SUB_ROW_END = 16.dp
 private val SUB_ROW_VERTICAL = 8.dp
 private val SECTION_TOP = 16.dp
+private const val PREVIEW_SEPARATOR = " · "
 
 /** Which side of the ledger a list shows. Its prefix keeps the two sections' list keys apart. */
 internal enum class CategorySection(val keyPrefix: String) { INCOME("income"), EXPENSE("expense") }
@@ -47,11 +52,17 @@ internal val ExpandedIdsSaver = Saver<Set<Long>, LongArray>(
     restore = { it.toSet() },
 )
 
+/** One line of a section's grouped list: a category, or one part of an open category. */
+private sealed interface Line {
+    data class Parent(val row: CategoryRow, val isOpen: Boolean) : Line
+    data class Part(val parentId: Long, val sub: SubCategoryRow) : Line
+}
+
 /**
- * A titled by-category list inside the screen's scrolling column: the header, then each category,
- * then — for an open category — its parts directly below it. Each part is its own list item so a
- * long breakdown still scrolls lazily. [expandedIds] says which categories are open and [onToggle]
- * opens or closes one by id.
+ * A titled by-category list inside the screen's scrolling column: the header, then one rounded group
+ * holding each category and — for an open category — its parts directly below it, split by
+ * dividers. Each line is its own list item so a long breakdown still scrolls lazily. [expandedIds]
+ * says which categories are open and [onToggle] opens or closes one by id.
  */
 internal fun LazyListScope.categorySection(
     section: CategorySection,
@@ -67,23 +78,58 @@ internal fun LazyListScope.categorySection(
     if (rows.isEmpty()) {
         item(key = "${section.keyPrefix}-empty") { EmptyState(message = stringResource(emptyText)) }
     }
-    rows.forEach { row ->
-        val isExpanded = row.canExpand && row.id in expandedIds
-        item(key = "${section.keyPrefix}-${row.id}") {
-            CategoryLine(row = row, isExpanded = isExpanded, onToggle = { onToggle(row.id) })
+    val lines = rows.flatMap { row ->
+        val isOpen = row.canExpand && row.id in expandedIds
+        listOf<Line>(Line.Parent(row, isOpen)) + if (isOpen) row.subCategories.map { Line.Part(row.id, it) } else emptyList()
+    }
+    lines.forEachIndexed { index, line ->
+        val key = when (line) {
+            is Line.Parent -> "${section.keyPrefix}-${line.row.id}"
+            is Line.Part -> "${section.keyPrefix}-sub-${line.parentId}-${line.sub.id ?: "none"}"
         }
-        if (isExpanded) {
-            items(row.subCategories, key = { "${section.keyPrefix}-sub-${row.id}-${it.id ?: "none"}" }) { sub ->
-                SubCategoryLine(sub)
+        item(key = key) {
+            GroupedLine(isFirst = index == 0, isLast = index == lines.lastIndex) {
+                when (line) {
+                    is Line.Parent -> CategoryLine(line.row, line.isOpen, onToggle = { onToggle(line.row.id) })
+                    is Line.Part -> SubCategoryLine(line.sub)
+                }
             }
+        }
+    }
+}
+
+/** Gives a line the group's surface, rounded at the group's ends, with a divider to the next line. */
+@Composable
+private fun GroupedLine(isFirst: Boolean, isLast: Boolean, content: @Composable () -> Unit) {
+    val dimensions = WalletTheme.dimensions
+    val corner = dimensions.cornerMedium
+    val shape = RoundedCornerShape(
+        topStart = if (isFirst) corner else 0.dp,
+        topEnd = if (isFirst) corner else 0.dp,
+        bottomStart = if (isLast) corner else 0.dp,
+        bottomEnd = if (isLast) corner else 0.dp,
+    )
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, shape)) {
+        content()
+        if (!isLast) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = dimensions.cardPadding),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
         }
     }
 }
 
 @Composable
 private fun CategoryLine(row: CategoryRow, isExpanded: Boolean, onToggle: () -> Unit) {
+    val preview = if (isExpanded) {
+        null
+    } else {
+        row.previewParts.map { it.text() }.takeIf { it.isNotEmpty() }?.joinToString(PREVIEW_SEPARATOR)
+    }
     WalletListRow(
         headline = row.label.text(),
+        supporting = preview,
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MoneyText(row.totalDisplay, style = MaterialTheme.typography.titleMedium)

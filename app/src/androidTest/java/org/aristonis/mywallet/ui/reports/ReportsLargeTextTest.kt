@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
+import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.window.DateWindowActions
 import org.junit.Assert.assertFalse
@@ -51,11 +52,14 @@ class ReportsLargeTextTest {
                                     expenseDisplay = amounts[1],
                                     netDisplay = amounts[2],
                                     incomeCategories = emptyList(),
-                                    expenseCategories = emptyList(),
+                                    expenseCategories = listOf(
+                                        CategoryRow(1, CategoryLabel.Named("Food"), "5.00 KWD", subCategories = emptyList()),
+                                    ),
                                 ),
                             ),
                             windowActions = DateWindowActions.None,
                             onRetry = {},
+                            onManageRates = {},
                             exportState = ReportsExportState.Idle,
                             onExport = {},
                             onExportResultShown = {},

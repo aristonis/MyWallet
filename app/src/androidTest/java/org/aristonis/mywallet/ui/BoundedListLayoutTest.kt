@@ -232,6 +232,7 @@ class BoundedListLayoutTest {
                 ),
                 windowActions = DateWindowActions.None,
                 onRetry = {},
+                onManageRates = {},
                 exportState = ReportsExportState.Idle,
                 onExport = {},
                 onExportResultShown = {},

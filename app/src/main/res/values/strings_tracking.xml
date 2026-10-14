@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracking_manage_rates">Manage rates</string>
+    <string name="tracking_empty_title">Nothing to track in this period</string>
+    <string name="tracking_empty_hint">Choose another period or record a transaction.</string>
+</resources>
