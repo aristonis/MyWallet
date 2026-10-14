@@ -138,6 +138,12 @@ interface LedgerQueryDao {
     @Query(CATEGORY_LEGS_ALL_TIME_SQL)
     suspend fun readAllCategoryLegs(): List<CategoryLegRow>
 
+    @Query(NET_WORTH_ACCOUNT_LEGS_SQL)
+    fun observeAccountLegsAfter(after: LocalDate, limit: Int): Flow<List<DatedAccountLegRow>>
+
+    @Query(NET_WORTH_DEBT_LEGS_SQL)
+    fun observeDebtLegsAfter(after: LocalDate, limit: Int): Flow<List<DatedDebtLegRow>>
+
     @Query(CATEGORY_LEGS_SQL)
     fun observeCategoryLegs(start: LocalDate, end: LocalDate): Flow<List<CategoryLegRow>>
 
@@ -209,3 +215,28 @@ interface LedgerQueryDao {
     @Query("UPDATE entry_legs SET rateToBase = :rate WHERE id IN (:ids)")
     suspend fun setLegRate(ids: List<Long>, rate: String): Int
 }
+
+/** The columns of a dated leg read, by the names [DatedAccountLegRow] and [DatedDebtLegRow] expect. */
+private const val NET_WORTH_LEG_FROM =
+    "FROM entries AS e CROSS JOIN entry_legs AS l ON l.entryId = e.id "
+
+/**
+ * Account legs of entries dated after `:after`, at most `:limit`. The date index leads (`CROSS JOIN`
+ * keeps `entries` as the outer loop) and each entry finds its legs through the `(entryId, ...)`
+ * index, so the cost follows the window, not the whole history. The currency comes from the account
+ * row, as for the balance projection.
+ */
+internal const val NET_WORTH_ACCOUNT_LEGS_SQL =
+    "SELECT e.date AS date, l.accountId AS accountId, l.amount AS amount, a.currencyCode AS currencyCode " +
+        NET_WORTH_LEG_FROM + "JOIN accounts AS a ON a.id = l.accountId WHERE e.date > :after LIMIT :limit"
+
+/** Debt legs of entries dated after `:after`, at most `:limit`, read the same way. */
+internal const val NET_WORTH_DEBT_LEGS_SQL =
+    "SELECT e.date AS date, l.debtId AS debtId, l.amount AS amount, d.currencyCode AS currencyCode " +
+        NET_WORTH_LEG_FROM + "JOIN debts AS d ON d.id = l.debtId WHERE e.date > :after LIMIT :limit"
+
+/** One account leg with the date of its entry. */
+data class DatedAccountLegRow(val date: LocalDate, val accountId: Long, val amount: String, val currencyCode: String)
+
+/** One debt leg with the date of its entry. */
+data class DatedDebtLegRow(val date: LocalDate, val debtId: Long, val amount: String, val currencyCode: String)

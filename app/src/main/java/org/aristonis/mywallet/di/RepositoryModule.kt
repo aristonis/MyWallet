@@ -31,6 +31,7 @@ import org.aristonis.mywallet.data.repo.RoomDeductionItemRepository
 import org.aristonis.mywallet.data.repo.RoomEntryRepository
 import org.aristonis.mywallet.data.repo.RoomFxRepository
 import org.aristonis.mywallet.data.repo.RoomLedgerQueries
+import org.aristonis.mywallet.data.repo.RoomNetWorthLegReader
 import org.aristonis.mywallet.data.repo.RoomRateRepository
 import org.aristonis.mywallet.data.repo.RoomSettingsRepository
 import org.aristonis.mywallet.data.repo.RoomTransactionRunner
@@ -45,6 +46,7 @@ import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.DeductionItemRepository
 import org.aristonis.mywallet.domain.port.AccountEntryReader
+import org.aristonis.mywallet.domain.port.NetWorthLegReader
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
@@ -69,6 +71,9 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideLedgerQueries(dao: LedgerQueryDao): LedgerQueries = RoomLedgerQueries(dao)
+
+    @Provides @Singleton
+    fun provideNetWorthLegReader(dao: LedgerQueryDao): NetWorthLegReader = RoomNetWorthLegReader(dao)
 
     @Provides @Singleton
     fun provideCategoryRepository(dao: CategoryDao): CategoryRepository = RoomCategoryRepository(dao)

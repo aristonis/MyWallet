@@ -11,11 +11,13 @@ import org.aristonis.mywallet.domain.port.CategoryRoleRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
+import org.aristonis.mywallet.domain.port.NetWorthLegReader
 import org.aristonis.mywallet.domain.port.RateRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.port.TransactionRunner
 import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.ComputeHomeSummary
+import org.aristonis.mywallet.domain.usecase.ComputeNetWorthSeries
 import org.aristonis.mywallet.domain.usecase.CreateAccount
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.ExportBackup
@@ -135,6 +137,13 @@ object UseCaseModule {
         ledger: LedgerQueries,
         fx: FxRepository,
     ): ComputeCategoryBreakdown = ComputeCategoryBreakdown(ledger, fx)
+
+    @Provides @Singleton
+    fun provideComputeNetWorthSeries(
+        ledger: LedgerQueries,
+        legs: NetWorthLegReader,
+        fx: FxRepository,
+    ): ComputeNetWorthSeries = ComputeNetWorthSeries(ledger, legs, fx)
 
     @Provides @Singleton
     fun provideObserveLedgerHealth(ledger: LedgerQueries): ObserveLedgerHealth = ObserveLedgerHealth(ledger)

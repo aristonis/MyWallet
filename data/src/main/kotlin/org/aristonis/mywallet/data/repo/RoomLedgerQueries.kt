@@ -37,16 +37,8 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
         }
     }
 
-    /**
-     * Names the entry behind an account leg that does not parse. The balance projection carries no
-     * entry id, to stay inside its covering index, so the id is looked up here, only on this rare path.
-     */
-    private suspend fun unreadableAccountLeg(row: AccountLegRow, cause: IllegalArgumentException): Exception {
-        val owner = dao.findAccountLegOwner(row.accountId, row.amount)
-            // The leg went away between the two reads. The read still fails; Retry reads the table again.
-            ?: return IllegalStateException("an account leg on account ${row.accountId} could not be read", cause)
-        return WalletException.UnreadableRow(owner.id, owner.kind, cause)
-    }
+    private suspend fun unreadableAccountLeg(row: AccountLegRow, cause: IllegalArgumentException): Exception =
+        unreadableAccountLeg(dao, row.accountId, row.amount, cause)
 
     override fun observeDebtLegs(): Flow<List<DebtLeg>> = dao.observeDebtLegs().map { rows -> readDebtLegs(rows) }
 
@@ -65,12 +57,8 @@ class RoomLedgerQueries(private val dao: LedgerQueryDao) : LedgerQueries {
             }
         }
 
-    /** Names the entry behind a debt leg that cannot be read, looked up only on this rare path. */
-    private suspend fun unreadableDebtLeg(row: DebtLegRow, cause: IllegalArgumentException): Exception {
-        val owner = dao.findDebtLegOwner(row.debtId, row.amount)
-            ?: return IllegalStateException("a debt leg on debt ${row.debtId} could not be read", cause)
-        return WalletException.UnreadableRow(owner.id, owner.kind, cause)
-    }
+    private suspend fun unreadableDebtLeg(row: DebtLegRow, cause: IllegalArgumentException): Exception =
+        unreadableDebtLeg(dao, row.debtId, row.amount, cause)
 
     /** All time takes the legs-led read; any narrower range starts from the date index. */
     override fun observeCategoryLegs(range: DateRange): Flow<List<CategoryLeg>> {
@@ -123,4 +111,32 @@ internal fun CategoryLegRow.toCategoryLeg(): CategoryLeg = try {
 } catch (e: IllegalArgumentException) {
     // Covers NumberFormatException from the decimal parses as well as the checks above.
     throw WalletException.UnreadableRow(entryId, entryKind, e)
+}
+
+/**
+ * Names the entry behind an account leg that does not parse. The balance projection carries no entry
+ * id, to stay inside its covering index, so the id is looked up here, only on this rare path.
+ */
+internal suspend fun unreadableAccountLeg(
+    dao: LedgerQueryDao,
+    accountId: Long,
+    amount: String,
+    cause: IllegalArgumentException,
+): Exception {
+    val owner = dao.findAccountLegOwner(accountId, amount)
+        // The leg went away between the two reads. The read still fails; Retry reads the table again.
+        ?: return IllegalStateException("an account leg on account $accountId could not be read", cause)
+    return WalletException.UnreadableRow(owner.id, owner.kind, cause)
+}
+
+/** Names the entry behind a debt leg that cannot be read, looked up only on this rare path. */
+internal suspend fun unreadableDebtLeg(
+    dao: LedgerQueryDao,
+    debtId: Long,
+    amount: String,
+    cause: IllegalArgumentException,
+): Exception {
+    val owner = dao.findDebtLegOwner(debtId, amount)
+        ?: return IllegalStateException("a debt leg on debt $debtId could not be read", cause)
+    return WalletException.UnreadableRow(owner.id, owner.kind, cause)
 }
