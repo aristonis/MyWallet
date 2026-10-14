@@ -71,6 +71,7 @@ fun HomeScreen(
     onManageRates: () -> Unit,
     onSettings: () -> Unit,
     onDebts: () -> Unit,
+    onOpenAccount: (Long) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -82,6 +83,7 @@ fun HomeScreen(
         onManageRates = onManageRates,
         onSettings = onSettings,
         onDebts = onDebts,
+        onOpenAccount = onOpenAccount,
         onRetry = viewModel::retry,
     )
 }
@@ -97,6 +99,7 @@ internal fun HomeContent(
     onSettings: () -> Unit,
     onDebts: () -> Unit,
     onRetry: () -> Unit,
+    onOpenAccount: (Long) -> Unit = {},
 ) {
     val dimensions = WalletTheme.dimensions
     Scaffold(
@@ -188,7 +191,7 @@ internal fun HomeContent(
                         bottomEnd = if (isLast) dimensions.cornerMedium else 0.dp,
                     )
                     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, corners)) {
-                        AccountLedgerRow(row, onManageRates)
+                        AccountLedgerRow(row, onManageRates, onOpen = { onOpenAccount(row.account.id) })
                         if (!isLast) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(horizontal = dimensions.cardPadding),
@@ -264,7 +267,7 @@ private fun SummaryAmount(label: String, amount: String, onClick: (() -> Unit)? 
 }
 
 @Composable
-private fun AccountLedgerRow(row: AccountRow, onManageRates: () -> Unit) {
+private fun AccountLedgerRow(row: AccountRow, onManageRates: () -> Unit, onOpen: () -> Unit) {
     val base = row.base // local val so Kotlin can smart-cast after the null check
     val dimensions = WalletTheme.dimensions
     val textMeasurer = rememberTextMeasurer()
@@ -276,7 +279,7 @@ private fun AccountLedgerRow(row: AccountRow, onManageRates: () -> Unit) {
         val availableForAmount = maxWidth - dimensions.cardPadding * 2 - dimensions.iconSize -
             dimensions.iconContentGap - nameWidth.coerceAtMost(maxWidth / 2)
         val stack = maxWidth / density.fontScale < ACCOUNT_STACK_WIDTH || amountWidth > availableForAmount
-        Column(Modifier.fillMaxWidth().heightIn(min = 64.dp)
+        Column(Modifier.fillMaxWidth().clickable(onClickLabel = stringResource(R.string.account_detail_open), onClick = onOpen).heightIn(min = 64.dp)
             .padding(horizontal = dimensions.cardPadding, vertical = dimensions.relatedGap),
             verticalArrangement = Arrangement.spacedBy(dimensions.grid)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(dimensions.iconContentGap)) {

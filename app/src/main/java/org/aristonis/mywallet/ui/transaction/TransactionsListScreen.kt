@@ -72,7 +72,7 @@ import java.time.LocalDate
 @Composable
 fun TransactionsListScreen(
     onAddTransaction: () -> Unit,
-    onEditTransaction: (Long) -> Unit,
+    onOpenTransaction: (Long) -> Unit,
     viewModel: TransactionsListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -81,7 +81,7 @@ fun TransactionsListScreen(
         state = state,
         windowActions = viewModel.windowActions,
         onAddTransaction = onAddTransaction,
-        onEditTransaction = onEditTransaction,
+        onOpenTransaction = onOpenTransaction,
         onShowSavedEntry = viewModel::showSavedEntry,
         onSavedEntryMessageDone = viewModel::dismissSavedEntryMessage,
         onRetry = viewModel::retry,
@@ -103,7 +103,7 @@ internal fun TransactionsListContent(
     state: TransactionsUiState,
     windowActions: DateWindowActions,
     onAddTransaction: () -> Unit,
-    onEditTransaction: (Long) -> Unit,
+    onOpenTransaction: (Long) -> Unit,
     onShowSavedEntry: () -> Unit,
     onSavedEntryMessageDone: () -> Unit,
     onRetry: () -> Unit,
@@ -151,7 +151,7 @@ internal fun TransactionsListContent(
             TransactionsBody(
                 state = state,
                 listBottomPadding = dimensions.screenPadding,
-                onEditTransaction = onEditTransaction,
+                onOpenTransaction = onOpenTransaction,
                 onRetry = onRetry,
                 onLoadMore = onLoadMore,
             )
@@ -194,7 +194,7 @@ private fun SavedOutsideSnackbar(
 private fun TransactionsBody(
     state: TransactionsUiState,
     listBottomPadding: Dp,
-    onEditTransaction: (Long) -> Unit,
+    onOpenTransaction: (Long) -> Unit,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
@@ -231,7 +231,7 @@ private fun TransactionsBody(
             hasMore = state.hasMore,
             isLoadingMore = state.isLoadingMore,
             rowCount = state.rowCount,
-            onEditTransaction = onEditTransaction,
+            onOpenTransaction = onOpenTransaction,
             onLoadMore = onLoadMore,
         )
     }
@@ -250,7 +250,7 @@ private fun TransactionDays(
     hasMore: Boolean,
     isLoadingMore: Boolean,
     rowCount: Int,
-    onEditTransaction: (Long) -> Unit,
+    onOpenTransaction: (Long) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -281,7 +281,7 @@ private fun TransactionDays(
                     Modifier.fillMaxWidth().padding(horizontal = dimensions.screenPadding)
                         .background(MaterialTheme.colorScheme.surfaceContainer, corners),
                 ) {
-                    TransactionRowItem(row = row, onClick = { onEditTransaction(row.id) })
+                    TransactionRowItem(row = row, onClick = { onOpenTransaction(row.id) })
                     if (!isLast) {
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = dimensions.cardPadding),
@@ -399,7 +399,7 @@ private fun TransactionsListPreview(
             state = state,
             windowActions = DateWindowActions.None,
             onAddTransaction = {},
-            onEditTransaction = {},
+            onOpenTransaction = {},
             onShowSavedEntry = {},
             onSavedEntryMessageDone = {},
             onRetry = {},

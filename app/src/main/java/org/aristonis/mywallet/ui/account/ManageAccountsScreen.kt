@@ -55,6 +55,7 @@ fun ManageAccountsScreen(
     onDone: () -> Unit,
     onAddAccount: () -> Unit,
     onEditAccount: (Long) -> Unit,
+    onOpenAccount: (Long) -> Unit,
     viewModel: ManageAccountsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -65,6 +66,7 @@ fun ManageAccountsScreen(
         onUnarchive = viewModel::unarchive,
         onDelete = viewModel::delete,
         onEdit = onEditAccount,
+        onOpen = onOpenAccount,
         onAddAccount = onAddAccount,
         onDone = onDone,
         onRetry = viewModel::retry,
@@ -81,6 +83,7 @@ internal fun ManageAccountsContent(
     onAddAccount: () -> Unit,
     onDone: () -> Unit,
     onRetry: () -> Unit,
+    onOpen: (Long) -> Unit = {},
 ) {
     val dimensions = WalletTheme.dimensions
     // Deleting an account is destructive, so it goes through a confirm dialog keyed on the pending id.
@@ -157,6 +160,7 @@ internal fun ManageAccountsContent(
                             isFirst = index == 0,
                             isLast = index == active.lastIndex,
                             onEdit = { onEdit(row.account.id) },
+                            onOpen = { onOpen(row.account.id) },
                             onArchive = { onArchive(row.account.id) },
                             onUnarchive = { onUnarchive(row.account.id) },
                             onDeleteRequest = { pendingDelete = row },
@@ -178,6 +182,7 @@ internal fun ManageAccountsContent(
                             isFirst = index == 0,
                             isLast = index == archived.lastIndex,
                             onEdit = { onEdit(row.account.id) },
+                            onOpen = { onOpen(row.account.id) },
                             onArchive = { onArchive(row.account.id) },
                             onUnarchive = { onUnarchive(row.account.id) },
                             onDeleteRequest = { pendingDelete = row },

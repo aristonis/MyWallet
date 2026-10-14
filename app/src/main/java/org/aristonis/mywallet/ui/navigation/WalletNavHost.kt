@@ -18,6 +18,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import org.aristonis.mywallet.ui.account.AccountDetailScreen
 import org.aristonis.mywallet.ui.account.AddAccountScreen
 import org.aristonis.mywallet.ui.account.EditAccountScreen
 import org.aristonis.mywallet.ui.account.ManageAccountsScreen
@@ -38,6 +39,7 @@ import org.aristonis.mywallet.ui.deduction.DeductionsScreen
 import org.aristonis.mywallet.ui.deduction.DeductionEditorScreen
 import org.aristonis.mywallet.ui.transaction.AddTransactionScreen
 import org.aristonis.mywallet.ui.transaction.EditTransactionScreen
+import org.aristonis.mywallet.ui.transaction.TransactionDetailScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListViewModel
 
@@ -121,6 +123,38 @@ internal fun NavGraphBuilder.editorRoute(
     ) { entry -> content(entry.requireId()) }
 }
 
+/** Optional starting points of the add form: a debt side, an account, and the Pay card transfer. */
+private fun addTransactionArguments() = listOf(
+    navArgument(ARG_DEBT_SIDE) { type = NavType.StringType; defaultValue = "" },
+    navArgument(ARG_ACCOUNT_ID) { type = NavType.LongType; defaultValue = NO_ACCOUNT_ID },
+    navArgument(ARG_PAY_CARD) { type = NavType.BoolType; defaultValue = false },
+)
+
+/** The account page and everything it opens, so a tab that lists accounts can open it. */
+private fun NavGraphBuilder.accountDetailRoute(tab: WalletTab, nav: NavHostController) {
+    editorRoute(tab, Leaf.ACCOUNT_DETAIL) {
+        AccountDetailScreen(
+            onBack = { nav.popBackStack() },
+            onAddTransaction = { id -> nav.navigate(tab.addForAccountRoute(id)) },
+            onPayCard = { id -> nav.navigate(tab.payCardRoute(id)) },
+            onEditAccount = { id -> nav.navigate(tab.child(Leaf.EDIT_ACCOUNT, id)) },
+            onOpenEntry = { id -> nav.navigate(tab.child(Leaf.TRANSACTION_DETAIL, id)) },
+            onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
+        )
+    }
+}
+
+/** The read-only entry page; Edit opens the editor above it, and a delete closes the page. */
+private fun NavGraphBuilder.transactionDetailRoute(tab: WalletTab, nav: NavHostController) {
+    editorRoute(tab, Leaf.TRANSACTION_DETAIL) {
+        TransactionDetailScreen(
+            onBack = { nav.popBackStack() },
+            onEdit = { id -> nav.navigate(tab.child(Leaf.EDIT_TRANSACTION, id)) },
+            onDeleted = { nav.popBackStack() },
+        )
+    }
+}
+
 private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
     val tab = WalletTab.HOME
     navigation(startDestination = tab.rootRoute, route = tab.route) {
@@ -132,13 +166,14 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
                 onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
                 onSettings = { nav.switchTab(WalletTab.SETTINGS) },
                 onDebts = { nav.navigate(tab.child(Leaf.DEBTS)) },
+                onOpenAccount = { id -> nav.navigate(tab.child(Leaf.ACCOUNT_DETAIL, id)) },
             )
         }
         // Home shows every date, so a saved entry is always in view; outside the Transactions graph the
         // hand-back only pops.
         composable(
             route = tab.addTransactionPattern(),
-            arguments = listOf(navArgument(ARG_DEBT_SIDE) { type = NavType.StringType; defaultValue = "" }),
+            arguments = addTransactionArguments(),
         ) {
             AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) })
         }
@@ -150,11 +185,14 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
                 onDone = { nav.popBackStack() },
                 onAddAccount = { nav.navigate(tab.child(Leaf.ADD_ACCOUNT)) },
                 onEditAccount = { id -> nav.navigate(tab.child(Leaf.EDIT_ACCOUNT, id)) },
+                onOpenAccount = { id -> nav.navigate(tab.child(Leaf.ACCOUNT_DETAIL, id)) },
             )
         }
         editorRoute(tab, Leaf.EDIT_ACCOUNT) { id ->
             EditAccountScreen(accountId = id, onDone = { nav.popBackStack() })
         }
+        accountDetailRoute(tab, nav)
+        transactionDetailRoute(tab, nav)
         composable(tab.child(Leaf.RATES)) {
             ManageRatesScreen(onDone = { nav.popBackStack() })
         }
@@ -213,7 +251,7 @@ private fun NavGraphBuilder.transactionsGraph(nav: NavHostController) {
             SavedDateEffect(entry, viewModel::onEntrySaved)
             TransactionsListScreen(
                 onAddTransaction = { nav.navigate(tab.child(Leaf.ADD_TRANSACTION)) },
-                onEditTransaction = { id -> nav.navigate(tab.child(Leaf.EDIT_TRANSACTION, id)) },
+                onOpenTransaction = { id -> nav.navigate(tab.child(Leaf.TRANSACTION_DETAIL, id)) },
                 viewModel = viewModel,
             )
         }
@@ -227,6 +265,7 @@ private fun NavGraphBuilder.transactionsGraph(nav: NavHostController) {
                 onSaved = { date -> nav.returnSavedDate(date) },
             )
         }
+        transactionDetailRoute(tab, nav)
     }
 }
 
@@ -258,10 +297,24 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
                 onDone = { nav.popBackStack() },
                 onAddAccount = { nav.navigate(tab.child(Leaf.ADD_ACCOUNT)) },
                 onEditAccount = { id -> nav.navigate(tab.child(Leaf.EDIT_ACCOUNT, id)) },
+                onOpenAccount = { id -> nav.navigate(tab.child(Leaf.ACCOUNT_DETAIL, id)) },
             )
         }
         editorRoute(tab, Leaf.EDIT_ACCOUNT) { id ->
             EditAccountScreen(accountId = id, onDone = { nav.popBackStack() })
+        }
+        accountDetailRoute(tab, nav)
+        transactionDetailRoute(tab, nav)
+        // Reached from an account's page, which can start an entry for that account.
+        composable(route = tab.addTransactionPattern(), arguments = addTransactionArguments()) {
+            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) })
+        }
+        editorRoute(tab, Leaf.EDIT_TRANSACTION) { id ->
+            EditTransactionScreen(
+                transactionId = id,
+                onDone = { nav.popBackStack() },
+                onSaved = { date -> nav.returnSavedDate(date) },
+            )
         }
         composable(tab.child(Leaf.ADD_ACCOUNT)) {
             AddAccountScreen(onDone = { nav.popBackStack() })

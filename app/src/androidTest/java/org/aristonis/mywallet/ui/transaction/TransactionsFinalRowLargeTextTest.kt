@@ -70,7 +70,7 @@ class TransactionsFinalRowLargeTextTest {
                             ),
                             windowActions = DateWindowActions.None,
                             onAddTransaction = {},
-                            onEditTransaction = { edited = it },
+                            onOpenTransaction = { edited = it },
                             onShowSavedEntry = {},
                             onSavedEntryMessageDone = {},
                             onRetry = {},

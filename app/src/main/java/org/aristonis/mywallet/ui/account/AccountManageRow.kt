@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.account
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -41,6 +43,7 @@ internal fun AccountManageRow(
     onArchive: () -> Unit,
     onUnarchive: () -> Unit,
     onDeleteRequest: () -> Unit,
+    onOpen: () -> Unit,
 ) {
     val dimensions = WalletTheme.dimensions
     val radius = dimensions.cornerMedium
@@ -62,7 +65,9 @@ internal fun AccountManageRow(
         dimensions.relatedGap - amountWidth
     val stacked = density.fontScale >= 1.5f || remainingNameWidth < dimensions.minTouchTarget * 2
     Card(
-        modifier = Modifier.fillMaxWidth().testTag("account-row-${row.account.id}"),
+        // Clipped to the card's shape first, so the tap ripple stops at the rounded corners.
+        modifier = Modifier.fillMaxWidth().testTag("account-row-${row.account.id}").clip(shape)
+            .clickable(onClickLabel = stringResource(R.string.account_detail_open), onClick = onOpen),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {

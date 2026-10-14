@@ -186,8 +186,9 @@ class HomeScreenTest {
             }
         }
 
-        val nameBounds = compose.onNodeWithText(name).performScrollTo().getBoundsInRoot()
-        val amountBounds = compose.onNodeWithText(amount).getBoundsInRoot()
+        // The account row is one tappable item, so its texts only have their own bounds unmerged.
+        val nameBounds = compose.onNodeWithText(name, useUnmergedTree = true).performScrollTo().getBoundsInRoot()
+        val amountBounds = compose.onNodeWithText(amount, useUnmergedTree = true).getBoundsInRoot()
         assertTrue("The full balance should use a line below the account name",
             amountBounds.top >= nameBounds.bottom)
     }
