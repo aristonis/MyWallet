@@ -44,6 +44,7 @@ import org.aristonis.mywallet.domain.port.CsvExportSource
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.DeductionItemRepository
+import org.aristonis.mywallet.domain.port.AccountEntryReader
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.FxRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
@@ -62,6 +63,9 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideEntryRepository(db: WalletDatabase, dao: EntryDao): EntryRepository = RoomEntryRepository(db, dao)
+
+    @Provides @Singleton
+    fun provideAccountEntryReader(entries: EntryRepository): AccountEntryReader = entries as AccountEntryReader
 
     @Provides @Singleton
     fun provideLedgerQueries(dao: LedgerQueryDao): LedgerQueries = RoomLedgerQueries(dao)
