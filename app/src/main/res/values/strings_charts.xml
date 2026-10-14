@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tracking entry points -->
+    <string name="tracking_open_spending_breakdown">Spending breakdown</string>
+    <string name="tracking_open_spending_breakdown_hint">Expense categories as a chart and a table</string>
+    <string name="tracking_open_net_worth">Net worth</string>
+    <string name="tracking_open_net_worth_hint">Restated balances as a line and a table</string>
+
+    <!-- Shared by the chart screens -->
+    <string name="chart_parts_separator">" · "</string>
+    <string name="chart_updating">Updating for the selected dates</string>
+
+    <!-- Spending breakdown -->
+    <string name="spending_title">Spending breakdown</string>
+    <string name="spending_heading">Spending · %1$s</string>
+    <string name="spending_caption">Selected period</string>
+    <string name="spending_chart_title">Category chart</string>
+    <string name="spending_table_title">Exact category amounts</string>
+    <plurals name="spending_chart_description">
+        <item quantity="one">Bar chart of %1$d spending category: %2$s, %3$s. Exact amounts are in the table below.</item>
+        <item quantity="other">Bar chart of %1$d spending categories. Largest: %2$s, %3$s. Exact amounts are in the table below.</item>
+    </plurals>
+    <string name="spending_empty">No spending categories. No category share is drawn for this window.</string>
+    <string name="spending_refund_note">Refunds in this window. A category with a negative net amount is a refund effect and gets no bar.</string>
+    <string name="spending_refund_row">Net after refund</string>
+    <string name="spending_missing_rate">Converted breakdown unavailable. Set an exchange rate for %1$s to see a reliable breakdown.</string>
+    <string name="spending_unavailable">Breakdown unavailable. No partial chart or total is shown.</string>
+    <string name="spending_loading">Loading spending</string>
+
+    <!-- Net worth -->
+    <string name="net_worth_title">Net worth</string>
+    <string name="net_worth_heading">Net worth · %1$s</string>
+    <string name="net_worth_restated">Restated from current records at current rates</string>
+    <string name="net_worth_restatement_label">Current-ledger restatement at current rates</string>
+    <string name="net_worth_restatement_note">This is not a record of past balances. Earlier points change when entries, opening balances, archived accounts or rates change.</string>
+    <string name="net_worth_chart_title">Restated balance line</string>
+    <string name="net_worth_table_title">Exact restated balances</string>
+    <string name="net_worth_row_label">Restated balance</string>
+    <string name="net_worth_chart_description">Line chart of restated net worth from %1$s, %2$s, to %3$s, %4$s. Lowest %5$s, highest %6$s. %7$s Exact balances are in the table below.</string>
+    <string name="net_worth_trend_up">It ends higher than it starts.</string>
+    <string name="net_worth_trend_down">It ends lower than it starts.</string>
+    <string name="net_worth_trend_flat">It ends where it starts.</string>
+    <string name="net_worth_trend_up_crossing_zero">It ends higher than it starts and crosses zero.</string>
+    <string name="net_worth_trend_down_crossing_zero">It ends lower than it starts and crosses zero.</string>
+    <string name="net_worth_trend_flat_crossing_zero">It ends where it starts and crosses zero.</string>
+    <string name="net_worth_label_highest">Highest %1$s</string>
+    <string name="net_worth_label_lowest">Lowest %1$s</string>
+    <string name="net_worth_no_trend">No trend available. %1$s</string>
+    <string name="net_worth_reason_too_few_points">There are too few restated balance points in this window for a line.</string>
+    <string name="net_worth_reason_start_too_old">A line is drawn only for a window that starts within the last 12 months.</string>
+    <string name="net_worth_current_balance">Current balance</string>
+    <string name="net_worth_missing_rate">Converted balance unavailable. A rate for %1$s is missing for this date window.</string>
+    <string name="net_worth_too_many_records">Balance history unavailable. This window has too many records to restate, so no line or partial table is shown. Choose a window that starts later.</string>
+    <string name="net_worth_unavailable">Balances unavailable. No chart or partial total is shown.</string>
+    <string name="net_worth_loading">Loading balances</string>
+</resources>
