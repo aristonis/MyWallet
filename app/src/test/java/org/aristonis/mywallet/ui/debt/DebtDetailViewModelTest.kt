@@ -45,6 +45,9 @@ class DebtDetailViewModelTest {
             assertEquals("Ali", vm.state.value.counterpartyInput)
             assertEquals(screenDay, vm.state.value.dueDate)
             assertEquals("rent", vm.state.value.noteInput)
+            assertEquals("20.00 USD", vm.state.value.originalDisplay)
+            assertEquals("0.00 USD", vm.state.value.repaidDisplay)
+            assertEquals("0.00 USD", vm.state.value.writtenOffDisplay)
         } finally {
             ownedViewModels.forEach { it.viewModelScope.cancel() }
         }

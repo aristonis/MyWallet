@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +20,7 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Settings
@@ -26,6 +28,7 @@ import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
 import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.navigation.ARG_DEBT_SIDE
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -68,6 +71,7 @@ class AddTransactionViewModelTest {
         rates: List<ExchangeRate> = emptyList(),
         base: String = "USD",
         today: () -> LocalDate = { LocalDate.of(2026, 7, 3) },
+        initialDebtSide: DebtSide? = null,
     ) {
         val accountRepo = FakeAccountRepository(accounts)
         val categoryRepo = FakeCategoryRepository(categories)
@@ -88,6 +92,7 @@ class AddTransactionViewModelTest {
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
             deductionItems = FakeDeductionItemRepository(),
             categoryRoles = FakeFormRoles(),
+            savedStateHandle = SavedStateHandle(initialDebtSide?.let { mapOf(ARG_DEBT_SIDE to it.name) } ?: emptyMap()),
         )
 
         /** Everything the save stored. */
@@ -95,6 +100,21 @@ class AddTransactionViewModelTest {
 
         suspend fun balanceOf(accountId: Long): Money =
             balances().first().first { it.account.id == accountId }.balance
+    }
+
+    @Test
+    fun debtAddStartsInTheSideSelectedOnTheDebtListAndKeepsOwnerChanges() = runTest {
+        val owing = Fixture(accounts = listOf(account(1, "USD")), initialDebtSide = DebtSide.I_OWE)
+        val receivable = Fixture(accounts = listOf(account(2, "USD")), initialDebtSide = DebtSide.OWED_TO_ME)
+
+        assertEquals(TransactionType.BORROW, owing.viewModel.state.value.type)
+        assertEquals(DebtSide.I_OWE, owing.viewModel.state.value.debtSide)
+        assertEquals(TransactionType.LEND, receivable.viewModel.state.value.type)
+        assertEquals(DebtSide.OWED_TO_ME, receivable.viewModel.state.value.debtSide)
+
+        receivable.viewModel.selectType(TransactionType.INCOME)
+        advanceUntilIdle()
+        assertEquals(TransactionType.INCOME, receivable.viewModel.state.value.type)
     }
 
     /** The account legs of whatever the entry store holds, for the balance probe; nothing else is read. */

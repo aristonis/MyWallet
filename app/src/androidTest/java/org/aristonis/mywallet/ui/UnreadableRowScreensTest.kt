@@ -149,7 +149,7 @@ class UnreadableRowScreensTest {
         val vm = room.debts()
         return Binding(vm, { vm.state.value.loadFailed }, { !vm.state.value.isLoading && !vm.state.value.loadFailed }) {
             val state by vm.state.collectAsState()
-            DebtsContent(state, {}, {}, {}, vm::selectSide, vm::retry)
+            DebtsContent(state, {}, {}, {}, vm::selectSide, vm::retry, {})
         }
     }
 

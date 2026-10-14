@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.domain.model.Debt
+import org.aristonis.mywallet.domain.model.DebtAmounts
 import org.aristonis.mywallet.domain.model.DebtDetail
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.DebtState
@@ -27,7 +28,8 @@ class DebtDetailActionsTest {
     private val debt = Debt(1, "Ali", DebtSide.I_OWE, "USD")
     private fun state(amount: String, submitting: Boolean = false) = DebtDetailUiState(
         detail = DebtDetail(DebtSummary(debt, Money.of(amount, "USD"),
-            if (amount == "0") DebtState.SETTLED else DebtState.OPEN), emptyList()),
+            if (amount == "0") DebtState.SETTLED else DebtState.OPEN), emptyList(),
+            DebtAmounts(Money.of(amount, "USD"), Money.zero("USD"), Money.zero("USD"))),
         counterpartyInput = "Ali", remainingDisplay = "$amount.00 USD", isLoading = false, isSubmitting = submitting)
 
     @Test fun anOpenDebtOffersWriteOffThroughItsActualActionCallback() {

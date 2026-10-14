@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.domain.model.Debt
+import org.aristonis.mywallet.domain.model.DebtAmounts
 import org.aristonis.mywallet.domain.model.DebtDetail
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.DebtState
@@ -24,7 +25,8 @@ class RecordRepaymentScreenTest {
     @get:Rule val compose = createComposeRule()
     private val debt = Debt(1, "Ali", DebtSide.I_OWE, "USD")
     private val loaded = RecordRepaymentUiState(
-        debt = DebtDetail(DebtSummary(debt, Money.of("10", "USD"), DebtState.OPEN), emptyList()),
+        debt = DebtDetail(DebtSummary(debt, Money.of("10", "USD"), DebtState.OPEN), emptyList(),
+            DebtAmounts(Money.of("10", "USD"), Money.zero("USD"), Money.zero("USD"))),
         date = LocalDate.of(2026, 10, 12),
         isLoading = false,
     )
@@ -47,7 +49,7 @@ class RecordRepaymentScreenTest {
 
         compose.onNodeWithText("Open entry").assertDoesNotExist()
         compose.onNodeWithText("Edit repayment").assertDoesNotExist()
-        compose.onNodeWithText("Save repayment").assertIsDisplayed()
+        compose.onNodeWithText("Save repayment").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun editModeOffersOpenEntryWithTheRepaymentIdAndTheEditWording() {
@@ -63,6 +65,8 @@ class RecordRepaymentScreenTest {
     @Test fun theRemainingAndAccountMovesLinesAreShown() {
         show(loaded.copy(remainingDisplay = "10.00 USD", accountMovesDisplay = "76.93 EUR"))
 
+        compose.onNodeWithText("Ali", substring = true).assertExists()
+        compose.onNodeWithText("Account movement preview").assertExists()
         // The amount is bidi-isolated inside its sentence, so match the amount itself.
         compose.onNodeWithText("10.00 USD", substring = true).assertExists()
         compose.onNodeWithText("76.93 EUR", substring = true).assertExists()

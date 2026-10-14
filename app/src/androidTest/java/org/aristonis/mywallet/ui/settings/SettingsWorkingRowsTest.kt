@@ -50,8 +50,6 @@ class SettingsWorkingRowsTest {
                     onManageRates = {},
                     onChangeBaseCurrency = {},
                     onAbout = {},
-                    onPrivacy = {},
-                    onSupport = {},
                 )
             }
         }

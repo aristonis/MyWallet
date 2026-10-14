@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.navigation
 
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,6 +11,18 @@ import org.junit.Test
  * the tab you actually came from, and what lets a tab keep its own history while you visit another.
  */
 class WalletRoutesTest {
+
+    @Test
+    fun `debt add routes carry the selected side through the back stack`() {
+        val tab = WalletTab.HOME
+        val pattern = tab.addTransactionPattern()
+
+        assertEquals("home/addTransaction?$ARG_DEBT_SIDE={$ARG_DEBT_SIDE}", pattern)
+        assertEquals("home/addTransaction?debtSide=I_OWE", tab.addDebtRoute(DebtSide.I_OWE))
+        assertEquals("home/addTransaction?debtSide=OWED_TO_ME", tab.addDebtRoute(DebtSide.OWED_TO_ME))
+        assertEquals("home/addTransaction", tab.child(Leaf.ADD_TRANSACTION))
+        assertTrue(!showsNavigationBar(tab.addDebtRoute(DebtSide.I_OWE)))
+    }
 
     @Test
     fun deductionsListAndEditorsHideNavigation() {

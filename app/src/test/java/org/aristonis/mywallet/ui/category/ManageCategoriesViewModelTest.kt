@@ -161,6 +161,7 @@ class ManageCategoriesViewModelTest {
     fun createAddsATopLevelCategory() = runTest(dispatcher) {
         val repo = FakeManageCategoryRepository(listOf(food))
         val vm = viewModel(repo)
+        dispatcher.scheduler.advanceUntilIdle()
         vm.create("Transport", CategoryKind.EXPENSE, parentId = null)
         dispatcher.scheduler.advanceUntilIdle()
 
@@ -171,6 +172,7 @@ class ManageCategoriesViewModelTest {
     fun createAddsASubCategoryUnderItsParent() = runTest(dispatcher) {
         val repo = FakeManageCategoryRepository(listOf(food))
         val vm = viewModel(repo)
+        dispatcher.scheduler.advanceUntilIdle()
         vm.create("Snacks", CategoryKind.EXPENSE, parentId = food.id)
         dispatcher.scheduler.advanceUntilIdle()
 
@@ -181,6 +183,7 @@ class ManageCategoriesViewModelTest {
     fun aDuplicateNameSurfacesAsAnErrorRatherThanCrashing() = runTest(dispatcher) {
         val repo = FakeManageCategoryRepository(listOf(food))
         val vm = viewModel(repo)
+        dispatcher.scheduler.advanceUntilIdle()
         vm.create("Food", CategoryKind.EXPENSE, parentId = null)
         dispatcher.scheduler.advanceUntilIdle()
 
@@ -192,10 +195,35 @@ class ManageCategoriesViewModelTest {
     fun renameChangesTheName() = runTest(dispatcher) {
         val repo = FakeManageCategoryRepository(listOf(food))
         val vm = viewModel(repo)
+        dispatcher.scheduler.advanceUntilIdle()
         vm.rename(food.id, "Groceries & dining")
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("Groceries & dining", repo.stored.single().name)
+    }
+
+    @Test
+    fun nameWritesWaitForAHealthyCategoryRead() = runTest(dispatcher) {
+        val loadingRepo = FakeManageCategoryRepository(listOf(food)).apply { hangsAfterFailures = true }
+        val loading = viewModel(loadingRepo)
+        loading.create("Transport", CategoryKind.EXPENSE, null)
+        loading.rename(food.id, "Meals")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(loading.state.value.isLoading)
+        assertEquals(listOf(food), loadingRepo.stored)
+        assertEquals(0L, loading.state.value.completedNameActions)
+
+        val failedRepo = FakeManageCategoryRepository(listOf(food)).apply { failedReadsLeft = 1 }
+        val failed = viewModel(failedRepo)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(failed.state.value.loadFailed)
+        failed.create("Transport", CategoryKind.EXPENSE, null)
+        failed.rename(food.id, "Meals")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(food), failedRepo.stored)
+        assertEquals(0L, failed.state.value.completedNameActions)
     }
 
     @Test

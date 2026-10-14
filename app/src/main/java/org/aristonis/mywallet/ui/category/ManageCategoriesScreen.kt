@@ -1,23 +1,28 @@
 package org.aristonis.mywallet.ui.category
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.listSaver
@@ -43,6 +48,7 @@ import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.label
 import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.theme.WalletTheme
 
 @Composable
 private fun ManageCategoryRow.labelText(): String = category.label().text()
@@ -137,6 +143,19 @@ internal fun ManageCategoriesContent(
 ) {
     // Saved across recreation so a rotation mid-edit does not silently drop what was being typed.
     var prompt by rememberSaveable(stateSaver = CategoryPromptSaver) { mutableStateOf<CategoryPrompt?>(null) }
+    var submittedAt by rememberSaveable { mutableStateOf<Long?>(null) }
+    var submittedSession by rememberSaveable { mutableStateOf<String?>(null) }
+    val canNameSubmit = !state.isLoading && !state.loadFailed && !state.isWorking
+    LaunchedEffect(state.sessionToken, state.completedNameActions, submittedAt, submittedSession) {
+        if (submittedSession != null && submittedSession != state.sessionToken) {
+            submittedAt = null
+            submittedSession = null
+        } else if (submittedAt != null && state.completedNameActions > submittedAt!!) {
+            prompt = null
+            submittedAt = null
+            submittedSession = null
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -144,10 +163,10 @@ internal fun ManageCategoriesContent(
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(WalletTheme.dimensions.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.regionGap),
         ) {
-            state.error?.let { message ->
+            state.error?.takeUnless { prompt is CategoryPrompt.Add || prompt is CategoryPrompt.Rename }?.let { message ->
                 Text(
                     message.text(),
                     color = MaterialTheme.colorScheme.error,
@@ -169,21 +188,21 @@ internal fun ManageCategoriesContent(
                 return@Column
             }
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap), modifier = Modifier.weight(1f)) {
                 categorySection(
                     heading = R.string.categories_expense,
                     emptyMessage = R.string.categories_expense_empty,
                     kind = CategoryKind.EXPENSE,
                     rows = state.expense,
                     affectedByChild = affectedByChild,
-                ) { prompt = it }
+                ) { onAcknowledge(); prompt = it }
                 categorySection(
                     heading = R.string.categories_income,
                     emptyMessage = R.string.categories_income_empty,
                     kind = CategoryKind.INCOME,
                     rows = state.income,
                     affectedByChild = affectedByChild,
-                ) { prompt = it }
+                ) { onAcknowledge(); prompt = it }
             }
         }
     }
@@ -195,23 +214,37 @@ internal fun ManageCategoriesContent(
                 ?: stringResource(R.string.category_new),
             initial = "",
             confirmLabel = stringResource(R.string.action_add),
+            error = state.error?.text(),
+            isWorking = state.isWorking,
+            canSubmit = canNameSubmit,
+            onInputChange = onAcknowledge,
             onConfirm = { name ->
-                onAcknowledge()
-                onCreate(name, current.kind, current.parentId)
-                prompt = null
+                if (canNameSubmit) {
+                    onAcknowledge()
+                    submittedAt = state.completedNameActions
+                    submittedSession = state.sessionToken
+                    onCreate(name, current.kind, current.parentId)
+                }
             },
-            onDismiss = { prompt = null },
+            onDismiss = { prompt = null; submittedAt = null; submittedSession = null },
         )
         is CategoryPrompt.Rename -> NamePromptDialog(
             title = stringResource(R.string.category_rename_title),
             initial = current.current,
             confirmLabel = stringResource(R.string.action_save),
+            error = state.error?.text(),
+            isWorking = state.isWorking,
+            canSubmit = canNameSubmit,
+            onInputChange = onAcknowledge,
             onConfirm = { name ->
-                onAcknowledge()
-                onRename(current.id, name)
-                prompt = null
+                if (canNameSubmit) {
+                    onAcknowledge()
+                    submittedAt = state.completedNameActions
+                    submittedSession = state.sessionToken
+                    onRename(current.id, name)
+                }
             },
-            onDismiss = { prompt = null },
+            onDismiss = { prompt = null; submittedAt = null; submittedSession = null },
         )
         is CategoryPrompt.Delete -> AlertDialog(
             onDismissRequest = { prompt = null },
@@ -222,7 +255,7 @@ internal fun ManageCategoriesContent(
                     onAcknowledge()
                     onDelete(current.id)
                     prompt = null
-                }) { Text(stringResource(R.string.action_delete)) }
+                }, enabled = !state.isWorking && !state.loadFailed) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
                 TextButton(onClick = { prompt = null }) { Text(stringResource(R.string.action_cancel)) }
@@ -279,12 +312,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.categorySection(
 ) {
     item(key = "heading-$kind") {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = WalletTheme.dimensions.sectionGap),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(stringResource(heading), style = MaterialTheme.typography.titleMedium)
-            TextButton(onClick = { onPrompt(CategoryPrompt.Add(kind, null, null)) }) {
+            TextButton(onClick = { onPrompt(CategoryPrompt.Add(kind, null, null)) },
+                modifier = Modifier.heightIn(min = WalletTheme.dimensions.minTouchTarget)) {
                 Text(stringResource(R.string.action_add))
             }
         }
@@ -307,15 +341,21 @@ private fun CategoryCard(
 ) {
     // Resolved once, in composition: the click handlers below need the same text and run outside it.
     val rowLabel = row.labelText()
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(modifier = Modifier.padding(WalletTheme.dimensions.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = WalletTheme.dimensions.minTouchTarget),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(rowLabel, style = MaterialTheme.typography.bodyLarge)
+                    Text(rowLabel, style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(if (row.isProtected) R.string.management_category_protected
+                        else R.string.management_category_parent),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (row.affectedTransactions > 0) {
                         Text(
                             pluralStringResource(
@@ -333,17 +373,20 @@ private fun CategoryCard(
                 )
             }
             row.children.forEach { child ->
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 val childLabel = child.label().text()
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = WalletTheme.dimensions.minTouchTarget)
+                        .padding(start = WalletTheme.dimensions.regionGap),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = childLabel,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(childLabel, style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.management_category_child),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     OverflowMenu(
                         contentDescription = stringResource(R.string.cd_row_actions, childLabel),
                         actions = subCategoryActions(child, childLabel, affectedByChild, onPrompt),
@@ -436,29 +479,42 @@ private fun NamePromptDialog(
     title: String,
     initial: String,
     confirmLabel: String,
+    error: String?,
+    isWorking: Boolean,
+    canSubmit: Boolean,
+    onInputChange: () -> Unit,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var text by rememberSaveable(initial) { mutableStateOf(initial) }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isWorking) onDismiss() },
         title = { Text(title) },
         text = {
             OutlinedTextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = { text = it; onInputChange() },
+                enabled = !isWorking,
                 singleLine = true,
                 label = { Text(stringResource(R.string.field_name)) },
+                isError = error != null,
+                supportingText = { error?.let { Text(it) } },
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text(confirmLabel) }
+            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank() && canSubmit) {
+                Text(confirmLabel)
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !isWorking) {
+            Text(stringResource(R.string.action_cancel))
+        } },
     )
 }
 
-@Preview(showBackground = true)
+@Preview(name = "Categories light", showBackground = true, widthDp = 360)
+@Preview(name = "Categories dark", showBackground = true, widthDp = 360,
+    uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun ManageCategoriesPreview() {
     val food = Category(id = 1, name = "Food", kind = CategoryKind.EXPENSE)

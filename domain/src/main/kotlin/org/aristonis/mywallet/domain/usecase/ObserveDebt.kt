@@ -9,6 +9,7 @@ import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.service.DebtRemaining
+import org.aristonis.mywallet.domain.service.DebtAmountsFromHistory
 import org.aristonis.mywallet.domain.service.observeToday
 import java.time.LocalDate
 
@@ -24,6 +25,6 @@ class ObserveDebt(
             val debt = rows.firstOrNull { it.id == id } ?: return@combine null
             val balance = DebtRemaining.byDebt(legs)[id]
             val summary = DebtSummary.of(debt, balance?.remaining ?: Money.zero(debt.currencyCode), balance != null, date)
-            DebtDetail(summary, history)
+            DebtDetail(summary, history, DebtAmountsFromHistory.calculate(id, debt.currencyCode, history))
         }
 }

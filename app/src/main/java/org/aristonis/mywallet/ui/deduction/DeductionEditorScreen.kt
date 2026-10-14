@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,6 +30,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
+import android.content.res.Configuration
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
@@ -41,6 +45,8 @@ import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.label
 import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.theme.MyWalletTheme
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.text
 
 /** Creates or edits reusable defaults, leaving saved income snapshots untouched. */
@@ -89,20 +95,34 @@ internal fun DeductionEditorContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val dimensions = WalletTheme.dimensions
     Column(modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())
-        .padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        .padding(dimensions.screenPadding), verticalArrangement = Arrangement.spacedBy(dimensions.sectionGap)) {
         when {
             state.isLoading -> CircularProgressIndicator()
             state.notFound -> StatusCard(StatusTone.ERROR, stringResource(R.string.msg_deduction_item_not_found))
             state.loadFailed -> LoadFailedState(stringResource(R.string.deductions_load_failed), onRetry)
             else -> {
-                DeductionValueFields(state, onNameChange, onValueChange, onModeSelect, onCurrencySelect,
-                    onTimingSelect)
-                DeductionCategoryFields(state, onExpenseCategorySelect, onAutoAddToggle)
+                Column(verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
+                    DeductionValueFields(state, onNameChange, onValueChange, onModeSelect, onCurrencySelect,
+                        onTimingSelect)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
+                    DeductionCategoryFields(state, onExpenseCategorySelect, onAutoAddToggle)
+                }
                 EnabledField(state, onEnabledChange)
-                state.error?.let { Text(it.text(), color = MaterialTheme.colorScheme.error) }
-                Button(onClick = onSubmit, enabled = state.canSubmit, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.action_save))
+                state.error?.let { StatusCard(StatusTone.ERROR, it.text()) }
+                Button(onClick = onSubmit, enabled = state.canSubmit,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = dimensions.minTouchTarget)) {
+                    if (state.isSubmitting) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(dimensions.iconSize))
+                            Text(stringResource(R.string.management_deduction_saving))
+                        }
+                    } else {
+                        Text(stringResource(R.string.action_save))
+                    }
                 }
             }
         }
@@ -188,3 +208,19 @@ private fun modeLabel(mode: DeductionMode) = stringResource(
 @Composable
 private fun timingLabel(timing: DeductionTiming) = stringResource(
     if (timing == DeductionTiming.NOW) R.string.deduction_now else R.string.deduction_later)
+
+@Preview(name = "Deduction editor light", showBackground = true, widthDp = 360)
+@Preview(name = "Deduction editor dark", showBackground = true, widthDp = 360,
+    uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun DeductionEditorPreview() {
+    MyWalletTheme(dynamicColor = false) {
+        DeductionEditorContent(
+            state = DeductionEditorUiState(name = "Tax", value = "10", currencyCode = "USD",
+                isLoading = false),
+            onNameChange = {}, onValueChange = {}, onModeSelect = {}, onCurrencySelect = {},
+            onTimingSelect = {}, onExpenseCategorySelect = {}, onAutoAddToggle = {},
+            onEnabledChange = {}, onSubmit = {}, onRetry = {},
+        )
+    }
+}

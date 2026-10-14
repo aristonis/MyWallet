@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="management_deduction_enabled">Enabled</string>
+    <string name="management_deduction_disabled">Disabled</string>
+    <string name="management_deduction_row_summary">%1$s · %2$s</string>
+    <string name="management_category_parent">Parent category</string>
+    <string name="management_category_child">Sub-category</string>
+    <string name="management_category_protected">Protected category</string>
+    <string name="management_deduction_saving">Saving deduction</string>
+    <string name="management_deduction_disable_title">Switch %1$s off?</string>
+</resources>

@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.settings
 
+import android.content.res.Configuration
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,9 +14,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
+import org.aristonis.mywallet.ui.theme.WalletTheme
+import org.aristonis.mywallet.ui.theme.MyWalletTheme
 
 /** Static guidance ships with the app so it stays available without a network connection. */
 @Composable
@@ -42,14 +45,15 @@ internal fun InformationPage(
     onDone: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    val dimensions = WalletTheme.dimensions
     Scaffold(topBar = { WalletTopAppBar(title = stringResource(title), onBack = onDone) }) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(dimensions.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(dimensions.sectionGap),
         ) {
             content()
         }
@@ -58,8 +62,24 @@ internal fun InformationPage(
 
 @Composable
 internal fun InformationSection(@StringRes heading: Int, @StringRes body: Int) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
         Text(stringResource(heading), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(body), style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+@Preview(name = "Privacy light", showBackground = true, widthDp = 360)
+@Preview(name = "Privacy dark", showBackground = true, widthDp = 360,
+    uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun PrivacyPreview() {
+    MyWalletTheme(dynamicColor = false) { PrivacyInformationScreen(onDone = {}) }
+}
+
+@Preview(name = "Support light", showBackground = true, widthDp = 360)
+@Preview(name = "Support dark", showBackground = true, widthDp = 360,
+    uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun SupportPreview() {
+    MyWalletTheme(dynamicColor = false) { SupportFaqScreen(onDone = {}) }
 }

@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,6 +30,7 @@ import org.aristonis.mywallet.domain.usecase.SaveEntry
 import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
+import org.aristonis.mywallet.ui.navigation.ARG_DEBT_SIDE
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -61,12 +63,23 @@ class AddTransactionViewModel @Inject constructor(
     private val deductionItems: DeductionItemRepository,
     categoryRoles: CategoryRoleRepository,
     private val errors: ErrorReporter = ErrorReporter { _, _ -> },
+    savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
 
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
     private val deductionForm = IncomeDeductionForm(moneyParser, errors)
     private val feeForm = EntryFeeForm(moneyParser, moneyFormatter, errors)
-    private val _state = MutableStateFlow(AddTransactionUiState(date = today.today()))
+    private val initialDebtSide = savedStateHandle.get<String>(ARG_DEBT_SIDE)
+        ?.takeIf { it.isNotEmpty() }?.let { DebtSide.valueOf(it) }
+    private val _state = MutableStateFlow(
+        AddTransactionUiState(date = today.today()).let { initial ->
+            when (initialDebtSide) {
+                DebtSide.I_OWE -> initial.copy(type = TransactionType.BORROW, debtSide = initialDebtSide)
+                DebtSide.OWED_TO_ME -> initial.copy(type = TransactionType.LEND, debtSide = initialDebtSide)
+                null -> initial
+            }
+        },
+    )
     val state: StateFlow<AddTransactionUiState> = _state.asStateFlow()
     private val suggestions = CounterpartySuggestions(viewModelScope, suggestCounterparties,
         onResult = { names -> _state.update { it.copy(counterpartySuggestions = names) } },

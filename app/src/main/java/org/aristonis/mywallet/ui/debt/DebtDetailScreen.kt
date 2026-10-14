@@ -11,11 +11,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -35,19 +38,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.MoneyText
+import org.aristonis.mywallet.ui.components.SectionHeader
 import org.aristonis.mywallet.ui.components.WalletListRow
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.rememberDateFormatter
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.transaction.kindLabel
 import org.aristonis.mywallet.ui.transaction.rowType
 import org.aristonis.mywallet.ui.window.RefreshOnStart
@@ -109,8 +114,8 @@ internal fun DebtDetailContent(
     }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(WalletTheme.dimensions.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.regionGap),
         ) {
             when {
                 state.isLoading -> item { CircularProgressIndicator() }
@@ -119,10 +124,7 @@ internal fun DebtDetailContent(
                 }
                 state.detail == null -> item { Text(UiMessage.DebtNotFound.text()) }
                 else -> {
-                    item {
-                        MoneyText(state.remainingDisplay)
-                        DebtStateLabel(state.detail.summary.state)
-                    }
+                    item { DebtDetailSummary(state, dateDisplay) }
                     item { DebtNameField(state, onCounterpartyChange, onRename) }
                     item { DebtDueDateField(state.dueDate, state.canEditMetadata, today, onDueDateChange) }
                     item {
@@ -150,7 +152,7 @@ internal fun DebtDetailContent(
                             Text(stringResource(R.string.debt_write_off_rest))
                         }
                     }
-                    item { Text(stringResource(R.string.debt_history)) }
+                    item { SectionHeader(stringResource(R.string.debt_history)) }
                     items(state.detail.entries, key = { it.id }) { entry ->
                         WalletListRow(
                             headline = entry.note?.takeIf(String::isNotBlank) ?: kindLabel(entry.rowType()),
@@ -165,6 +167,47 @@ internal fun DebtDetailContent(
                 }
             }
         }
+    }
+}
+
+/** Presents the saved debt state; the editable due-date draft must not relabel it before Save. */
+@Composable
+private fun DebtDetailSummary(state: DebtDetailUiState, formatDate: (LocalDate) -> String) {
+    val summary = state.detail?.summary ?: return
+    val side = if (summary.debt.side == DebtSide.I_OWE) R.string.debts_i_owe else R.string.debts_owed_to_me
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.fillMaxWidth().padding(WalletTheme.dimensions.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
+            Text(stringResource(side), style = MaterialTheme.typography.titleMedium)
+            if (state.detail.isAmountBreakdownConsistent) {
+                DebtAmountLine(R.string.debt_original_w2, state.originalDisplay)
+                DebtAmountLine(R.string.debt_repaid_w2, state.repaidDisplay)
+                DebtAmountLine(R.string.debt_written_off_w2, state.writtenOffDisplay)
+            } else {
+                Text(stringResource(R.string.debt_breakdown_unavailable_w2),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(stringResource(R.string.debt_remaining_w2),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            MoneyText(state.remainingDisplay, style = MaterialTheme.typography.headlineMedium)
+            DebtStateLabel(summary.state)
+            summary.debt.dueDate?.let { dueDate ->
+                Text(stringResource(R.string.debts_due_w2, formatDate(dueDate)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebtAmountLine(label: Int, amount: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(stringResource(label), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        MoneyText(amount, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

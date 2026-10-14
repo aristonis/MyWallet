@@ -46,6 +46,9 @@ data class DebtDetailUiState(
     val counterpartyInput: String = "",
     val dueDate: LocalDate? = null,
     val noteInput: String = "",
+    val originalDisplay: String = "",
+    val repaidDisplay: String = "",
+    val writtenOffDisplay: String = "",
     val remainingDisplay: String = "",
     val historyAmounts: Map<Long, String> = emptyMap(),
     val error: UiMessage? = null,
@@ -112,6 +115,12 @@ class DebtDetailViewModel @Inject constructor(
                     DebtDetailUiState(
                         detail = detail,
                         isLoading = false,
+                        originalDisplay = detail
+                            ?.let { moneyFormatter.display(it.amounts.original, codes) }.orEmpty(),
+                        repaidDisplay = detail
+                            ?.let { moneyFormatter.display(it.amounts.repaid, codes) }.orEmpty(),
+                        writtenOffDisplay = detail
+                            ?.let { moneyFormatter.display(it.amounts.writtenOff, codes) }.orEmpty(),
                         remainingDisplay = detail
                             ?.let { moneyFormatter.display(it.summary.remaining, codes) }.orEmpty(),
                         historyAmounts = detail?.entries.orEmpty()
@@ -131,7 +140,9 @@ class DebtDetailViewModel @Inject constructor(
         val previous = persistedDebt
         val next = read.detail?.summary?.debt
         mutableState.update { current ->
-            val withRead = current.copy(detail = read.detail, remainingDisplay = read.remainingDisplay,
+            val withRead = current.copy(detail = read.detail, originalDisplay = read.originalDisplay,
+                repaidDisplay = read.repaidDisplay, writtenOffDisplay = read.writtenOffDisplay,
+                remainingDisplay = read.remainingDisplay,
                 historyAmounts = read.historyAmounts, isLoading = read.isLoading, loadFailed = read.loadFailed,
                 loadError = read.loadError, error = read.error ?: actionError)
             if (next == null) withRead else withRead.refreshedUnlessEdited(previous, next)

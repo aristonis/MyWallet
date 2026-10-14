@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.rates
 
 // The rate itself is shown as a plain decimal, not as money: it is a ratio, not an amount.
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,10 +15,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,15 +32,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.LoadFailedState
+import org.aristonis.mywallet.ui.components.SectionHeader
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import java.math.BigDecimal
 
 /**
@@ -69,6 +73,7 @@ internal fun ManageRatesContent(
     onDone: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    val dimensions = WalletTheme.dimensions
     Scaffold(
         topBar = {
             WalletTopAppBar(title = stringResource(R.string.rates_title), onBack = onDone)
@@ -77,9 +82,9 @@ internal fun ManageRatesContent(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(dimensions.screenPadding)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(dimensions.regionGap),
         ) {
             val base = state.baseCurrencyCode
             when {
@@ -93,13 +98,23 @@ internal fun ManageRatesContent(
 
                 else -> {
                     base?.let {
-                        Text(stringResource(R.string.rates_hint, it), style = MaterialTheme.typography.bodySmall)
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            Text(
+                                stringResource(R.string.rates_hint, it),
+                                modifier = Modifier.padding(dimensions.cardPadding),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
+                    SectionHeader(title = stringResource(R.string.w2_rates_currencies))
                     LazyColumn(
                     // Without a bound the list asks for the height of all its rows, pushing the
                     // last of them past the bottom of the screen where no scroll can reach them.
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(dimensions.regionGap),
                     ) {
                         items(state.rows, key = { it.currencyCode }) { row ->
                             RateRowCard(row = row, base = base, onInputChanged = onInputChanged, onSave = onSave)
@@ -118,10 +133,14 @@ private fun RateRowCard(
     onInputChanged: (String, String) -> Unit,
     onSave: (String) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    val dimensions = WalletTheme.dimensions
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(dimensions.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
         ) {
             Text(
                 stringResource(R.string.rates_currency_heading, row.currencyCode, row.symbol),
@@ -137,12 +156,13 @@ private fun RateRowCard(
                     else -> stringResource(R.string.rates_current, row.currencyCode, current.toPlainString())
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (current == null) WalletTheme.colors.warning
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
             ) {
                 val rateLabel = base?.let { stringResource(R.string.field_rate_in_base, it) }
                     ?: stringResource(R.string.field_rate)
@@ -158,9 +178,16 @@ private fun RateRowCard(
                         .testTag("rate-input-${row.currencyCode}")
                         .semantics { contentDescription = rateLabel },
                 )
+                row.error?.let { message ->
+                    Text(
+                        message.text(),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 Button(
                     onClick = { onSave(row.currencyCode) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = dimensions.minTouchTarget),
                 ) {
                     Text(
                         stringResource(R.string.action_save_rate),
@@ -170,18 +197,14 @@ private fun RateRowCard(
                 }
             }
 
-            row.error?.let { message ->
-                Text(
-                    message.text(),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
         }
     }
 }
 
-@Preview(showBackground = true)
+@Preview(name = "Rates light", showBackground = true, widthDp = 360)
+@Preview(name = "Rates dark", showBackground = true, widthDp = 360,
+    uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Rates large text", showBackground = true, widthDp = 360, fontScale = 2f)
 @Composable
 private fun ManageRatesPreview() {
     MyWalletTheme(dynamicColor = false) {

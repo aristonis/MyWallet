@@ -12,6 +12,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -23,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -32,10 +35,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.transaction.DateField
 import org.aristonis.mywallet.ui.transaction.RateSection
 import org.aristonis.mywallet.ui.transaction.accountLabel
@@ -98,11 +103,13 @@ internal fun RecordRepaymentContent(
     val title = if (isEditing) R.string.repayment_title_edit else R.string.repayment_title
     Scaffold(topBar = { WalletTopAppBar(stringResource(title), onBack = onDone) }) { padding ->
         Column(
-            modifier = Modifier.padding(padding).padding(16.dp).fillMaxSize().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(padding).padding(WalletTheme.dimensions.screenPadding)
+                .fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.regionGap),
         ) {
             if (state.isLoading) CircularProgressIndicator()
             if (debtCurrency != null) {
+                RepaymentIdentity(state)
                 LabeledDropdown(
                     label = stringResource(R.string.field_from_account),
                     selectedText = account?.let { selected -> accountLabel(selected) }
@@ -123,8 +130,6 @@ internal fun RecordRepaymentContent(
                 TextButton(onClick = onPayRest, enabled = !state.isSubmitting) {
                     Text(stringResource(R.string.repayment_pay_rest))
                 }
-                AmountLine(R.string.repayment_remaining, state.remainingDisplay)
-                AmountLine(R.string.repayment_account_moves, state.accountMovesDisplay)
                 if (account != null && account.currencyCode != debtCurrency) {
                     OutlinedTextField(
                         value = state.accountPrincipalInput,
@@ -173,6 +178,7 @@ internal fun RecordRepaymentContent(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                RepaymentPreview(state)
             }
             // A disabled Save needs a reason the owner can act on, not silence.
             (state.error ?: state.blockedReason)?.let {
@@ -195,12 +201,42 @@ internal fun RecordRepaymentContent(
     }
 }
 
+@Composable
+private fun RepaymentIdentity(state: RecordRepaymentUiState) {
+    val debt = state.debt?.summary?.debt ?: return
+    val side = if (debt.side == DebtSide.I_OWE) R.string.debts_i_owe else R.string.debts_owed_to_me
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.fillMaxWidth().padding(WalletTheme.dimensions.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
+            Text(stringResource(R.string.repayment_context_w2, bidiIsolate(debt.counterparty), stringResource(side)),
+                style = MaterialTheme.typography.titleMedium)
+            AmountLine(R.string.repayment_remaining, state.remainingDisplay)
+        }
+    }
+}
+
+/** Only supplied quote output is shown; the preview does not predict a post-save balance. */
+@Composable
+private fun RepaymentPreview(state: RecordRepaymentUiState) {
+    if (state.accountMovesDisplay == null) return
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(Modifier.fillMaxWidth().padding(WalletTheme.dimensions.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
+            Text(stringResource(R.string.repayment_preview_w2), style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer)
+            AmountLine(R.string.repayment_account_moves, state.accountMovesDisplay,
+                MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+    }
+}
+
 /** One computed amount the domain will use, shown so a saved figure is never a surprise. */
 @Composable
-private fun AmountLine(@StringRes format: Int, amount: String?) {
+private fun AmountLine(@StringRes format: Int, amount: String?,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
     if (amount == null) return
     Text(
         stringResource(format, bidiIsolate(amount)),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = color,
     )
 }

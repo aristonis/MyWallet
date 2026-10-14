@@ -26,6 +26,7 @@ import org.aristonis.mywallet.domain.usecase.ObserveCategoryUsage
 import org.aristonis.mywallet.domain.usecase.ObserveLedgerHealth
 import org.aristonis.mywallet.domain.usecase.RenameCategory
 import org.aristonis.mywallet.ui.load.ReadAttempts
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -47,6 +48,7 @@ data class ManageCategoryRow(
 
 /** Immutable snapshot the Manage Categories screen renders from. */
 data class ManageCategoriesUiState(
+    val sessionToken: String = "",
     val income: List<ManageCategoryRow> = emptyList(),
     val expense: List<ManageCategoryRow> = emptyList(),
     val isLoading: Boolean = true,
@@ -58,6 +60,9 @@ data class ManageCategoriesUiState(
      * instead of listing nothing, which would read as "no categories" and invite duplicates.
      */
     val loadFailed: Boolean = false,
+    val isWorking: Boolean = false,
+    /** Advances only after a name write succeeds, so its prompt can close on confirmation. */
+    val completedNameActions: Long = 0,
 )
 
 /**
@@ -110,7 +115,7 @@ class ManageCategoriesViewModel @Inject constructor(
     private val errors: ErrorReporter,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(ManageCategoriesUiState())
+    private val _state = MutableStateFlow(ManageCategoriesUiState(sessionToken = UUID.randomUUID().toString()))
     val state: StateFlow<ManageCategoriesUiState> = _state.asStateFlow()
 
     /** The latest categories and usage counts, kept for the per-row counts the screen asks for. */
@@ -149,12 +154,12 @@ class ManageCategoriesViewModel @Inject constructor(
      */
     fun affectedBy(categoryId: Long): Int = latestUsage[categoryId] ?: 0
 
-    fun create(name: String, kind: CategoryKind, parentId: Long?) = perform {
+    fun create(name: String, kind: CategoryKind, parentId: Long?) = perform(nameAction = true) {
         createCategory(name, kind, parentId)
         null
     }
 
-    fun rename(id: Long, name: String) = perform {
+    fun rename(id: Long, name: String) = perform(nameAction = true) {
         renameCategory(id, name)
         null
     }
@@ -226,17 +231,24 @@ class ManageCategoriesViewModel @Inject constructor(
      * back what a delete did, when the action was one. Cancellation is rethrown so a view-model torn
      * down mid-write is not mistaken for a failed edit.
      */
-    private fun perform(action: suspend () -> DeleteOutcome?) {
+    private fun perform(nameAction: Boolean = false, action: suspend () -> DeleteOutcome?) {
+        if (_state.value.isWorking || (nameAction && (_state.value.isLoading || _state.value.loadFailed))) return
+        _state.update { it.copy(isWorking = true, error = null) }
         viewModelScope.launch {
             try {
                 val outcome = action()
-                _state.update { it.copy(error = null, lastDelete = outcome) }
+                _state.update {
+                    it.copy(error = null, lastDelete = outcome,
+                        completedNameActions = it.completedNameActions + if (nameAction) 1 else 0)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: WalletException) {
                 _state.update { it.copy(error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
                 _state.update { it.copy(error = e.toUiMessage()) }
+            } finally {
+                _state.update { it.copy(isWorking = false) }
             }
         }
     }

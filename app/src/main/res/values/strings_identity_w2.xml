@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="w2_information">Information</string>
+    <string name="w2_about_title">About MyWallet</string>
+    <string name="w2_settings_about_summary">Project, version, and offline information</string>
+    <string name="w2_about_privacy_summary">Local records and exports</string>
+    <string name="w2_about_support_summary">Setup, backups, and safe reporting</string>
+    <string name="w2_about_license_summary">Project Apache 2.0 license and NOTICE</string>
+    <string name="w2_license_unavailable">The bundled project license could not be read. Go back and try again.</string>
+    <string name="w2_project_license_heading">Apache License, Version 2.0</string>
+    <string name="w2_rates_currencies">Currencies</string>
+    <string name="w2_choose_currency">Choose currency</string>
+</resources>

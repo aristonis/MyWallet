@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.settings
 
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +23,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -47,6 +49,7 @@ import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import java.time.LocalDate
 
 /** The theme choices, in display order, each paired with the label resource the user sees. */
@@ -71,8 +74,6 @@ fun SettingsScreen(
     onManageRates: () -> Unit,
     onChangeBaseCurrency: () -> Unit,
     onAbout: () -> Unit,
-    onPrivacy: () -> Unit,
-    onSupport: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -111,8 +112,6 @@ fun SettingsScreen(
         onManageRates = onManageRates,
         onChangeBaseCurrency = onChangeBaseCurrency,
         onAbout = onAbout,
-        onPrivacy = onPrivacy,
-        onSupport = onSupport,
     )
 
     pendingRestoreUri?.let { uri ->
@@ -143,8 +142,6 @@ internal fun SettingsContent(
     onManageRates: () -> Unit,
     onChangeBaseCurrency: () -> Unit,
     onAbout: () -> Unit,
-    onPrivacy: () -> Unit,
-    onSupport: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val isWorking = state.status is BackupStatus.Working
@@ -178,6 +175,15 @@ internal fun SettingsContent(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
         ) {
+            SettingsSection(title = stringResource(R.string.settings_section_appearance)) {
+                SettingsRow(
+                    label = stringResource(R.string.settings_theme),
+                    value = stringResource(currentTheme.labelRes()),
+                    icon = WalletIcons.Appearance,
+                    onClick = { pickingTheme = true },
+                )
+            }
+
             SettingsSection(title = stringResource(R.string.settings_section_wallet)) {
                 SettingsRow(
                     label = stringResource(R.string.settings_base_currency),
@@ -247,30 +253,12 @@ internal fun SettingsContent(
                 }
             }
 
-            SettingsSection(title = stringResource(R.string.settings_section_appearance)) {
+            SettingsSection(title = stringResource(R.string.w2_information)) {
                 SettingsRow(
-                    label = stringResource(R.string.settings_theme),
-                    value = stringResource(currentTheme.labelRes()),
-                    icon = WalletIcons.Appearance,
-                    onClick = { pickingTheme = true },
-                )
-            }
-
-            SettingsSection(title = stringResource(R.string.settings_section_about)) {
-                SettingsRow(
-                    label = stringResource(R.string.settings_about),
+                    label = stringResource(R.string.w2_about_title),
+                    supporting = stringResource(R.string.w2_settings_about_summary),
                     icon = WalletIcons.About,
                     onClick = onAbout,
-                )
-                SettingsRow(
-                    label = stringResource(R.string.identity_privacy_title),
-                    icon = WalletIcons.About,
-                    onClick = onPrivacy,
-                )
-                SettingsRow(
-                    label = stringResource(R.string.identity_support_title),
-                    icon = WalletIcons.About,
-                    onClick = onSupport,
                 )
             }
         }
@@ -291,12 +279,23 @@ internal fun SettingsContent(
 /** A titled group of rows. The title is quiet and small; the rows are what the user is scanning. */
 @Composable
 private fun SettingsSection(title: String, content: @Composable () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+    val dimensions = WalletTheme.dimensions
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = dimensions.screenPadding)
+            .padding(top = dimensions.sectionGap),
+    ) {
         SectionHeader(
             title = title,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.padding(bottom = dimensions.relatedGap),
         )
-        content()
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Column { content() }
+        }
     }
 }
 
@@ -360,7 +359,10 @@ private fun RestoreConfirmDialog(
     )
 }
 
-@Preview(showBackground = true)
+@Preview(name = "Settings light", showBackground = true, widthDp = 360)
+@Preview(name = "Settings dark", showBackground = true, widthDp = 360,
+    uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Settings large text", showBackground = true, widthDp = 360, fontScale = 2f)
 @Composable
 private fun SettingsPreview() {
     MyWalletTheme(dynamicColor = false) {
@@ -380,8 +382,6 @@ private fun SettingsPreview() {
             onManageRates = {},
             onChangeBaseCurrency = {},
             onAbout = {},
-            onPrivacy = {},
-            onSupport = {},
         )
     }
 }

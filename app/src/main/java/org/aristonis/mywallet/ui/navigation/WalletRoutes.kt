@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.navigation
 import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.vector.ImageVector
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.ui.icons.WalletIcons
 
 /** The single argument any editor needs: which row is being edited. */
@@ -13,6 +14,9 @@ const val ARG_ID = "id"
  * records a new one.
  */
 const val ARG_REPAYMENT_ID = "repaymentId"
+
+/** Optional add-transaction origin, retained with its back-stack entry. */
+const val ARG_DEBT_SIDE = "debtSide"
 
 /** The value [ARG_REPAYMENT_ID] takes when no repayment is being edited; ids start at 1. */
 const val NO_REPAYMENT_ID = 0L
@@ -44,6 +48,11 @@ enum class WalletTab(
 
     /** The pattern the graph registers for [child] with an id. */
     fun childPattern(leaf: String): String = "$route/$leaf/{$ARG_ID}"
+
+    /** The debt-list choice is an optional argument of the existing add form. */
+    fun addTransactionPattern(): String = "${child(Leaf.ADD_TRANSACTION)}?$ARG_DEBT_SIDE={$ARG_DEBT_SIDE}"
+
+    fun addDebtRoute(side: DebtSide): String = "${child(Leaf.ADD_TRANSACTION)}?$ARG_DEBT_SIDE=${side.name}"
 
     /** The repayment form's pattern: the debt id in the path, the repayment being edited as a query. */
     fun repaymentPattern(): String =

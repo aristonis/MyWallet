@@ -18,6 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.security.MessageDigest
+import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
 class OfflineIdentityScreenTest {
@@ -26,11 +27,16 @@ class OfflineIdentityScreenTest {
 
     @Test
     fun aboutShowsInstalledVersionAndExplainsChosenExportDestination() {
-        compose.setContent { MyWalletTheme(dynamicColor = false) { AboutScreen(onDone = {}, onLicense = {}) } }
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                AboutScreen(onDone = {}, onLicense = {}, onPrivacy = {}, onSupport = {})
+            }
+        }
 
         compose.onNodeWithText(BuildConfig.VERSION_NAME, substring = true).assertIsDisplayed()
         compose.onNodeWithText("MyWallet by Aristonis", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("export", substring = true, ignoreCase = true).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.identity_about_export))
+            .performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -41,7 +47,12 @@ class OfflineIdentityScreenTest {
                 if (showingLicense) {
                     AppLicenseScreen(onDone = { showingLicense = false })
                 } else {
-                    AboutScreen(onDone = {}, onLicense = { showingLicense = true })
+                    AboutScreen(
+                        onDone = {},
+                        onLicense = { showingLicense = true },
+                        onPrivacy = {},
+                        onSupport = {},
+                    )
                 }
             }
         }
@@ -49,7 +60,10 @@ class OfflineIdentityScreenTest {
         compose.onNodeWithText(context.getString(R.string.identity_app_license_action))
             .performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.identity_app_license_title)).assertIsDisplayed()
-        compose.onNodeWithText("Apache License", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.w2_project_license_heading))
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION", substring = true)
+            .assertExists()
         compose.onNodeWithText(context.getString(R.string.identity_app_license_notice), substring = true)
             .performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription(context.getString(R.string.cd_navigate_back)).performClick()
@@ -69,6 +83,36 @@ class OfflineIdentityScreenTest {
         org.junit.Assert.assertTrue(context.assets.open("NOTICE").bufferedReader().use {
             it.readText().contains("Copyright (c) 2025 Aristonis")
         })
+    }
+
+    @Test
+    fun projectLicenseReadFailureShowsAnErrorAndKeepsBackAvailable() {
+        var returned = false
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                AppLicenseScreen(
+                    onDone = { returned = true },
+                    readAsset = { _, _ -> throw IOException("unreadable asset") },
+                )
+            }
+        }
+
+        compose.onNodeWithText(context.getString(R.string.w2_license_unavailable)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.identity_app_license_notice)).assertDoesNotExist()
+        compose.onNodeWithContentDescription(context.getString(R.string.cd_navigate_back)).performClick()
+        compose.runOnIdle { org.junit.Assert.assertTrue(returned) }
+    }
+
+    @Test
+    fun emptyPackagedProjectLicenseShowsAnErrorInsteadOfAnEmptyDocument() {
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                AppLicenseScreen(onDone = {}, readAsset = { _, _ -> "" })
+            }
+        }
+
+        compose.onNodeWithText(context.getString(R.string.w2_license_unavailable)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.identity_app_license_notice)).assertDoesNotExist()
     }
 
     @Test

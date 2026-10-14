@@ -136,7 +136,10 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
         }
         // Home shows every date, so a saved entry is always in view; outside the Transactions graph the
         // hand-back only pops.
-        composable(tab.child(Leaf.ADD_TRANSACTION)) {
+        composable(
+            route = tab.addTransactionPattern(),
+            arguments = listOf(navArgument(ARG_DEBT_SIDE) { type = NavType.StringType; defaultValue = "" }),
+        ) {
             AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) })
         }
         composable(tab.child(Leaf.ADD_ACCOUNT)) {
@@ -160,6 +163,7 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
                 onDone = { nav.popBackStack() },
                 onOpenDebt = { id -> nav.navigate(tab.child(Leaf.DEBT_DETAIL, id)) },
                 onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
+                onAddDebt = { side -> nav.navigate(tab.addDebtRoute(side)) },
             )
         }
         editorRoute(tab, Leaf.DEBT_DETAIL) { id ->
@@ -247,8 +251,6 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
                 onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
                 onChangeBaseCurrency = { nav.navigate(tab.child(Leaf.BASE_CURRENCY)) },
                 onAbout = { nav.navigate(tab.child(Leaf.ABOUT)) },
-                onPrivacy = { nav.navigate(tab.child(Leaf.PRIVACY)) },
-                onSupport = { nav.navigate(tab.child(Leaf.SUPPORT)) },
             )
         }
         composable(tab.child(Leaf.MANAGE_ACCOUNTS)) {
@@ -288,6 +290,8 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
             AboutScreen(
                 onDone = { nav.popBackStack() },
                 onLicense = { nav.navigate(tab.child(Leaf.APP_LICENSE)) },
+                onPrivacy = { nav.navigate(tab.child(Leaf.PRIVACY)) },
+                onSupport = { nav.navigate(tab.child(Leaf.SUPPORT)) },
             )
         }
         composable(tab.child(Leaf.APP_LICENSE)) {

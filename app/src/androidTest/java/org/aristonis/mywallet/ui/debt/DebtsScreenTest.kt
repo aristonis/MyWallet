@@ -32,8 +32,55 @@ import java.time.LocalDate
 @RunWith(AndroidJUnit4::class)
 class DebtsScreenTest {
     @get:Rule val compose = createComposeRule()
-    private fun row(id: Long, name: String, amount: String = "10", state: DebtState = DebtState.OPEN): DebtRow =
-        DebtRow(DebtSummary(Debt(id, name, DebtSide.I_OWE, "USD"), Money.of(amount, "USD"), state), "$amount.00 USD")
+    private fun row(id: Long, name: String, amount: String = "10", state: DebtState = DebtState.OPEN,
+        dueDate: LocalDate? = null): DebtRow =
+        DebtRow(DebtSummary(Debt(id, name, DebtSide.I_OWE, "USD", dueDate), Money.of(amount, "USD"), state),
+            "$amount.00 USD")
+
+    @Test fun addDebtActionIsVisibleFromTheDebtList() {
+        var requestedSide: DebtSide? = null
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                DebtsContent(DebtsUiState(isLoading = false), onDone = {}, onOpenDebt = {},
+                    onManageRates = {}, onSelectSide = {}, onRetry = {}, onAddDebt = { requestedSide = it })
+            }
+        }
+
+        compose.onNode(hasText("Add debt") and hasClickAction()).assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(DebtSide.I_OWE, requestedSide) }
+    }
+
+    @Test fun addDebtCarriesTheSelectedOwedToMeSideWithoutChangingSelection() {
+        var state by mutableStateOf(DebtsUiState(isLoading = false))
+        var requestedSide: DebtSide? = null
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                DebtsContent(state, onDone = {}, onOpenDebt = {}, onManageRates = {},
+                    onSelectSide = { state = state.copy(selectedSide = it) }, onRetry = {},
+                    onAddDebt = { requestedSide = it })
+            }
+        }
+
+        compose.onNode(hasText("Owed to me") and hasClickAction()).performClick()
+        compose.onNode(hasText("Add debt") and hasClickAction()).performClick()
+        compose.runOnIdle {
+            assertEquals(DebtSide.OWED_TO_ME, requestedSide)
+            assertEquals(DebtSide.OWED_TO_ME, state.selectedSide)
+        }
+    }
+
+    @Test fun rowShowsItsStoredDueDate() {
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                DebtsContent(DebtsUiState(open = listOf(row(1, "Ali", dueDate = LocalDate.of(2037, 4, 15))),
+                    isLoading = false), onDone = {}, onOpenDebt = {}, onManageRates = {},
+                    onSelectSide = {}, onRetry = {}, onAddDebt = {})
+            }
+        }
+
+        compose.onNodeWithText("Ali", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("2037", substring = true).assertIsDisplayed()
+    }
 
     @Test fun overdueAndSettledRowsAreReadableAndOpenTheCorrectDebt() {
         var opened: Long? = null
@@ -41,7 +88,8 @@ class DebtsScreenTest {
             MyWalletTheme(dynamicColor = false) {
                 DebtsContent(DebtsUiState(open = listOf(row(1, "Ali", state = DebtState.OVERDUE)),
                     settled = listOf(row(2, "Sara", "0", DebtState.SETTLED)), isLoading = false),
-                    onDone = {}, onOpenDebt = { opened = it }, onManageRates = {}, onSelectSide = {}, onRetry = {})
+                    onDone = {}, onOpenDebt = { opened = it }, onManageRates = {}, onSelectSide = {},
+                    onRetry = {}, onAddDebt = {})
             }
         }
         compose.onNodeWithText("Overdue").assertIsDisplayed()
@@ -58,7 +106,8 @@ class DebtsScreenTest {
         compose.setContent {
             MyWalletTheme(dynamicColor = false) {
                 DebtsContent(DebtsUiState(open = listOf(row(1, "Ali")), totals = DebtTotals.MissingRate("EUR"), isLoading = false),
-                    onDone = {}, onOpenDebt = {}, onManageRates = { managed = true }, onSelectSide = {}, onRetry = {})
+                    onDone = {}, onOpenDebt = {}, onManageRates = { managed = true }, onSelectSide = {},
+                    onRetry = {}, onAddDebt = {})
             }
         }
         compose.onNodeWithText("Ali", substring = true).assertIsDisplayed()
@@ -75,7 +124,7 @@ class DebtsScreenTest {
         compose.setContent {
             MyWalletTheme(dynamicColor = false) {
                 DebtsContent(state, onDone = {}, onOpenDebt = {}, onManageRates = {},
-                    onSelectSide = { selected = it }, onRetry = { retried = true })
+                    onSelectSide = { selected = it }, onRetry = { retried = true }, onAddDebt = {})
             }
         }
         compose.onNode(hasText("Owed to me") and hasClickAction()).performClick()
@@ -89,19 +138,24 @@ class DebtsScreenTest {
 
     @Test fun lastNegativeDebtIsReachableInDarkRtlAtTwoHundredPercentFont() {
         var opened: Long? = null
-        val rows = (1L..30L).map { row(it, "Person $it", if (it == 30L) "-3" else "10") }
+        val rows = (1L..30L).map {
+            if (it == 30L) row(it, "Person 30 with a long counterparty name", "-1234567890",
+                dueDate = LocalDate.of(2037, 4, 15)) else row(it, "Person $it")
+        }
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl,
                 LocalDensity provides Density(density.density, 2f)) {
                 MyWalletTheme(darkTheme = true, dynamicColor = false) {
                     DebtsContent(DebtsUiState(open = rows, isLoading = false), onDone = {}, onOpenDebt = { opened = it },
-                        onManageRates = {}, onSelectSide = {}, onRetry = {})
+                        onManageRates = {}, onSelectSide = {}, onRetry = {}, onAddDebt = {})
                 }
             }
         }
         compose.reachDebtRow("Person 30")
         compose.onNodeWithText("Person 30", substring = true).assertIsDisplayed().performClick()
+        compose.onNodeWithText("-1234567890.00 USD").assertExists()
+        compose.onNodeWithText("2037", substring = true).assertExists()
         compose.runOnIdle { assertEquals(30L, opened) }
     }
 }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="debts_add_w2">Add debt</string>
+    <string name="debts_active_w2">Active</string>
+    <string name="debts_remaining_w2">Remaining</string>
+    <string name="debts_due_w2">Due %1$s</string>
+    <string name="debt_remaining_w2">Remaining debt</string>
+    <string name="debt_original_w2">Original</string>
+    <string name="debt_repaid_w2">Repaid</string>
+    <string name="debt_written_off_w2">Written off</string>
+    <string name="debt_breakdown_unavailable_w2">Debt breakdown unavailable</string>
+    <string name="repayment_context_w2">%1$s · %2$s</string>
+    <string name="repayment_preview_w2">Account movement preview</string>
+</resources>
