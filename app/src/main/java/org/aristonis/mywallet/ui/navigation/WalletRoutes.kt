@@ -18,6 +18,15 @@ const val ARG_REPAYMENT_ID = "repaymentId"
 /** Optional add-transaction origin, retained with its back-stack entry. */
 const val ARG_DEBT_SIDE = "debtSide"
 
+/** Optional add-transaction origin: the account the user came from. Left out, the form picks its own. */
+const val ARG_ACCOUNT_ID = "accountId"
+
+/** Optional add-transaction origin: opens a transfer into [ARG_ACCOUNT_ID], the way Pay card does. */
+const val ARG_PAY_CARD = "payCard"
+
+/** The value [ARG_ACCOUNT_ID] takes when no account was passed; ids start at 1. */
+const val NO_ACCOUNT_ID = 0L
+
 /** The value [ARG_REPAYMENT_ID] takes when no repayment is being edited; ids start at 1. */
 const val NO_REPAYMENT_ID = 0L
 
@@ -50,7 +59,16 @@ enum class WalletTab(
     fun childPattern(leaf: String): String = "$route/$leaf/{$ARG_ID}"
 
     /** The debt-list choice is an optional argument of the existing add form. */
-    fun addTransactionPattern(): String = "${child(Leaf.ADD_TRANSACTION)}?$ARG_DEBT_SIDE={$ARG_DEBT_SIDE}"
+    fun addTransactionPattern(): String =
+        "${child(Leaf.ADD_TRANSACTION)}?$ARG_DEBT_SIDE={$ARG_DEBT_SIDE}&$ARG_ACCOUNT_ID={$ARG_ACCOUNT_ID}" +
+            "&$ARG_PAY_CARD={$ARG_PAY_CARD}"
+
+    /** Add transaction with [accountId] already chosen, as from an account's detail page. */
+    fun addForAccountRoute(accountId: Long): String = "${child(Leaf.ADD_TRANSACTION)}?$ARG_ACCOUNT_ID=$accountId"
+
+    /** Add transaction as a transfer into the card [accountId]; the source is still the user's to pick. */
+    fun payCardRoute(accountId: Long): String =
+        "${child(Leaf.ADD_TRANSACTION)}?$ARG_ACCOUNT_ID=$accountId&$ARG_PAY_CARD=true"
 
     fun addDebtRoute(side: DebtSide): String = "${child(Leaf.ADD_TRANSACTION)}?$ARG_DEBT_SIDE=${side.name}"
 
@@ -88,13 +106,16 @@ object Leaf {
     const val DEBTS = "debts"
     const val DEBT_DETAIL = "debtDetail"
     const val RECORD_REPAYMENT = "recordRepayment"
+    const val ACCOUNT_DETAIL = "accountDetail"
+    const val TRANSACTION_DETAIL = "transactionDetail"
 
     /** Every supporting screen a tab can push that needs no argument. [ROOT] is the tab itself. */
     val all = listOf(ADD_TRANSACTION, ADD_ACCOUNT, MANAGE_ACCOUNTS, RATES, CATEGORIES, BASE_CURRENCY,
         ABOUT, APP_LICENSE, PRIVACY, SUPPORT, DEBTS, DEDUCTIONS, ADD_DEDUCTION)
 
     /** Every leaf that edits one row. */
-    val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL, RECORD_REPAYMENT, EDIT_DEDUCTION)
+    val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL, RECORD_REPAYMENT, EDIT_DEDUCTION,
+        ACCOUNT_DETAIL, TRANSACTION_DETAIL)
 
     /** Leaves that end in one committing action. */
     val forms = setOf(ADD_TRANSACTION, EDIT_TRANSACTION, ADD_ACCOUNT, EDIT_ACCOUNT, BASE_CURRENCY, RECORD_REPAYMENT,

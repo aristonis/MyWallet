@@ -17,7 +17,10 @@ class WalletRoutesTest {
         val tab = WalletTab.HOME
         val pattern = tab.addTransactionPattern()
 
-        assertEquals("home/addTransaction?$ARG_DEBT_SIDE={$ARG_DEBT_SIDE}", pattern)
+        assertEquals(
+            "home/addTransaction?$ARG_DEBT_SIDE={$ARG_DEBT_SIDE}&$ARG_ACCOUNT_ID={$ARG_ACCOUNT_ID}&$ARG_PAY_CARD={$ARG_PAY_CARD}",
+            pattern,
+        )
         assertEquals("home/addTransaction?debtSide=I_OWE", tab.addDebtRoute(DebtSide.I_OWE))
         assertEquals("home/addTransaction?debtSide=OWED_TO_ME", tab.addDebtRoute(DebtSide.OWED_TO_ME))
         assertEquals("home/addTransaction", tab.child(Leaf.ADD_TRANSACTION))

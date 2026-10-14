@@ -30,7 +30,10 @@ import org.aristonis.mywallet.domain.usecase.SaveEntry
 import org.aristonis.mywallet.domain.usecase.SuggestCounterparties
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.toUiMessage
+import org.aristonis.mywallet.ui.navigation.ARG_ACCOUNT_ID
 import org.aristonis.mywallet.ui.navigation.ARG_DEBT_SIDE
+import org.aristonis.mywallet.ui.navigation.ARG_PAY_CARD
+import org.aristonis.mywallet.ui.navigation.NO_ACCOUNT_ID
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -71,12 +74,25 @@ class AddTransactionViewModel @Inject constructor(
     private val feeForm = EntryFeeForm(moneyParser, moneyFormatter, errors)
     private val initialDebtSide = savedStateHandle.get<String>(ARG_DEBT_SIDE)
         ?.takeIf { it.isNotEmpty() }?.let { DebtSide.valueOf(it) }
+
+    /** The account the form was opened for, from an account's page or Pay card; null when none was passed. */
+    private val requestedAccountId = savedStateHandle.get<Long>(ARG_ACCOUNT_ID)?.takeIf { it != NO_ACCOUNT_ID }
+
+    /** Pay card only means something with a card to pay into, so it needs [requestedAccountId]. */
+    private val isPayCard = savedStateHandle.get<Boolean>(ARG_PAY_CARD) == true && requestedAccountId != null
+
+    /**
+     * The requested account is resolved once, against the first account list, so a later list
+     * update cannot pull the form back to it after the user picked something else.
+     */
+    private var isPreselectionPending = requestedAccountId != null
+
     private val _state = MutableStateFlow(
         AddTransactionUiState(date = today.today()).let { initial ->
             when (initialDebtSide) {
                 DebtSide.I_OWE -> initial.copy(type = TransactionType.BORROW, debtSide = initialDebtSide)
                 DebtSide.OWED_TO_ME -> initial.copy(type = TransactionType.LEND, debtSide = initialDebtSide)
-                null -> initial
+                null -> if (isPayCard) initial.copy(type = TransactionType.TRANSFER) else initial
             }
         },
     )
@@ -122,12 +138,29 @@ class AddTransactionViewModel @Inject constructor(
             accountList.filterNot { it.archived } to categoryList
         }
             .onEach { (accountList, categoryList) ->
+                val isApplyingPreselection = isPreselectionPending
+                isPreselectionPending = false
+                // Archived accounts are already filtered out, so an archived id resolves to null here.
+                val requested = accountList.firstOrNull { it.id == requestedAccountId }?.id
                 mutate { current ->
                     current.copy(
                         accounts = accountList,
                         allCategories = categoryList,
-                        // Pre-select a source account for convenience; never auto-fill the destination.
-                        selectedAccountId = current.selectedAccountId ?: accountList.firstOrNull()?.id,
+                        selectedAccountId = when {
+                            // Pay card leaves the paying account to the user: guessing one would move
+                            // money out of an account they never chose.
+                            isPayCard -> current.selectedAccountId
+                            isApplyingPreselection -> current.selectedAccountId ?: requested
+                            // A form opened for one account never falls back to another: an archived or
+                            // unknown id stays unselected, so the save asks for an account instead.
+                            requestedAccountId != null -> current.selectedAccountId
+                            // Pre-select a source account for convenience; never auto-fill the destination.
+                            else -> current.selectedAccountId ?: accountList.firstOrNull()?.id
+                        },
+                        // The card being paid is the one destination filled for the user, and only when
+                        // it is still active.
+                        destAccountId = if (isPayCard && isApplyingPreselection) current.destAccountId ?: requested
+                            else current.destAccountId,
                     ).withPreselectedSourceFee(current.selectedAccountId)
                         .let { updated -> updated.copy(fee = updated.fee.withCategories(categoryList)) }
                 }
@@ -184,9 +217,13 @@ class AddTransactionViewModel @Inject constructor(
                 drafts = deductionForm.freshDrafts(it.deductions, type == TransactionType.INCOME, null)))
     }
 
-    /** A new transfer starts from its source account's default fee; other kinds start with none. */
+    /**
+     * A new transfer starts from its source account's default fee; other kinds start with none. Paying
+     * a card starts with none either: it settles what the card already owes and adds no charge of its
+     * own, and a real bank charge can still be typed in.
+     */
     private fun AddTransactionUiState.feeDefaultFor(type: TransactionType, accountId: Long?): FeeFormState =
-        feeForm.fromDefault(if (type == TransactionType.TRANSFER)
+        feeForm.fromDefault(if (type == TransactionType.TRANSFER && !isPayCard)
             accounts.firstOrNull { account -> account.id == accountId }?.defaultFee else null)
 
     /**
