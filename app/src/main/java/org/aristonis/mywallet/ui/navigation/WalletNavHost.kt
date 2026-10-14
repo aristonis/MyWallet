@@ -30,6 +30,9 @@ import org.aristonis.mywallet.ui.debt.RecordRepaymentScreen
 import org.aristonis.mywallet.ui.home.HomeScreen
 import org.aristonis.mywallet.ui.rates.ManageRatesScreen
 import org.aristonis.mywallet.ui.reports.ReportsScreen
+import org.aristonis.mywallet.ui.reports.charts.ChartWindowArgs
+import org.aristonis.mywallet.ui.reports.charts.NetWorthScreen
+import org.aristonis.mywallet.ui.reports.charts.SpendingBreakdownScreen
 import org.aristonis.mywallet.ui.settings.AboutScreen
 import org.aristonis.mywallet.ui.settings.AppLicenseScreen
 import org.aristonis.mywallet.ui.settings.PrivacyInformationScreen
@@ -272,9 +275,32 @@ private fun NavGraphBuilder.transactionsGraph(nav: NavHostController) {
 private fun NavGraphBuilder.trackingGraph(nav: NavHostController) {
     val tab = WalletTab.TRACKING
     navigation(startDestination = tab.rootRoute, route = tab.route) {
-        composable(tab.rootRoute) { ReportsScreen(onManageRates = { nav.navigate(tab.child(Leaf.RATES)) }) }
+        composable(tab.rootRoute) {
+            ReportsScreen(
+                onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
+                onOpenSpendingBreakdown = { window ->
+                    nav.navigate(tab.child(Leaf.SPENDING_BREAKDOWN) + ChartWindowArgs.query(window))
+                },
+                onOpenNetWorth = { window -> nav.navigate(tab.child(Leaf.NET_WORTH) + ChartWindowArgs.query(window)) },
+            )
+        }
         composable(tab.child(Leaf.RATES)) {
             ManageRatesScreen(onDone = { nav.popBackStack() })
+        }
+        composable(
+            tab.child(Leaf.SPENDING_BREAKDOWN) + ChartWindowArgs.QUERY_PATTERN,
+            arguments = ChartWindowArgs.navArguments,
+        ) {
+            SpendingBreakdownScreen(
+                onBack = { nav.popBackStack() },
+                onManageRates = { nav.navigate(tab.child(Leaf.RATES)) },
+            )
+        }
+        composable(
+            tab.child(Leaf.NET_WORTH) + ChartWindowArgs.QUERY_PATTERN,
+            arguments = ChartWindowArgs.navArguments,
+        ) {
+            NetWorthScreen(onBack = { nav.popBackStack() }, onManageRates = { nav.navigate(tab.child(Leaf.RATES)) })
         }
     }
 }

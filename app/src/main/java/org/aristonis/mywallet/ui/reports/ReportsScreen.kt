@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,9 +69,17 @@ private const val PAIR_ROW_MAX_FIGURE_CHARS = 15
  *
  * Every return to the screen, from another tab or from the background, gives the view-model a
  * chance to notice that midnight has passed, so "this month" never quietly turns into last month.
+ *
+ * [onOpenSpendingBreakdown] and [onOpenNetWorth] open the chart screens on the window shown here.
+ * Each link appears only when its callback is given.
  */
 @Composable
-fun ReportsScreen(onManageRates: () -> Unit, viewModel: ReportsViewModel = hiltViewModel()) {
+fun ReportsScreen(
+    onManageRates: () -> Unit,
+    onOpenSpendingBreakdown: ((TrackingWindow) -> Unit)? = null,
+    onOpenNetWorth: ((TrackingWindow) -> Unit)? = null,
+    viewModel: ReportsViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     RefreshOnStart { viewModel.onScreenStart() }
     val exportState by viewModel.exportState.collectAsStateWithLifecycle()
@@ -90,7 +99,8 @@ fun ReportsScreen(onManageRates: () -> Unit, viewModel: ReportsViewModel = hiltV
     ReportsContent(state = state, windowActions = viewModel.windowActions, onRetry = viewModel::retry,
         onManageRates = onManageRates,
         exportState = exportState, onExport = viewModel::prepareExport,
-        onExportResultShown = viewModel::consumeExportResult)
+        onExportResultShown = viewModel::consumeExportResult,
+        onOpenSpendingBreakdown = onOpenSpendingBreakdown, onOpenNetWorth = onOpenNetWorth)
 }
 
 /**
@@ -112,6 +122,8 @@ internal fun ReportsContent(
     exportState: ReportsExportState,
     onExport: () -> Unit,
     onExportResultShown: () -> Unit,
+    onOpenSpendingBreakdown: ((TrackingWindow) -> Unit)? = null,
+    onOpenNetWorth: ((TrackingWindow) -> Unit)? = null,
 ) {
     val snackbar = remember { SnackbarHostState() }
     val exportMessage = when (exportState) {
@@ -160,17 +172,30 @@ internal fun ReportsContent(
                 return@Column
             }
 
+            val chartLinks: @Composable () -> Unit = {
+                TrackingChartLinks(state.window, onOpenSpendingBreakdown, onOpenNetWorth)
+            }
+            val showLinks = hasChartLinks(onOpenSpendingBreakdown, onOpenNetWorth)
             when (val data = state.data) {
                 ReportsData.Loading -> CircularProgressIndicator()
 
-                is ReportsData.MissingRate -> MissingRateNotice(data.currencyCode, onManageRates)
+                is ReportsData.MissingRate -> {
+                    MissingRateNotice(data.currencyCode, onManageRates)
+                    if (showLinks) chartLinks()
+                }
 
-                is ReportsData.Ready -> if (data.isEmpty) EmptyWindowNote() else ReportList(
-                    data = data,
-                    expandedIds = expanded.value,
-                    onToggle = onToggle,
-                    modifier = Modifier.weight(1f),
-                )
+                is ReportsData.Ready -> if (data.isEmpty) {
+                    EmptyWindowNote()
+                    if (showLinks) chartLinks()
+                } else {
+                    ReportList(
+                        data = data,
+                        expandedIds = expanded.value,
+                        onToggle = onToggle,
+                        modifier = Modifier.weight(1f),
+                        chartLinks = chartLinks.takeIf { showLinks },
+                    )
+                }
             }
         }
     }
@@ -187,9 +212,15 @@ private fun ReportList(
     expandedIds: Set<Long>,
     onToggle: (Long) -> Unit,
     modifier: Modifier,
+    chartLinks: (@Composable () -> Unit)? = null,
 ) {
     LazyColumn(modifier = modifier) {
         item(key = "summary") { SummaryMetrics(data) }
+        if (chartLinks != null) {
+            item(key = "chart-links") {
+                Box(Modifier.padding(top = WalletTheme.dimensions.regionGap)) { chartLinks() }
+            }
+        }
         categorySection(
             section = CategorySection.EXPENSE,
             title = R.string.reports_spending_by_category,
