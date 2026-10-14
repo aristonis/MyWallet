@@ -5,7 +5,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.flow.filterNotNull
 import java.time.LocalDate
@@ -17,23 +16,21 @@ import java.time.LocalDate
 internal const val SAVED_DATE_KEY = "savedDate"
 
 /**
- * Leaves the editor, telling the screen underneath which date the saved entry landed on. The date is
- * written before popping so it is already waiting when that screen comes back into view.
+ * Leaves the editor, telling the Transactions list which date the saved entry landed on. The date is
+ * written before popping so it is already waiting when the list comes back into view.
  *
- * Only the Transactions graph listens: its list may be narrowed to some dates and says so when an
- * entry lands outside them. Opened from anywhere else, the editor only pops, so no date is left in a
- * screen's saved state for whatever is shown there later.
+ * It goes to the list's own back-stack entry, not to the screen underneath: the editor can be opened
+ * from the list or from a read-only page above the list, and only the list listens. Only the
+ * Transactions graph has a list that may be narrowed to some dates and says so when an entry lands
+ * outside them. Opened from anywhere else there is no such entry on the back stack, so the editor
+ * only pops and no date is left in a screen's saved state for whatever is shown there later.
  */
 internal fun NavHostController.returnSavedDate(date: LocalDate) {
-    previousBackStackEntry
-        ?.takeIf { it.isInGraph(WalletTab.TRANSACTIONS) }
+    runCatching { getBackStackEntry(WalletTab.TRANSACTIONS.rootRoute) }.getOrNull()
         ?.savedStateHandle
         ?.set(SAVED_DATE_KEY, date.toEpochDay())
     popBackStack()
 }
-
-private fun NavBackStackEntry.isInGraph(tab: WalletTab): Boolean =
-    destination.hierarchy.any { it.route == tab.route }
 
 /**
  * Hears each date an editor hands back to [entry] and passes it to [onSaved] once.

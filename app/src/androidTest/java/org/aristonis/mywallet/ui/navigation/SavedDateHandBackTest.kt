@@ -126,6 +126,44 @@ class SavedDateHandBackTest {
     }
 
     @Test
+    fun anEditorOpenedFromADetailPageStillHandsTheDateToTheList() {
+        // The list opens a read-only page and the page opens the editor. The page does not listen, so
+        // the date has to wait on the list's own entry, not on the page the editor returns to.
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                nav = rememberNavController()
+                NavHost(navController = nav, startDestination = tab.route) {
+                    graphOf(tab) {
+                        composable(tab.rootRoute) { entry ->
+                            SavedDateEffect(entry) { heard += it }
+                            Button(onClick = { nav.navigate(tab.child(Leaf.TRANSACTION_DETAIL, 1)) }) { Text("open page") }
+                        }
+                        composable(tab.child(Leaf.TRANSACTION_DETAIL, 1)) {
+                            Button(onClick = { nav.navigate(tab.child(Leaf.EDIT_TRANSACTION, 1)) }) { Text("open editor") }
+                        }
+                        composable(tab.child(Leaf.EDIT_TRANSACTION, 1)) {
+                            Button(onClick = { nav.returnSavedDate(saved) }) { Text("save") }
+                        }
+                    }
+                }
+            }
+        }
+
+        compose.onNodeWithText("open page").performClick()
+        compose.onNodeWithText("open editor").performClick()
+        compose.onNodeWithText("save").performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("open editor").assertIsDisplayed() // back on the page, not the list
+        assertNull(checkNotNull(nav.currentBackStackEntry).savedStateHandle.get<Long?>(SAVED_DATE_KEY))
+        compose.runOnUiThread { nav.popBackStack() }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("open page").assertIsDisplayed()
+        assertEquals(listOf(saved), heard)
+    }
+
+    @Test
     fun cancellingHandsNothingBack() {
         start()
         compose.onNodeWithText("open editor").performClick()
