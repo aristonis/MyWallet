@@ -85,6 +85,8 @@
 
     <!-- Manage accounts -->
     <string name="manage_accounts_title">Accounts</string>
+    <string name="manage_accounts_active">Active accounts</string>
+    <string name="manage_accounts_no_active">No active accounts</string>
     <string name="manage_accounts_empty">No accounts yet.</string>
     <string name="account_archived">Archived</string>
     <string name="account_type_and_currency">%1$s · %2$s</string>
@@ -110,6 +112,7 @@
     <!-- Add and edit transaction -->
     <string name="add_transaction_title">Add transaction</string>
     <string name="edit_transaction_title">Edit transaction</string>
+    <string name="edit_transaction_kind_fixed">Transaction type can’t be changed after saving.</string>
     <!-- 1 USD = [rate] SYP; %1$s is the currency code the rate is for. -->
     <string name="add_transaction_rate_lead">1 %1$s =</string>
     <string name="add_transaction_rate_read_only">To change this rate, edit it under Currencies &amp; rates, or turn on saving rates in Settings.</string>

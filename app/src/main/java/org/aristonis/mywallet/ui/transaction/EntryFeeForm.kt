@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.transaction
 
 import kotlinx.coroutines.CancellationException
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.data.format.MoneyParseException
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
@@ -41,10 +42,19 @@ internal class EntryFeeForm(
         state: FeeFormState, type: TransactionType?, amountInput: String, sourceCode: String?,
         destinationCode: String?, rates: RateQuoteInput, loaded: Transaction?,
     ): FeeFormState {
-        val cleared = state.copy(amount = null, accountMovement = null, error = null)
+        val cleared = state.copy(amount = null, accountMovement = null, error = null, errorIsFeeInput = false)
         if (!type.hasFeeField() || sourceCode == null || amountInput.isBlank()) return cleared
+        // Principal input belongs to AmountField. A bad principal cannot price a fee preview, but
+        // it must not make the fee control look invalid or hide the amount error on submit.
+        val principal = try { parser.parseAmount(amountInput, sourceCode) }
+            catch (e: MoneyParseException) { return cleared }
+        // A zero fee is valid, so parse it as an opening balance and keep parse errors on FeeField.
+        val feeInput = try {
+            state.valueInput.takeIf(String::isNotBlank)?.let { parser.parseOpeningBalance(it, sourceCode) }
+        } catch (e: MoneyParseException) {
+            return cleared.copy(error = e.toUiMessage(), errorIsFeeInput = true)
+        }
         return try {
-            val principal = parser.parseAmount(amountInput, sourceCode)
             val fx = rates.fx ?: return cleared.copy(
                 error = if (state.valueInput.isBlank()) null else UiMessage.RateMissing)
             val codes = rates.visibleRateCodes()
@@ -54,7 +64,7 @@ internal class EntryFeeForm(
             val effective = if (type == TransactionType.TRANSFER)
                 shown.copy(ratesToBase = shown.ratesToBase - clearedRates) else shown
             val book = RateBook(effective, rates.typedRatesFor(codes, parser))
-            val fee = calculatedFee(state, principal, book.converter())
+            val fee = calculatedFee(state, principal, feeInput, book.converter())
             if (type == TransactionType.TRANSFER && fee != null && fee >= principal) {
                 throw WalletException.FeeNotBelowAmount(principal, fee)
             }
@@ -65,14 +75,12 @@ internal class EntryFeeForm(
         } catch (e: Exception) {
             val message = e.toUiMessage()
             if (message == UiMessage.Unexpected) errors.report("Entry fee could not be calculated", e)
-            cleared.copy(error = message)
+            cleared.copy(error = message, errorIsFeeInput = message.isFeeInputError())
         }
     }
 
-    private fun calculatedFee(state: FeeFormState, principal: Money, converter: CurrencyConverter): Money? {
-        if (state.valueInput.isBlank()) return null
-        // Not parseAmount: it refuses zero, and a zero fee is valid input that means "no fee".
-        val value = parser.parseOpeningBalance(state.valueInput, principal.currencyCode)
+    private fun calculatedFee(state: FeeFormState, principal: Money, value: Money?, converter: CurrencyConverter): Money? {
+        if (value == null) return null
         if (value.isNegative) throw WalletException.FeeValueNegative(value)
         if (state.mode == FeeMode.FIXED) requireCurrencyDecimals(value, converter)
         return FeeCalculator.calculate(principal, FeeRule(state.mode, value.amount), converter).takeIf { it.isPositive }

@@ -51,6 +51,8 @@ class RowActionsTest {
                 archived = archived,
             ),
             hasTransactions = hasTransactions,
+            balance = Money.zero("USD"),
+            balanceDisplay = "0.00 USD",
         )
 
     private fun showAccounts(

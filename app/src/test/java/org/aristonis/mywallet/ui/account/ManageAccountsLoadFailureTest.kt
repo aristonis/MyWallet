@@ -9,7 +9,9 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.RecordingErrorReporter
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.UnreadableRowRef
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
@@ -22,6 +24,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.Locale
 
 /** Account deletion stays unavailable until the ledger can be read again. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -36,7 +39,8 @@ class ManageAccountsLoadFailureTest {
     @After fun tearDown() = Dispatchers.resetMain()
 
     private fun viewModel() = ManageAccountsViewModel(
-        accounts, ledger, SetAccountArchived(accounts), DeleteAccount(accounts, ledger), ledger.health(), errors,
+        accounts, ledger, FakeCurrencyRepository(listOf(Currency("USD", "$", 2))), MoneyFormatter(Locale.US), dispatcher,
+        SetAccountArchived(accounts), DeleteAccount(accounts, ledger), ledger.health(), errors,
     )
 
     @Test fun unknownKindStopsAccountDeletionAndRetryReadsRepairedLedger() = runTest {

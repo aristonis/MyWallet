@@ -1,12 +1,24 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.ui.components.MoneyText
@@ -23,6 +35,21 @@ import org.aristonis.mywallet.ui.theme.amountColor
 @Composable
 internal fun TransactionRowItem(row: TransactionRow, onClick: () -> Unit) {
     val role = row.type.amountRole()
+    if (row.type == TransactionRowType.TRANSFER) {
+        BoxWithConstraints {
+            if (maxWidth / LocalDensity.current.fontScale <= 400.dp) {
+                CompactTransferRow(row = row, onClick = onClick)
+            } else {
+                StandardTransactionRow(row = row, role = role, onClick = onClick)
+            }
+        }
+        return
+    }
+    StandardTransactionRow(row = row, role = role, onClick = onClick)
+}
+
+@Composable
+private fun StandardTransactionRow(row: TransactionRow, role: AmountRole, onClick: () -> Unit) {
     WalletListRow(
         headline = headline(row),
         supporting = supporting(row),
@@ -34,12 +61,75 @@ internal fun TransactionRowItem(row: TransactionRow, onClick: () -> Unit) {
     )
 }
 
+/** At phone width, the complete transfer route and both currency amounts need separate lines. */
+@Composable
+private fun CompactTransferRow(row: TransactionRow, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 48.dp).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = WalletIcons.Transfer,
+                contentDescription = kindLabel(row.type),
+                tint = amountColor(AmountRole.NEUTRAL),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(headline(row), style = MaterialTheme.typography.titleMedium)
+                supporting(row)?.let { context ->
+                    Text(
+                        context,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+            TrailingAmounts(row, AmountRole.NEUTRAL)
+        }
+    }
+}
+
 /** The main movement and its receipt details retain their separate accounting meanings. */
 @Composable
 private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
     Column(horizontalAlignment = Alignment.End) {
         MoneyText(amount = amountLine(row), style = MaterialTheme.typography.titleMedium, color = amountColor(role))
-        if (role != AmountRole.NEUTRAL) BaseAmount(row.countedBaseAmountDisplay)
+        val hasDeductionDetails = row.type == TransactionRowType.INCOME && row.deductions.isNotEmpty()
+        if (hasDeductionDetails) {
+            Text(
+                text = stringResource(R.string.income_summary_receives),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            row.grossAmountDisplay?.let { gross ->
+                DetailAmount(
+                    stringResource(
+                        R.string.transaction_headline_with_note,
+                        stringResource(R.string.income_summary_gross),
+                        bidiIsolate(gross),
+                    ),
+                    AmountRole.INCOME,
+                )
+            }
+            row.countedBaseAmountDisplay?.let { base ->
+                Text(
+                    text = stringResource(
+                        R.string.transaction_headline_with_note,
+                        stringResource(R.string.income_summary_gross),
+                        stringResource(R.string.transaction_base_amount, bidiIsolate(base)),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (role != AmountRole.NEUTRAL && !hasDeductionDetails) BaseAmount(row.countedBaseAmountDisplay)
         if (role == AmountRole.NEUTRAL) {
             row.countedAmountDisplay?.let { interest ->
                 DetailAmount(
@@ -49,17 +139,25 @@ private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
                 BaseAmount(row.countedBaseAmountDisplay)
             }
         }
-        row.deductions.forEach { line ->
-            val label = if (line.timing == DeductionTiming.NOW) {
-                R.string.transaction_deduction_now
+        row.deductionSummaries.forEach { summary ->
+            val timing = if (summary.timing == DeductionTiming.NOW) {
+                R.string.income_deduction_now
             } else {
-                R.string.transaction_deduction_later
+                R.string.income_deduction_later
             }
             DetailAmount(
-                stringResource(label, bidiIsolate(line.name), bidiIsolate(line.amountDisplay)),
+                stringResource(
+                    R.string.transaction_deduction_summary,
+                    stringResource(timing),
+                    bidiIsolate(summary.amountDisplay),
+                    pluralStringResource(
+                        R.plurals.transaction_saved_deduction_count,
+                        summary.snapshotCount,
+                        summary.snapshotCount,
+                    ),
+                ),
                 AmountRole.EXPENSE,
             )
-            BaseAmount(line.baseAmountDisplay)
         }
         row.feeDisplay?.let { fee ->
             DetailAmount(stringResource(R.string.transaction_fee, bidiIsolate(fee)), AmountRole.EXPENSE)
@@ -119,14 +217,19 @@ private fun headline(row: TransactionRow): String {
 }
 
 /**
- * The quieter second line: which account the money moved through, or for a debt kind that moves no
- * account money, which kind it is.
+ * The quieter second line names the kind and account for ordinary movements, and the account or
+ * kind alone for entries whose headline already carries that context.
  */
 @Composable
 private fun supporting(row: TransactionRow): String? = when (row.type) {
     TransactionRowType.INCOME,
     TransactionRowType.EXPENSE,
     TransactionRowType.REFUND,
+    -> stringResource(
+        R.string.transaction_headline_with_note,
+        kindLabel(row.type),
+        bidiIsolate(row.accountName ?: stringResource(R.string.value_missing)),
+    )
     TransactionRowType.BORROW,
     TransactionRowType.LEND,
     TransactionRowType.REPAYMENT_PAID,
@@ -184,5 +287,5 @@ private fun amountLine(row: TransactionRow): String {
     if (row.type == TransactionRowType.TRANSFER && dest != null && dest != row.amountDisplay) {
         return stringResource(R.string.transfer_amounts, bidiIsolate(row.amountDisplay), bidiIsolate(dest))
     }
-    return signedAmount(row.type.amountRole(), row.amountDisplay)
+    return signedAmount(row.type.amountRole(), row.accountMovementDisplay ?: row.amountDisplay)
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.data.format.MoneyParseException
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.di.TodayProvider
@@ -266,17 +267,22 @@ class AddTransactionViewModel @Inject constructor(
         val snapshot = _state.value
         if (snapshot.isSubmitting || snapshot.savedOn != null) return
         if (snapshot.type == TransactionType.INCOME && !snapshot.deductions.isCatalogReady) return
-        _state.update { it.copy(isSubmitting = true, error = null) }
+        _state.update { it.copy(isSubmitting = true, error = null, errorIsAmountInput = false) }
         viewModelScope.launch {
             try {
                 // A missing category or destination is thrown by the rule, before anything is written.
-                val built = EntryFormRules.forType(snapshot.type).build(
-                    inputs = snapshot.formInputs(),
-                    accounts = snapshot.accounts,
-                    moneyParser = moneyParser,
-                    date = snapshot.date,
-                    note = snapshot.note,
-                )
+                val built = try {
+                    EntryFormRules.forType(snapshot.type).build(
+                        inputs = snapshot.formInputs(),
+                        accounts = snapshot.accounts,
+                        moneyParser = moneyParser,
+                        date = snapshot.date,
+                        note = snapshot.note,
+                    )
+                } catch (e: MoneyParseException) {
+                    _state.update { it.copy(isSubmitting = false, error = e.toUiMessage(), errorIsAmountInput = true) }
+                    return@launch
+                }
                 val saved = saveEntry(
                     entry = feeForm.forSave(deductionForm.forSave(built.entry, snapshot.deductions,
                         snapshot.amountInput, snapshot.quoteInput()), snapshot.fee),
@@ -290,7 +296,7 @@ class AddTransactionViewModel @Inject constructor(
                 // A domain refusal, a bad amount or rate, or a missing choice names itself; anything
                 // else shows as unexpected, and the form is freed so it can be tried again.
                 if (e.toUiMessage() == UiMessage.Unexpected) errors.report("Entry could not be saved", e)
-                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage(), errorIsAmountInput = false) }
             }
         }
     }

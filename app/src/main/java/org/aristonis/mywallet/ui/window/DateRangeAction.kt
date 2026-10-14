@@ -1,5 +1,9 @@
 package org.aristonis.mywallet.ui.window
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
@@ -19,20 +23,39 @@ import androidx.compose.ui.res.stringResource
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.icons.WalletIcons
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
 /**
- * The top-bar way into a custom range. It lives in the app bar rather than the date bar because
- * choosing arbitrary dates is the exception: the period and its arrows cover the everyday case and
- * keep the date bar to one line of controls.
+ * Opens a custom range. Transactions shows its label in the date bar; Tracking keeps the compact
+ * icon in its app bar.
  */
 @Composable
-fun DateRangeAction(window: TrackingWindow, onSelectRange: (LocalDate, LocalDate) -> Unit) {
+fun DateRangeAction(
+    window: TrackingWindow,
+    onSelectRange: (LocalDate, LocalDate) -> Unit,
+    showLabel: Boolean = false,
+) {
     var picking by rememberSaveable { mutableStateOf(false) }
-    IconButton(onClick = { picking = true }) {
-        Icon(imageVector = WalletIcons.DateRange, contentDescription = stringResource(R.string.cd_choose_dates))
+    if (showLabel) {
+        TextButton(
+            onClick = { picking = true },
+            modifier = Modifier.heightIn(min = WalletTheme.dimensions.minTouchTarget),
+        ) {
+            Icon(
+                imageVector = WalletIcons.DateRange,
+                contentDescription = stringResource(R.string.cd_choose_dates),
+                modifier = Modifier.size(WalletTheme.dimensions.iconSize),
+            )
+            Spacer(Modifier.width(WalletTheme.dimensions.relatedGap))
+            Text(stringResource(R.string.date_range_action))
+        }
+    } else {
+        IconButton(onClick = { picking = true }) {
+            Icon(imageVector = WalletIcons.DateRange, contentDescription = stringResource(R.string.cd_choose_dates))
+        }
     }
     if (picking) {
         DateRangeDialog(

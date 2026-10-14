@@ -9,14 +9,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.DeductionMode
@@ -24,6 +23,7 @@ import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.theme.WalletTheme
 
 /**
  * Income-only entry controls. Every change is sent as a named [DeductionEdit] for one row; the form
@@ -38,7 +38,7 @@ internal fun DeductionsSection(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
         Text(stringResource(R.string.income_deductions_title), style = MaterialTheme.typography.titleMedium)
         val catalogFailed = state.catalogError != null
         if (state.itemsLoading) Text(stringResource(R.string.income_deductions_loading))
@@ -59,9 +59,13 @@ private fun DeductionEntryFields(
     row: IncomeDeductionDraft, converted: String?, currencies: List<Currency>,
     currency: String?, onEdit: (DeductionEdit) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = WalletTheme.dimensions.relatedGap),
+        verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap),
+    ) {
         Column(Modifier.fillMaxWidth().toggleable(row.selected, role = Role.Checkbox,
-            onValueChange = { onEdit(DeductionEdit.SetSelected(it)) }).padding(8.dp)) {
+            onValueChange = { onEdit(DeductionEdit.SetSelected(it)) })
+            .padding(WalletTheme.dimensions.relatedGap)) {
             Text(bidiIsolate(row.name), style = MaterialTheme.typography.titleSmall)
             Checkbox(checked = row.selected, onCheckedChange = null)
         }
@@ -87,8 +91,16 @@ private fun DeductionEntryFields(
 
 @Composable
 private fun DecimalField(value: String, label: String, onValueChange: (String) -> Unit) {
-    OutlinedTextField(value = value, onValueChange = onValueChange, label = { Text(label) }, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        shape = MaterialTheme.shapes.medium,
+        colors = transactionFieldColors(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

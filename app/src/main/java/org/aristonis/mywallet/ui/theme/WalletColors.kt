@@ -50,6 +50,9 @@ internal val LocalWalletColors = staticCompositionLocalOf { LightWalletColors }
 object WalletTheme {
     val colors: WalletColors
         @Composable @ReadOnlyComposable get() = LocalWalletColors.current
+
+    val dimensions: WalletDimensions
+        get() = SignedWalletDimensions
 }
 
 /**

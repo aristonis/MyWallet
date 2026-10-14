@@ -160,6 +160,8 @@ class BoundedListLayoutTest {
                     openingBalance = Money.zero("USD"),
                 ),
                 hasTransactions = false,
+                balance = Money.zero("USD"),
+                balanceDisplay = "0.00 USD",
             )
         }
         show {

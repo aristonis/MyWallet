@@ -1,20 +1,37 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
+import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.window.DateWindowActions
+import org.aristonis.mywallet.ui.window.CompactDateWindowBar
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -70,6 +87,84 @@ class TransactionsListWindowContentTest {
         show(TrackingWindow.Period(TrackingPeriod.ALL_TIME, LocalDate.of(2026, 8, 10)))
 
         compose.onNodeWithContentDescription("Choose dates").assertIsDisplayed()
+    }
+
+    @Test
+    fun compactDateBarShowsTheDateRangeActionLabel() {
+        show(TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 10)))
+
+        compose.onNodeWithText("Date range").assertIsDisplayed()
+    }
+
+    @Test
+    fun largeTextRtlDateRangeActionLeavesTheSelectedMonthItsOwnRow() {
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, 2f),
+                LocalLayoutDirection provides LayoutDirection.Rtl,
+            ) {
+                MyWalletTheme(dynamicColor = false) {
+                    Box(Modifier.width(360.dp)) {
+                        CompactDateWindowBar(
+                            window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 10)),
+                            actions = DateWindowActions.None,
+                        )
+                    }
+                }
+            }
+        }
+
+        val month = compose.onNodeWithText("August 2026").assertIsDisplayed().getBoundsInRoot()
+        val range = compose.onNodeWithText("Date range").assertIsDisplayed().getBoundsInRoot()
+        assertTrue("At 200% text the date action must clear the selected month", range.top >= month.bottom)
+        compose.onNodeWithContentDescription("Previous period").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Next period").assertIsDisplayed()
+    }
+
+    @Test
+    fun compactDateControlAnnouncesTheSelectedMonth() {
+        show(TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 10)))
+        compose.onNodeWithContentDescription("Period, Month, August 2026").assertIsDisplayed()
+    }
+
+    @Test
+    fun compactDateControlAnnouncesTheCustomDateRange() {
+        show(TrackingWindow.Custom(DateRange(LocalDate.of(2026, 8, 3), LocalDate.of(2026, 8, 17))))
+        compose.onNode(
+            hasContentDescription("Custom dates", substring = true)
+                .and(hasContentDescription("2026", substring = true)),
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun monthUsesOneCompactDateControlWithEveryPeriodStillReachable() {
+        var picked: TrackingPeriod? = null
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                TransactionsListContent(
+                    state = TransactionsUiState(
+                        sections = emptyList(),
+                        isLoading = false,
+                        window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 10)),
+                    ),
+                    windowActions = DateWindowActions.None.copy(onSelectPeriod = { picked = it }),
+                    onAddTransaction = {},
+                    onEditTransaction = {},
+                    onShowSavedEntry = {},
+                    onSavedEntryMessageDone = {},
+                    onRetry = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("August 2026").assertIsDisplayed()
+        compose.onNodeWithText("Day").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Period, Month, August 2026").performClick()
+        compose.onNode(
+            hasText("Year").and(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton)),
+        ).performClick()
+        assertTrue(picked == TrackingPeriod.YEAR)
     }
 
     @Test

@@ -4,4 +4,9 @@
     <string name="transaction_fee">Fee: %1$s</string>
     <string name="transaction_interest">Interest: %1$s</string>
     <string name="transaction_base_amount">≈ %1$s</string>
+    <string name="transaction_deduction_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="transaction_saved_deduction_count">
+        <item quantity="one">%d saved deduction</item>
+        <item quantity="other">%d saved deductions</item>
+    </plurals>
 </resources>

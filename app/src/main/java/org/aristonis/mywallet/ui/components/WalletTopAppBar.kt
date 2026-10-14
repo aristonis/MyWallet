@@ -10,6 +10,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.icons.WalletIcons
 
@@ -28,7 +29,7 @@ fun WalletTopAppBar(
 ) {
     TopAppBar(
         modifier = modifier,
-        title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
+        title = { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) },
         navigationIcon = {
             if (onBack != null) {
                 IconButton(onClick = onBack) {

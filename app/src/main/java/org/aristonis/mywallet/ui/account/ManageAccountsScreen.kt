@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.account
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,9 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -21,36 +20,30 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import android.content.res.Configuration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.AccountTypeRegistry
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.LoadFailedState
-import org.aristonis.mywallet.ui.components.MenuAction
-import org.aristonis.mywallet.ui.components.OverflowMenu
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
-
-private val FAB_EDGE_GAP = 16.dp
-private val FAB_LIST_GAP = 16.dp
+import org.aristonis.mywallet.ui.theme.WalletTheme
 
 /**
  * Manage Accounts: archive/unarchive and delete existing accounts. Archived accounts are listed here
@@ -89,37 +82,21 @@ internal fun ManageAccountsContent(
     onDone: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    val dimensions = WalletTheme.dimensions
     // Deleting an account is destructive, so it goes through a confirm dialog keyed on the pending id.
     var pendingDelete by remember { mutableStateOf<ManageAccountRow?>(null) }
-    var addActionHeightPx by remember { mutableIntStateOf(0) }
-    val listBottomPadding = with(LocalDensity.current) { addActionHeightPx.toDp() } +
-        FAB_EDGE_GAP + FAB_LIST_GAP
 
     Scaffold(
         topBar = {
             WalletTopAppBar(title = stringResource(R.string.manage_accounts_title), onBack = onDone)
         },
-        floatingActionButton = {
-            // Adding an account lives here rather than on Home: it is a setup action, and Home's one
-            // button belongs to the thing users do every day.
-            ExtendedFloatingActionButton(
-                onClick = onAddAccount,
-                modifier = Modifier.onSizeChanged { addActionHeightPx = it.height },
-            ) {
-                Icon(imageVector = WalletIcons.Add, contentDescription = null)
-                Text(
-                    text = stringResource(R.string.home_add_account),
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(dimensions.screenPadding)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(dimensions.regionGap),
         ) {
             state.error?.let { message ->
                 Text(
@@ -127,6 +104,21 @@ internal fun ManageAccountsContent(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.manage_accounts_active),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onAddAccount, modifier = Modifier.heightIn(min = dimensions.minTouchTarget)) {
+                    Icon(imageVector = WalletIcons.Add, contentDescription = null)
+                    Text(stringResource(R.string.home_add_account), modifier = Modifier.padding(start = dimensions.relatedGap))
+                }
             }
 
             when {
@@ -139,20 +131,52 @@ internal fun ManageAccountsContent(
 
                 state.rows.isEmpty() -> EmptyState(
                     message = stringResource(R.string.manage_accounts_empty),
-                    actionLabel = stringResource(R.string.home_create_first_account),
-                    onAction = onAddAccount,
                 )
 
                 else -> LazyColumn(
                     // Without a bound the list asks for the height of all its rows, pushing the last
                     // of them past the bottom of the screen where no scroll can reach them.
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = listBottomPadding),
+                    contentPadding = PaddingValues(bottom = dimensions.sectionGap),
                 ) {
-                    items(state.rows, key = { it.account.id }) { row ->
-                        AccountManageCard(
+                    val active = state.rows.filterNot { it.account.archived }
+                    val archived = state.rows.filter { it.account.archived }
+                    if (active.isEmpty()) {
+                        item(key = "no-active") {
+                            Text(
+                                stringResource(R.string.manage_accounts_no_active),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    items(active.size, key = { active[it].account.id }) { index ->
+                        val row = active[index]
+                        AccountManageRow(
                             row = row,
+                            isFirst = index == 0,
+                            isLast = index == active.lastIndex,
+                            onEdit = { onEdit(row.account.id) },
+                            onArchive = { onArchive(row.account.id) },
+                            onUnarchive = { onUnarchive(row.account.id) },
+                            onDeleteRequest = { pendingDelete = row },
+                        )
+                    }
+                    if (archived.isNotEmpty()) {
+                        item(key = "archived-heading") {
+                            Text(
+                                stringResource(R.string.account_archived),
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(top = dimensions.sectionGap),
+                            )
+                        }
+                    }
+                    items(archived.size, key = { archived[it].account.id }) { index ->
+                        val row = archived[index]
+                        AccountManageRow(
+                            row = row,
+                            isFirst = index == 0,
+                            isLast = index == archived.lastIndex,
                             onEdit = { onEdit(row.account.id) },
                             onArchive = { onArchive(row.account.id) },
                             onUnarchive = { onUnarchive(row.account.id) },
@@ -182,102 +206,36 @@ internal fun ManageAccountsContent(
     }
 }
 
-@Composable
-private fun AccountManageCard(
-    row: ManageAccountRow,
-    onEdit: () -> Unit,
-    onArchive: () -> Unit,
-    onUnarchive: () -> Unit,
-    onDeleteRequest: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth().testTag("account-row-${row.account.id}")) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(row.account.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                if (row.account.archived) {
-                    Text(
-                        text = stringResource(R.string.account_archived),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                OverflowMenu(
-                    contentDescription = stringResource(R.string.cd_row_actions, row.account.name),
-                    actions = accountActions(row, onEdit, onArchive, onUnarchive, onDeleteRequest),
-                )
-            }
-            Text(
-                stringResource(
-                    R.string.account_type_and_currency,
-                    accountTypeLabel(row.account.typeKey),
-                    row.account.currencyCode,
+private class ManageAccountsPreviewStates : PreviewParameterProvider<ManageAccountsUiState> {
+    override val values = sequenceOf(
+        ManageAccountsUiState(
+            isLoading = false,
+            rows = listOf(
+                ManageAccountRow(
+                    Account(1, "Everyday wallet", "cash", "USD", Money.of("100", "USD")),
+                    hasTransactions = true,
+                    balance = Money.of("840", "USD"),
+                    balanceDisplay = "840.00 USD",
                 ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            // Deleting a used account would orphan its history, so the hint replaces the action
-            // rather than sitting beside a disabled one the user would keep trying.
-            if (row.hasTransactions) {
-                Text(
-                    stringResource(R.string.account_archive_instead),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Every account can be edited (name and type always; currency only while it has no transactions —
- * the editor locks that field), so Edit is offered unconditionally. Archive and Unarchive are the
- * same slot in two states, and Delete only appears where it would not orphan a history.
- */
-@Composable
-private fun accountActions(
-    row: ManageAccountRow,
-    onEdit: () -> Unit,
-    onArchive: () -> Unit,
-    onUnarchive: () -> Unit,
-    onDeleteRequest: () -> Unit,
-): List<MenuAction> = buildList {
-    add(MenuAction(stringResource(R.string.action_edit), onEdit, WalletIcons.Edit))
-    if (row.account.archived) {
-        add(MenuAction(stringResource(R.string.action_unarchive), onUnarchive, WalletIcons.Unarchive))
-    } else {
-        add(MenuAction(stringResource(R.string.action_archive), onArchive, WalletIcons.Archive))
-    }
-    if (!row.hasTransactions) {
-        add(
-            MenuAction(
-                label = stringResource(R.string.action_delete),
-                onClick = onDeleteRequest,
-                icon = WalletIcons.Delete,
-                isDestructive = true,
+                ManageAccountRow(
+                    Account(2, "Bank account", "bank", "USD", Money.of("0", "USD")),
+                    hasTransactions = false,
+                    balance = Money.of("1960", "USD"),
+                    balanceDisplay = "1,960.00 USD",
+                ),
             ),
-        )
-    }
+        ),
+        ManageAccountsUiState(rows = emptyList(), isLoading = false),
+    )
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 360)
+@Preview(showBackground = true, widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-private fun ManageAccountsPreview() {
+private fun ManageAccountsPreview(@PreviewParameter(ManageAccountsPreviewStates::class) state: ManageAccountsUiState) {
     MyWalletTheme(dynamicColor = false) {
         ManageAccountsContent(
-            state = ManageAccountsUiState(
-                isLoading = false,
-                rows = listOf(
-                    ManageAccountRow(
-                        Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD", openingBalance = Money.of("100", "USD")),
-                        hasTransactions = true,
-                    ),
-                    ManageAccountRow(
-                        Account(id = 2, name = "Old Card", typeKey = "card", currencyCode = "USD", openingBalance = Money.of("0", "USD"), archived = true),
-                        hasTransactions = false,
-                    ),
-                ),
-            ),
+            state = state,
             onArchive = {}, onUnarchive = {}, onDelete = {}, onEdit = {}, onAddAccount = {}, onDone = {}, onRetry = {},
         )
     }

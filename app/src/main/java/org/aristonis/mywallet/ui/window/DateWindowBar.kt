@@ -2,6 +2,8 @@ package org.aristonis.mywallet.ui.window
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,10 +11,14 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,10 +28,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.R
@@ -33,16 +44,11 @@ import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.format.rememberWindowLabel
 import org.aristonis.mywallet.ui.icons.WalletIcons
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import java.time.LocalDate
 
-/**
- * Tight spacing between the period choice and the dates it resolves to: the two are one control, so
- * they sit closer together than unrelated sections do.
- */
-private val BAR_SPACING = 8.dp
-
-/** The label is a touch target even when it sits alone in its row. */
-private val MIN_TOUCH_TARGET = 48.dp
+/** Minimum room for both period arrows, a readable window label, and the labeled range action. */
+private val SINGLE_ROW_MIN_WIDTH = 320.dp
 
 /**
  * Everything the date bar can ask of its screen. Every callback is required, so a screen that forgets
@@ -78,12 +84,97 @@ data class DateWindowActions(
  */
 @Composable
 fun DateWindowBar(window: TrackingWindow, actions: DateWindowActions, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(BAR_SPACING)) {
+    Column(modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
         PeriodSelector(
             selected = (window as? TrackingWindow.Period)?.period,
             onSelectPeriod = actions.onSelectPeriod,
         )
         WindowNavigator(window = window, actions = actions)
+    }
+}
+
+/** A single date row for Transactions; Tracking keeps the full period selector. */
+@Composable
+fun CompactDateWindowBar(window: TrackingWindow, actions: DateWindowActions, modifier: Modifier = Modifier) {
+    var menuExpanded by rememberSaveable { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
+    val period = window as? TrackingWindow.Period
+    val windowText = rememberWindowLabel(window) ?: stringResource(R.string.period_all_time)
+    val periodText = period?.let { periodLabel(it.period) } ?: stringResource(R.string.period_custom)
+    val spokenWindow = if (windowText == periodText) periodText else "$periodText, $windowText"
+    val periodDescription = stringResource(R.string.cd_period_selector, spokenWindow)
+
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val stackDateAction = maxWidth / LocalDensity.current.fontScale < SINGLE_ROW_MIN_WIDTH
+        Column {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (window.canStep) {
+                    StepButton(WalletIcons.Previous, stringResource(R.string.cd_previous_period)) { actions.onStep(-1) }
+                }
+                Box(Modifier.weight(1f)) {
+                    OutlinedButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = WalletTheme.dimensions.minTouchTarget)
+                            .semantics { contentDescription = periodDescription },
+                    ) {
+                        Text(windowText, textAlign = TextAlign.Center)
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        modifier = Modifier.selectableGroup(),
+                    ) {
+                        if (period != null && period.canStep) {
+                            val chooseLabel = pickActionLabel(period.period)
+                            if (chooseLabel != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(chooseLabel)) },
+                                    onClick = { menuExpanded = false; picking = true },
+                                )
+                            }
+                        }
+                        TrackingPeriod.entries.forEach { choice ->
+                            DropdownMenuItem(
+                                text = { Text(periodLabel(choice)) },
+                                trailingIcon = {
+                                    if (choice == period?.period) {
+                                        Icon(WalletIcons.Selected, contentDescription = null)
+                                    }
+                                },
+                                onClick = { menuExpanded = false; actions.onSelectPeriod(choice) },
+                                modifier = Modifier.semantics {
+                                    role = Role.RadioButton
+                                    selected = choice == period?.period
+                                },
+                            )
+                        }
+                    }
+                }
+                if (window.canStep) {
+                    StepButton(WalletIcons.Next, stringResource(R.string.cd_next_period)) { actions.onStep(1) }
+                }
+                if (window is TrackingWindow.Custom) {
+                    StepButton(WalletIcons.Close, stringResource(R.string.cd_clear_date_range), actions.onClearRange)
+                }
+                if (!stackDateAction) {
+                    DateRangeAction(window = window, onSelectRange = actions.onSelectRange, showLabel = true)
+                }
+            }
+            if (stackDateAction) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    DateRangeAction(window = window, onSelectRange = actions.onSelectRange, showLabel = true)
+                }
+            }
+        }
+    }
+
+    if (picking && period != null) {
+        WindowPicker(
+            window = period,
+            onPicked = { date -> picking = false; actions.onJumpTo(date) },
+            onDismiss = { picking = false },
+        )
     }
 }
 
@@ -144,7 +235,7 @@ private fun StepButton(icon: ImageVector, description: String, onClick: () -> Un
 @Composable
 private fun RowScope.WindowLabel(window: TrackingWindow, onClick: (() -> Unit)?, @StringRes clickLabel: Int?) {
     val text = rememberWindowLabel(window) ?: stringResource(R.string.period_all_time)
-    val base = Modifier.weight(1f).heightIn(min = MIN_TOUCH_TARGET)
+    val base = Modifier.weight(1f).heightIn(min = WalletTheme.dimensions.minTouchTarget)
     if (onClick == null || clickLabel == null) {
         Row(modifier = base, verticalAlignment = Alignment.CenterVertically) {
             LabelText(text, Color.Unspecified)

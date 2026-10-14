@@ -1,6 +1,9 @@
 package org.aristonis.mywallet.ui.home
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -15,6 +18,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.aristonis.mywallet.R
@@ -155,5 +159,36 @@ class HomeScreenTest {
             actionBounds.top >= addBounds.bottom)
         accountAction.performClick()
         compose.runOnIdle { assertEquals(1, rateOpens.get()) }
+    }
+
+    @Test
+    fun longNativeBalanceMovesBelowTheAccountNameAtNarrowWidth() {
+        val name = "Everyday wallet"
+        val amount = "12,345,678,901.00 USD"
+        val state = HomeUiState(
+            summary = HomeSummaryState.Amounts("100.00 USD", "0.00 USD", "0.00 USD", "100.00 USD"),
+            accounts = listOf(
+                AccountRow(
+                    account = Account(1, name, "cash", "USD", Money.of("12345678901", "USD")),
+                    native = Money.of("12345678901", "USD"),
+                    base = Money.of("12345678901", "USD"),
+                    nativeDisplay = amount,
+                    baseDisplay = amount,
+                ),
+            ),
+            isLoading = false,
+        )
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                Box(Modifier.width(360.dp)) {
+                    HomeContent(state, {}, {}, {}, {}, {}, {}, {})
+                }
+            }
+        }
+
+        val nameBounds = compose.onNodeWithText(name).performScrollTo().getBoundsInRoot()
+        val amountBounds = compose.onNodeWithText(amount).getBoundsInRoot()
+        assertTrue("The full balance should use a line below the account name",
+            amountBounds.top >= nameBounds.bottom)
     }
 }

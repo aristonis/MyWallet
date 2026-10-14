@@ -125,6 +125,7 @@ class EditAccountViewModelTest {
         f.viewModel.submit()
         advanceUntilIdle()
         assertEquals(UiMessage.FeeValueNegative, f.viewModel.state.value.error)
+        assertEquals(AccountInputField.DEFAULT_FEE, f.viewModel.state.value.errorField)
         assertFalse(f.viewModel.state.value.saved)
         assertEquals(fee, f.accountRepo.findById(1)!!.defaultFee)
     }
@@ -139,6 +140,7 @@ class EditAccountViewModelTest {
         f.viewModel.submit()
         advanceUntilIdle()
         assertEquals(UiMessage.FeePercentAboveHundred, f.viewModel.state.value.error)
+        assertEquals(AccountInputField.DEFAULT_FEE, f.viewModel.state.value.errorField)
         assertEquals(stored, f.accountRepo.findById(1)!!.defaultFee)
     }
 
@@ -216,6 +218,7 @@ class EditAccountViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(f.viewModel.state.value.error)
+        assertNull(f.viewModel.state.value.errorField)
         assertFalse(f.viewModel.state.value.saved)
         assertEquals("USD", f.accountRepo.findById(1)!!.currencyCode) // unchanged
     }
@@ -259,6 +262,7 @@ class EditAccountViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(f.viewModel.state.value.error)
+        assertEquals(AccountInputField.OPENING_BALANCE, f.viewModel.state.value.errorField)
         assertFalse(f.viewModel.state.value.saved)
     }
 

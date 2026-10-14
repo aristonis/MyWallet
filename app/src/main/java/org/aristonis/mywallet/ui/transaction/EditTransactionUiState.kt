@@ -32,6 +32,8 @@ data class EditTransactionUiState(
     val note: String = "",
     val isSubmitting: Boolean = false,
     val error: UiMessage? = null,
+    /** The submit error came from parsing the primary amount in the entry rule. */
+    val errorIsAmountInput: Boolean = false,
     /** The date the save stored the entry under; set once by a save, cleared by acknowledging it. */
     val savedOn: LocalDate? = null,
     val deleted: Boolean = false,

@@ -17,6 +17,8 @@ data class FeeFormState(
     /** What the destination receives on a transfer, or what the source pays on an expense. */
     val accountMovement: Money? = null,
     val error: UiMessage? = null,
+    /** True when [error] came from the fee value, rather than a rate or transfer receipt. */
+    val errorIsFeeInput: Boolean = false,
     val needsCategoryPicker: Boolean = false,
     val roleLoading: Boolean = false,
     val roleError: UiMessage? = null,

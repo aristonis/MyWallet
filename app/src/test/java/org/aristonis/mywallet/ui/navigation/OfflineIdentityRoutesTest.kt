@@ -6,11 +6,11 @@ import org.junit.Test
 
 class OfflineIdentityRoutesTest {
     @Test
-    fun eachOfflineInformationPageKeepsTheSettingsTabBar() {
+    fun eachOfflineInformationPageHidesTheSettingsTabBar() {
         listOf(Leaf.PRIVACY, Leaf.SUPPORT, Leaf.APP_LICENSE).forEach { leaf ->
             val route = WalletTab.SETTINGS.child(leaf)
             assertTrue(leaf in Leaf.all)
-            assertTrue(showsNavigationBar(route))
+            assertFalse(showsNavigationBar(route))
             assertFalse(leaf in Leaf.forms)
         }
     }

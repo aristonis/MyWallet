@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.transaction
 // Amounts arrive pre-formatted from the view-model (per currency + locale); this screen only adds
 // the sign each kind carries.
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -26,16 +28,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -54,16 +55,11 @@ import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
-import org.aristonis.mywallet.ui.window.DateRangeAction
+import org.aristonis.mywallet.ui.theme.WalletTheme
+import org.aristonis.mywallet.ui.window.CompactDateWindowBar
 import org.aristonis.mywallet.ui.window.DateWindowActions
-import org.aristonis.mywallet.ui.window.DateWindowBar
 import org.aristonis.mywallet.ui.window.RefreshOnStart
 import java.time.LocalDate
-
-/** Gap between the date bar and the screen edges, matching the rest of the screen's content. */
-private val SCREEN_PADDING = 16.dp
-private val FAB_EDGE_GAP = 16.dp
-private val FAB_LIST_GAP = 16.dp
 
 /**
  * The history, newest first and grouped by day. Tapping a row opens it in the editor. This is a
@@ -113,10 +109,8 @@ internal fun TransactionsListContent(
     onRetry: () -> Unit,
     onLoadMore: () -> Unit = {},
 ) {
+    val dimensions = WalletTheme.dimensions
     val snackbarHostState = remember { SnackbarHostState() }
-    var addActionHeightPx by remember { mutableIntStateOf(0) }
-    val listBottomPadding = with(LocalDensity.current) { addActionHeightPx.toDp() } +
-        FAB_EDGE_GAP + FAB_LIST_GAP
     SavedOutsideSnackbar(
         savedOn = state.savedOutsideWindow,
         snackbarHostState = snackbarHostState,
@@ -126,35 +120,37 @@ internal fun TransactionsListContent(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            WalletTopAppBar(
-                title = stringResource(R.string.transactions_title),
-                actions = { DateRangeAction(window = state.window, onSelectRange = windowActions.onSelectRange) },
-            )
+            WalletTopAppBar(title = stringResource(R.string.transactions_title))
         },
-        floatingActionButton = {
-            // The same action as Home's, in the same place: recording a transaction is what the user
-            // came here to do, whichever of the two lists they are looking at.
-            ExtendedFloatingActionButton(
-                onClick = onAddTransaction,
-                modifier = Modifier.onSizeChanged { addActionHeightPx = it.height },
+        bottomBar = {
+            // Reserve the action's height outside the scrolling ledger so a visible row never sits
+            // behind it; the list still has its own clearance after the final row.
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(
+                    horizontal = dimensions.screenPadding,
+                    vertical = dimensions.relatedGap,
+                ),
+                contentAlignment = Alignment.CenterEnd,
             ) {
-                Icon(imageVector = WalletIcons.Add, contentDescription = null)
-                Text(
-                    text = stringResource(R.string.home_add_transaction),
-                    modifier = Modifier.padding(start = 8.dp),
-                )
+                ExtendedFloatingActionButton(onClick = onAddTransaction) {
+                    Icon(imageVector = WalletIcons.Add, contentDescription = null)
+                    Text(
+                        text = stringResource(R.string.home_add_transaction),
+                        modifier = Modifier.padding(start = dimensions.relatedGap),
+                    )
+                }
             }
         },
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            DateWindowBar(
+            CompactDateWindowBar(
                 window = state.window,
                 actions = windowActions,
-                modifier = Modifier.padding(horizontal = SCREEN_PADDING),
+                modifier = Modifier.padding(horizontal = dimensions.screenPadding),
             )
             TransactionsBody(
                 state = state,
-                listBottomPadding = listBottomPadding,
+                listBottomPadding = dimensions.screenPadding,
                 onEditTransaction = onEditTransaction,
                 onRetry = onRetry,
                 onLoadMore = onLoadMore,
@@ -202,16 +198,17 @@ private fun TransactionsBody(
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
+    val dimensions = WalletTheme.dimensions
     when {
         // Inline, under the date bar rather than instead of it, so the screen does not flicker
         // between two different layouts on every refresh.
-        state.isLoading -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
+        state.isLoading -> Column(modifier = Modifier.fillMaxSize().padding(dimensions.screenPadding)) {
             CircularProgressIndicator()
         }
 
         // Said in place of the list, under the date bar, so other dates can still be chosen; an empty
         // message here would claim there is nothing to show, which is not known.
-        state.loadFailed -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
+        state.loadFailed -> Column(modifier = Modifier.fillMaxSize().padding(dimensions.screenPadding)) {
             // A row the app cannot read gets its own wording (the data is safe, other dates may show);
             // any other failure is the generic one.
             val message = when (val failure = state.loadFailure) {
@@ -223,7 +220,7 @@ private fun TransactionsBody(
 
         // An empty filter is not an empty wallet: inviting a first transaction while the user's
         // history sits just outside the chosen dates would read as lost data.
-        state.sections.isEmpty() -> Column(modifier = Modifier.fillMaxSize().padding(SCREEN_PADDING)) {
+        state.sections.isEmpty() -> Column(modifier = Modifier.fillMaxSize().padding(dimensions.screenPadding)) {
             val message = if (state.showsEverything) R.string.transactions_empty else R.string.transactions_empty_range
             EmptyState(message = stringResource(message))
         }
@@ -257,6 +254,7 @@ private fun TransactionDays(
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val dimensions = WalletTheme.dimensions
     // Every header in the list shares one formatter, and "is this the current year" is decided once
     // for the whole list rather than re-derived per row.
     val formatDay = rememberDayFormatter(currentYear = LocalDate.now().year)
@@ -271,7 +269,26 @@ private fun TransactionDays(
                 DayHeader(text = dayHeaderText(section, formatDay))
             }
             items(section.rows, key = { it.id }) { row ->
-                TransactionRowItem(row = row, onClick = { onEditTransaction(row.id) })
+                val isFirst = row.id == section.rows.first().id
+                val isLast = row.id == section.rows.last().id
+                val corners = RoundedCornerShape(
+                    topStart = if (isFirst) dimensions.cornerMedium else 0.dp,
+                    topEnd = if (isFirst) dimensions.cornerMedium else 0.dp,
+                    bottomStart = if (isLast) dimensions.cornerMedium else 0.dp,
+                    bottomEnd = if (isLast) dimensions.cornerMedium else 0.dp,
+                )
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = dimensions.screenPadding)
+                        .background(MaterialTheme.colorScheme.surfaceContainer, corners),
+                ) {
+                    TransactionRowItem(row = row, onClick = { onEditTransaction(row.id) })
+                    if (!isLast) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = dimensions.cardPadding),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                    }
+                }
             }
         }
         if (hasMore) {
@@ -280,7 +297,7 @@ private fun TransactionDays(
                 LaunchedEffect(rowCount, isLoadingMore) {
                     if (!isLoadingMore) currentOnLoadMore()
                 }
-                Box(modifier = Modifier.fillMaxWidth().padding(SCREEN_PADDING), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.fillMaxWidth().padding(dimensions.screenPadding), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
@@ -302,22 +319,24 @@ private fun dayHeaderText(section: TransactionSection, formatDay: (LocalDate) ->
 
 @Composable
 private fun DayHeader(text: String) {
-    Column(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 24.dp)) {
+    val dimensions = WalletTheme.dimensions
+    Column(modifier = Modifier.fillMaxWidth().padding(
+        start = dimensions.screenPadding,
+        end = dimensions.screenPadding,
+        top = dimensions.sectionGap,
+        bottom = dimensions.relatedGap,
+    )) {
         Text(
             text = text,
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-private fun TransactionsListPreview() {
-    MyWalletTheme(dynamicColor = false) {
-        TransactionsListContent(
-            state = TransactionsUiState(
+private class TransactionsPreviewSamples : PreviewParameterProvider<TransactionsUiState> {
+    override val values: Sequence<TransactionsUiState> = sequenceOf(
+            TransactionsUiState(
                 isLoading = false,
                 window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 26)),
                 sections = listOf(
@@ -355,6 +374,29 @@ private fun TransactionsListPreview() {
                     ),
                 ),
             ),
+            TransactionsUiState(
+                isLoading = false,
+                window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 26)),
+            ),
+            TransactionsUiState(
+                isLoading = false,
+                window = TrackingWindow.Period(TrackingPeriod.MONTH, LocalDate.of(2026, 8, 26)),
+                loadFailed = true,
+            ),
+    )
+}
+
+@Preview(name = "Transactions light", showBackground = true, widthDp = 360)
+@Preview(name = "Transactions dark", showBackground = true, widthDp = 360,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Transactions large text", showBackground = true, widthDp = 360, fontScale = 2f)
+@Composable
+private fun TransactionsListPreview(
+    @PreviewParameter(TransactionsPreviewSamples::class) state: TransactionsUiState,
+) {
+    MyWalletTheme(dynamicColor = false) {
+        TransactionsListContent(
+            state = state,
             windowActions = DateWindowActions.None,
             onAddTransaction = {},
             onEditTransaction = {},

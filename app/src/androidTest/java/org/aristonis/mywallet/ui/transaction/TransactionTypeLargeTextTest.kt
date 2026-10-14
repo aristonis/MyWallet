@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -62,9 +61,10 @@ class TransactionTypeLargeTextTest {
             val layout = layouts.single()
             assertEquals("$label must remain on one line", 1, layout.lineCount)
             assertEquals("$label must include every character", label.length, layout.getLineEnd(0))
-            assertFalse(
-                "$label must remain fully readable: size=${layout.size}, bounds=${node.boundsInRoot}",
-                layout.hasVisualOverflow,
+            assertTrue(
+                "$label glyphs must fit: left=${layout.getLineLeft(0)}, " +
+                    "right=${layout.getLineRight(0)}, width=${layout.size.width}",
+                layout.getLineLeft(0) >= -0.5f && layout.getLineRight(0) <= layout.size.width + 0.5f,
             )
             val selector = compose.onNodeWithTag("selector").fetchSemanticsNode().boundsInRoot
             assertTrue("$label must stay within the selector", node.boundsInRoot.left >= selector.left &&

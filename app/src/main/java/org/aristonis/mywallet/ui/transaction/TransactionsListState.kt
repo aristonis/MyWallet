@@ -43,13 +43,22 @@ data class TransactionDeductionRow(
     val baseAmountDisplay: String?,
 )
 
+/** Exact saved deductions grouped only by due timing for a bounded history-row summary. */
+data class TransactionDeductionSummary(
+    val timing: DeductionTiming,
+    val amount: Money,
+    val amountDisplay: String,
+    val snapshotCount: Int,
+)
+
 /**
  * A display-ready transaction row: ids already resolved to names, amounts pre-formatted per currency
  * + locale in [amountDisplay]/[destAmountDisplay]. The raw [Money] stays too so tests assert on exact
  * values and the screen keeps applying its own +/−/→ sign prefixes. Transfer rows carry BOTH legs.
  *
- * [amount] is the money that moved: the account side of a repayment, the debt amount of the other
- * debt kinds. [countedAmount] is the part that counts in Tracking, in the entry's own currency (a
+ * [amount] is the saved gross for income, the principal for expense, the account side of a repayment,
+ * and the debt amount of debt kinds. [accountMovement] is the income receipt after NOW deductions.
+ * [countedAmount] is the part that counts in Tracking, in the entry's own currency (a
  * repayment's interest, a write-off's amount); null when nothing on the row counts, so the screen
  * shows no Tracking line for it.
  */
@@ -66,11 +75,17 @@ data class TransactionRow(
     val amountDisplay: String,
     val destAmountDisplay: String?,
     val note: String?,
+    /** Income receipt fields; [amount] remains the saved gross for ledger and reporting callers. */
+    val grossAmount: Money? = null,
+    val grossAmountDisplay: String? = null,
+    val accountMovement: Money? = null,
+    val accountMovementDisplay: String? = null,
     val countedAmount: Money? = null,
     val countedAmountDisplay: String? = null,
     val countedAmountRole: AmountRole? = null,
     val countedBaseAmountDisplay: String? = null,
     val deductions: List<TransactionDeductionRow> = emptyList(),
+    val deductionSummaries: List<TransactionDeductionSummary> = emptyList(),
     val feeDisplay: String? = null,
     val feeBaseAmountDisplay: String? = null,
 )

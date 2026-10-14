@@ -12,6 +12,7 @@ import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,6 +31,71 @@ class EntryFeeViewModelTest {
     private val date = LocalDate.of(2026, 10, 12)
     private fun fixture(initial: List<Transaction> = emptyList(), missingRole: Boolean = false) =
         EntryFeeFixture(date, initial, missingRole)
+
+    @Test fun `fee validation errors belong to the fee input`() {
+        assertTrue(UiMessage.FeeValueNegative.isFeeInputError())
+        assertTrue(UiMessage.FeeNotBelowAmount.isFeeInputError())
+    }
+
+    @Test fun `malformed fee stays attached to fee input and blocks save`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.transfer()
+        f.add.setFeeValue("bad")
+
+        assertEquals(UiMessage.NotANumber, f.add.state.value.fee.error)
+        assertTrue(f.add.state.value.fee.errorIsFeeInput)
+        assertFalse(f.add.state.value.canSubmit)
+    }
+
+    @Test fun `out of range fee stays attached to fee input`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.transfer()
+        f.add.setFeeValue("0." + "1".repeat(31))
+
+        assertEquals(UiMessage.AmountOutOfRange, f.add.state.value.fee.error)
+        assertTrue(f.add.state.value.fee.errorIsFeeInput)
+        assertFalse(f.add.state.value.canSubmit)
+    }
+
+    @Test fun `malformed primary amount routes to amount field`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.transfer()
+        f.add.setFeeValue("0")
+        f.add.setAmount("bad")
+        f.add.submit(); runCurrent()
+
+        assertEquals(UiMessage.NotANumber, f.add.state.value.error)
+        assertTrue(f.add.state.value.errorIsAmountInput)
+        assertNull(f.add.state.value.fee.error)
+    }
+
+    @Test fun `out of range primary amount retains amount provenance`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.transfer()
+        f.add.setFeeValue("0")
+        f.add.setAmount("0." + "1".repeat(31))
+        f.add.submit(); runCurrent()
+
+        assertEquals(UiMessage.AmountOutOfRange, f.add.state.value.error)
+        assertTrue(f.add.state.value.errorIsAmountInput)
+    }
+
+    @Test fun `malformed refund rate does not attach to amount input`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.add.selectType(TransactionType.REFUND)
+        f.add.selectAccount(3)
+        f.add.selectCategory(4)
+        f.add.setAmount("10")
+        f.add.setRate("EUR", "bad")
+        f.add.submit(); runCurrent()
+
+        assertEquals(UiMessage.NotANumber, f.add.state.value.error)
+        assertFalse(f.add.state.value.errorIsAmountInput)
+    }
+
+    @Test fun `malformed rate does not mark fee input invalid`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.transfer(); f.add.selectDestAccount(3)
+        f.add.setRate("EUR", "bad")
+
+        assertEquals(UiMessage.NotANumber, f.add.state.value.fee.error)
+        assertFalse(f.add.state.value.fee.errorIsFeeInput)
+        assertFalse(f.add.state.value.canSubmit)
+    }
 
     @Test fun `transfer fills source default and preview equals saved destination`() = runTest(dispatcher) {
         val f = fixture(); runCurrent(); f.transfer()
@@ -63,6 +129,16 @@ class EntryFeeViewModelTest {
         assertEquals(Money.of("50", "USD"), saved.amount)
         assertEquals(Money.of("1", "USD"), saved.fee)
         assertEquals(Money.of("-51", "USD"), saved.toParts().legs.single { it.role == LegRole.ACCOUNT }.amount)
+    }
+
+    @Test fun `invalid primary amount does not mark the fee field invalid`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent()
+        f.add.selectCategory(4)
+        f.add.setFeeValue("0")
+
+        f.add.setAmount("0")
+
+        assertNull(f.add.state.value.fee.error)
     }
 
     @Test fun `missing Fees offers picker and leaving it empty uses Uncategorized`() = runTest(dispatcher) {
@@ -180,6 +256,34 @@ class EntryFeeViewModelTest {
         assertFalse(f.add.state.value.canSubmit)
         f.add.submit(); runCurrent()
         assertTrue(f.use.entries.stored.isEmpty())
+    }
+
+    @Test fun `missing transfer rate does not mark the fee input invalid`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent()
+        f.transfer()
+        f.add.selectDestAccount(3)
+        f.add.setRate("EUR", "")
+
+        assertEquals(UiMessage.MissingRate("EUR"), f.add.state.value.fee.error)
+        assertFalse(f.add.state.value.fee.error!!.isFeeInputError())
+        assertFalse(f.add.state.value.fee.errorIsFeeInput)
+        assertFalse(f.add.state.value.canSubmit)
+        assertTrue(f.add.state.value.rateRequired)
+    }
+
+    @Test fun `rounded zero transfer receipt does not mark the fee input invalid`() = runTest(dispatcher) {
+        val f = fixture()
+        f.rates.upsert(org.aristonis.mywallet.domain.model.ExchangeRate("EUR", BigDecimal("1000000")))
+        runCurrent()
+        f.transfer()
+        f.add.selectDestAccount(3)
+        f.add.setFeeValue("0")
+        f.add.setAmount("1")
+
+        assertTrue(f.add.state.value.fee.error is UiMessage.AmountRoundsToZero)
+        assertFalse(f.add.state.value.fee.error!!.isFeeInputError())
+        assertFalse(f.add.state.value.fee.errorIsFeeInput)
+        assertFalse(f.add.state.value.canSubmit)
     }
 
     @Test fun `a rate from another pair is ignored after the destination changes`() = runTest(dispatcher) {

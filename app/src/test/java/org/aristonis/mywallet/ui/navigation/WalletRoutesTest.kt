@@ -12,10 +12,10 @@ import org.junit.Test
 class WalletRoutesTest {
 
     @Test
-    fun deductionsListKeepsNavigationAndEditorsHideIt() {
+    fun deductionsListAndEditorsHideNavigation() {
         val tab = WalletTab.SETTINGS
         assertEquals("settings/deductions", tab.child(Leaf.DEDUCTIONS))
-        assertTrue(showsNavigationBar(tab.child(Leaf.DEDUCTIONS)))
+        assertTrue(!showsNavigationBar(tab.child(Leaf.DEDUCTIONS)))
         assertTrue(!showsNavigationBar(tab.child(Leaf.ADD_DEDUCTION)))
         assertTrue(!showsNavigationBar(tab.child(Leaf.EDIT_DEDUCTION, 3)))
         assertEquals("settings/editDeduction/{id}", tab.childPattern(Leaf.EDIT_DEDUCTION))
@@ -96,19 +96,23 @@ class WalletRoutesTest {
         assertTrue(!isTopLevel(null))
     }
 
-    /**
-     * The bar stays on everything inside a tab, not only the tab's own screen. Hiding it on pushed
-     * destinations would mean a tab could never be left mid-flow, which is the only way a saved back
-     * stack ever comes to exist.
-     */
     @Test
-    fun `the navigation bar stays on a tab's supporting screens`() {
+    fun `child screens hide tabs until Back returns to a tab root`() {
         WalletTab.entries.forEach { tab ->
             assertTrue(showsNavigationBar(tab.rootRoute))
-            assertTrue(showsNavigationBar(tab.child(Leaf.RATES)))
-            assertTrue(showsNavigationBar(tab.child(Leaf.MANAGE_ACCOUNTS)))
-            assertTrue(showsNavigationBar(tab.child(Leaf.CATEGORIES)))
-            assertTrue(showsNavigationBar(tab.child(Leaf.ABOUT)))
+            assertTrue(!showsNavigationBar(tab.child(Leaf.RATES)))
+            assertTrue(!showsNavigationBar(tab.child(Leaf.MANAGE_ACCOUNTS)))
+            assertTrue(!showsNavigationBar(tab.child(Leaf.ABOUT)))
+        }
+    }
+
+    @Test
+    fun `every supporting screen hides the navigation bar`() {
+        WalletTab.entries.forEach { tab ->
+            assertTrue(showsNavigationBar(tab.rootRoute))
+            (Leaf.all + Leaf.withId).forEach { leaf ->
+                assertTrue(!showsNavigationBar(tab.child(leaf)))
+            }
         }
     }
 
@@ -138,7 +142,7 @@ class WalletRoutesTest {
     }
 
     @Test
-    fun `debts and a debt detail remain on the Home stack with its navigation bar`() {
+    fun `debts and a debt detail remain on the Home stack without tabs`() {
         val tab = WalletTab.HOME
 
         assertEquals("home/debts", tab.child(Leaf.DEBTS))
@@ -147,8 +151,8 @@ class WalletRoutesTest {
         assertTrue(Leaf.DEBT_DETAIL in Leaf.withId)
         assertEquals(tab, tabOf(tab.child(Leaf.DEBTS)))
         assertEquals(tab, tabOf(tab.child(Leaf.DEBT_DETAIL, 7)))
-        assertTrue(showsNavigationBar(tab.child(Leaf.DEBTS)))
-        assertTrue(showsNavigationBar(tab.childPattern(Leaf.DEBT_DETAIL)))
+        assertTrue(!showsNavigationBar(tab.child(Leaf.DEBTS)))
+        assertTrue(!showsNavigationBar(tab.childPattern(Leaf.DEBT_DETAIL)))
     }
 
     @Test

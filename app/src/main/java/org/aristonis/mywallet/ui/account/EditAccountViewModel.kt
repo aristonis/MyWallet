@@ -49,6 +49,7 @@ data class EditAccountUiState(
     val currencyLocked: Boolean = false,
     val isSubmitting: Boolean = false,
     val error: UiMessage? = null,
+    val errorField: AccountInputField? = null,
     val saved: Boolean = false,
     /**
      * The stored account could not be read. Not the same as a missing account: the row may still be
@@ -127,6 +128,7 @@ class EditAccountViewModel @Inject constructor(
                 currencyLocked = false,
                 isSubmitting = false,
                 error = null,
+                errorField = null,
                 saved = false,
                 loadFailed = false,
                 loadFailure = null,
@@ -168,40 +170,47 @@ class EditAccountViewModel @Inject constructor(
         it.copy(
             selectedCurrencyCode = code,
             feeValueInput = feeInputAfterCurrencyChange(it.feeMode, it.selectedCurrencyCode, code, it.feeValueInput),
+            error = null, errorField = null,
         )
     }
 
-    fun setName(name: String) = _state.update { it.copy(name = name) }
+    fun setName(name: String) = _state.update { it.copy(name = name, error = null, errorField = null) }
 
-    fun selectAccountType(typeKey: String) = _state.update { it.copy(accountTypeKey = typeKey) }
+    fun selectAccountType(typeKey: String) = _state.update { it.copy(accountTypeKey = typeKey, error = null, errorField = null) }
 
-    fun setOpeningBalance(text: String) = _state.update { it.copy(openingBalanceInput = text) }
+    fun setOpeningBalance(text: String) = _state.update { it.copy(openingBalanceInput = text, error = null, errorField = null) }
 
-    fun setCreditLimit(text: String) = _state.update { it.copy(creditLimitInput = text) }
+    fun setCreditLimit(text: String) = _state.update { it.copy(creditLimitInput = text, error = null, errorField = null) }
 
     /** Clear the one-shot `saved` signal after the screen has navigated away, so a re-open won't bounce. */
-    fun acknowledgeSaved() = _state.update { it.copy(saved = false, error = null) }
+    fun acknowledgeSaved() = _state.update { it.copy(saved = false, error = null, errorField = null) }
 
     fun selectFeeMode(mode: FeeMode?) = _state.update {
-        it.copy(feeMode = mode, feeValueInput = feeInputAfterModeChange(it.feeMode, mode, it.feeValueInput))
+        it.copy(feeMode = mode, feeValueInput = feeInputAfterModeChange(it.feeMode, mode, it.feeValueInput),
+            error = null, errorField = null)
     }
 
-    fun setFeeValue(text: String) = _state.update { it.copy(feeValueInput = text) }
+    fun setFeeValue(text: String) = _state.update { it.copy(feeValueInput = text, error = null, errorField = null) }
 
     fun submit() {
         val snapshot = _state.value
         val loaded = snapshot.loaded ?: return // UI guards this via canSubmit
         val currencyCode = snapshot.selectedCurrencyCode ?: return
         viewModelScope.launch {
-            _state.update { it.copy(isSubmitting = true, error = null) }
+            _state.update { it.copy(isSubmitting = true, error = null, errorField = null) }
             try {
                 // Rebuild the amounts in the selected currency so they match when the currency changes.
-                val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
+                val openingBalance = parseAccountField(AccountInputField.OPENING_BALANCE) {
+                    moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
+                }
                 // The form holds the stored limit as text, so saving untouched keeps it; a type that is
                 // not owed when negative saves none.
-                val creditLimit = moneyParser.parseCreditLimit(
-                    snapshot.creditLimitInput, snapshot.showsCreditLimit, currencyCode,
-                )
+                val creditLimit = parseAccountField(AccountInputField.CREDIT_LIMIT) {
+                    moneyParser.parseCreditLimit(snapshot.creditLimitInput, snapshot.showsCreditLimit, currencyCode)
+                }
+                val defaultFee = parseAccountField(AccountInputField.DEFAULT_FEE) {
+                    parseDefaultFee(snapshot.feeMode, snapshot.feeValueInput, currencyCode, moneyParser)
+                }
                 updateAccount(
                     id = loaded.id,
                     name = snapshot.name.trim(),
@@ -209,9 +218,11 @@ class EditAccountViewModel @Inject constructor(
                     currencyCode = currencyCode,
                     openingBalance = openingBalance,
                     creditLimit = creditLimit,
-                    defaultFee = parseDefaultFee(snapshot.feeMode, snapshot.feeValueInput, currencyCode, moneyParser),
+                    defaultFee = defaultFee,
                 )
                 _state.update { it.copy(isSubmitting = false, saved = true) }
+            } catch (e: AccountFieldFailure) {
+                _state.update { it.copy(isSubmitting = false, error = e.uiMessage, errorField = e.field) }
             } catch (e: WalletException) {
                 // Includes AccountCurrencyLocked / AccountNotFound — surface it to the user.
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
@@ -236,6 +247,7 @@ class EditAccountViewModel @Inject constructor(
         currencyLocked = locked,
         isSubmitting = false,
         error = null,
+        errorField = null,
         saved = false,
     )
 }

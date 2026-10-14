@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.transaction
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -16,13 +18,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +41,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,13 +52,14 @@ import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
-import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.label
 import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import java.time.LocalDate
 
 /**
@@ -234,13 +238,26 @@ private fun EditTransactionForm(
 
     Column(
         modifier = Modifier
-            .padding(16.dp)
+            .padding(WalletTheme.dimensions.screenPadding)
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.regionGap),
     ) {
         // The kind is a fact of the row, not a choice — show it, never let it be re-picked.
-        Text(typeLabel(type), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainer) {
+            Column(
+                modifier = Modifier.padding(WalletTheme.dimensions.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.grid),
+            ) {
+                Text(typeLabel(type), style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    stringResource(R.string.edit_transaction_kind_fixed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
         val rule = EntryFormRules.forType(type)
         DebtKindFields(type, state.formInputs(), state.fx?.currencies.orEmpty(), state.counterpartySuggestions,
@@ -253,6 +270,7 @@ private fun EditTransactionForm(
             supportingText = state.baseEquivalent?.let {
                 stringResource(R.string.add_transaction_base_equivalent, bidiIsolate(it))
             },
+            errorText = state.error?.takeIf { it.isAmountEntryError(state.errorIsAmountInput) }?.text(),
         )
 
         AccountAndCategoryFields(
@@ -276,18 +294,21 @@ private fun EditTransactionForm(
             rateFields = state.rateFields,
             onRateChanged = onRateChanged,
         )
+        FeeQuoteError(state.fee)
 
         DateField(date = date, onDateSelected = onDateSelected)
 
-        OutlinedTextField(
+        TextField(
             value = state.note,
             onValueChange = onNoteChanged,
             label = { Text(stringResource(R.string.field_note)) },
             singleLine = true,
+            shape = MaterialTheme.shapes.medium,
+            colors = transactionFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
 
-        state.error?.let { message ->
+        state.error?.takeUnless { it.isInlineEntryError(state.errorIsAmountInput) }?.let { message ->
             Text(
                 text = message.text(),
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -301,10 +322,11 @@ private fun EditTransactionForm(
         Button(
             onClick = onSubmit,
             enabled = state.canSubmit,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = WalletTheme.dimensions.minTouchTarget),
+            shape = MaterialTheme.shapes.medium,
         ) {
             if (state.isSubmitting) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(WalletTheme.dimensions.iconSize), strokeWidth = 2.dp)
             } else {
                 Text(stringResource(R.string.action_save_transaction))
             }
@@ -348,38 +370,44 @@ private fun AccountAndCategoryFields(
             label = stringResource(R.string.field_from_account),
             value = lockedAccountLabel(state.selectedAccountId, state.accounts),
         )
+        EntryFieldError(state.error.takeIf { it == UiMessage.AccountRequired })
         LockedField(
             label = stringResource(R.string.field_to_account),
             value = lockedAccountLabel(state.destAccountId, state.accounts),
         )
+        EntryFieldError(state.error.takeIf { it == UiMessage.DestinationAccountRequired })
         return
     }
 
     val rule = EntryFormRules.forType(type)
     val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
-    if (rule.requiresAccount) LabeledDropdown(
-        label = stringResource(R.string.field_account),
-        selectedText = selectedAccount?.let { accountLabel(it) } ?: stringResource(R.string.value_select_prompt),
-        items = state.accounts,
-        itemLabel = { accountLabel(it) },
-        onSelect = { onAccountSelected(it.id) },
-    )
+    if (rule.requiresAccount) {
+        TransactionChoiceField(
+            label = stringResource(R.string.field_account),
+            selectedText = selectedAccount?.let { accountLabel(it) } ?: stringResource(R.string.value_select_prompt),
+            items = state.accounts,
+            itemLabel = { accountLabel(it) },
+            onSelect = { onAccountSelected(it.id) },
+        )
+        EntryFieldError(state.error.takeIf { it == UiMessage.AccountRequired })
+    }
     if (!rule.requiresCategory) return
     val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
-    LabeledDropdown(
+    TransactionChoiceField(
         label = stringResource(R.string.field_category),
         selectedText = category?.label()?.text() ?: stringResource(R.string.value_select_prompt),
         items = state.categoriesForType,
         itemLabel = { it.label().text() },
         onSelect = { onCategorySelected(it.id) },
     )
+    EntryFieldError(state.error.takeIf { it == UiMessage.CategoryRequired })
     // Offered only when the chosen category has children, matching the add form. Without it the
     // stored sub-category would be unreachable — and re-picking the same category clears it, so
     // there would be no way to put it back.
     val subCategories = state.subCategoriesForSelected
     if (subCategories.isNotEmpty()) {
         val chosen = subCategories.firstOrNull { it.id == state.selectedSubCategoryId }
-        LabeledDropdown(
+        TransactionChoiceField(
             label = stringResource(R.string.field_sub_category),
             selectedText = chosen?.label()?.text() ?: stringResource(R.string.value_none),
             items = subCategories,
@@ -392,12 +420,7 @@ private fun AccountAndCategoryFields(
 /** A labelled, disabled field — looks like a picker but can't be changed (a transfer's locked legs). */
 @Composable
 private fun LockedField(label: String, value: String) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelMedium)
-        OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-            Text(value, modifier = Modifier.weight(1f))
-        }
-    }
+    TransactionFieldButton(label = label, value = value, onClick = {}, enabled = false)
 }
 
 // An account archived after the transaction was recorded won't be in the (archived-filtered) list; a
@@ -408,27 +431,15 @@ private fun lockedAccountLabel(id: Long?, accounts: List<Account>): String =
         ?: stringResource(R.string.value_missing)
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true)
+@Preview(name = "Light", showBackground = true, widthDp = 360)
+@Preview(name = "Dark", showBackground = true, widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-private fun EditTransactionPreview() {
+private fun EditTransactionPreview(
+    @PreviewParameter(EditTransactionPreviewStates::class) state: EditTransactionUiState,
+) {
     MyWalletTheme(dynamicColor = false) {
         EditTransactionContent(
-            state = EditTransactionUiState(
-                loaded = Transaction.Expense(
-                    id = 1, accountId = 1, amount = Money.of("12.50", "USD"), categoryId = 2,
-                    date = LocalDate.of(2026, 7, 3), note = "Lunch",
-                ),
-                type = TransactionType.EXPENSE,
-                accounts = listOf(Account(id = 1, name = "Cash", typeKey = "cash", currencyCode = "USD",
-                    openingBalance = Money.zero("USD"))),
-                allCategories = listOf(Category(id = 2, name = "Food",
-                    kind = org.aristonis.mywallet.domain.model.CategoryKind.EXPENSE)),
-                selectedAccountId = 1,
-                selectedCategoryId = 2,
-                amountInput = "12.50",
-                date = LocalDate.of(2026, 7, 3),
-                note = "Lunch",
-            ),
+            state = state,
             snackbarHostState = remember { SnackbarHostState() },
             onAccountSelected = {},
             onCategorySelected = {},

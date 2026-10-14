@@ -3,9 +3,10 @@ package org.aristonis.mywallet.ui.transaction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -13,6 +14,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.R
@@ -21,12 +26,36 @@ import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.FeeMode
-import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.display
 import org.aristonis.mywallet.ui.label
 import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.text
+import org.aristonis.mywallet.ui.theme.WalletTheme
+
+/** Only these messages describe a value entered in the fee control itself. */
+internal fun UiMessage.isFeeInputError(): Boolean = when (this) {
+    UiMessage.FeeNotBelowAmount,
+    UiMessage.FeeValueNegative,
+    UiMessage.FeePercentAboveHundred,
+    is UiMessage.FeeTooManyDecimals,
+    -> true
+    else -> false
+}
+
+@Composable
+internal fun FeeQuoteError(state: FeeFormState, rateAlreadyExplained: Boolean = false) {
+    val error = state.error
+    if (error == null || state.errorIsFeeInput ||
+        (rateAlreadyExplained && (error == UiMessage.RateMissing || error is UiMessage.MissingRate))) return
+    Text(
+        text = error.text(),
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodyMedium,
+    )
+}
 
 /** Optional fee controls and the resulting account movement, shared by the add and edit forms. */
 @Composable
@@ -36,24 +65,42 @@ internal fun FeeField(
     onModeChanged: (FeeMode) -> Unit, onCategorySelected: (Long?) -> Unit, onRetry: () -> Unit,
 ) {
     if (!type.hasFeeField()) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        LabeledDropdown(label = stringResource(R.string.fee_mode), selectedText = feeLabel(state.mode),
+    val feeErrorText = state.error?.takeIf { state.errorIsFeeInput }?.text()
+    Column(verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
+        TransactionChoiceField(label = stringResource(R.string.fee_mode), selectedText = feeLabel(state.mode),
             items = FeeMode.entries, itemLabel = { feeLabel(it) }, onSelect = onModeChanged)
-        OutlinedTextField(value = state.valueInput, onValueChange = onValueChanged,
-            label = { Text(stringResource(if (state.mode == FeeMode.PERCENT)
-                R.string.fee_percent_value else R.string.fee_fixed_value)) },
-            suffix = { Text(if (state.mode == FeeMode.PERCENT) stringResource(R.string.fee_percent_suffix)
-                else bidiIsolate(currencyCode.orEmpty())) },
-            supportingText = { Text(stringResource(if (type == TransactionType.TRANSFER)
-                R.string.fee_transfer_hint else R.string.fee_expense_hint)) },
-            isError = state.error != null, singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+        Column {
+            TextField(value = state.valueInput, onValueChange = onValueChanged,
+                label = { Text(stringResource(if (state.mode == FeeMode.PERCENT)
+                    R.string.fee_percent_value else R.string.fee_fixed_value)) },
+                suffix = { Text(if (state.mode == FeeMode.PERCENT) stringResource(R.string.fee_percent_suffix)
+                    else bidiIsolate(currencyCode.orEmpty())) },
+                isError = feeErrorText != null, singleLine = true,
+                shape = MaterialTheme.shapes.medium, colors = transactionFieldColors(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth().transactionErrorBorder(feeErrorText != null).semantics {
+                    if (feeErrorText != null) {
+                        error(feeErrorText)
+                        liveRegion = LiveRegionMode.Polite
+                    }
+                })
+            Text(
+                text = feeErrorText ?: stringResource(if (type == TransactionType.TRANSFER)
+                    R.string.fee_transfer_hint else R.string.fee_expense_hint),
+                modifier = Modifier.padding(
+                    start = WalletTheme.dimensions.screenPadding,
+                    top = WalletTheme.dimensions.relatedGap,
+                ),
+                color = if (feeErrorText != null) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         if (state.needsCategoryPicker || state.categoryId != null || state.categoryRemoved) {
             FeeCategoryPicker(state.categoryId, categories, onCategorySelected)
         }
         if (state.categoryRemoved) Text(stringResource(R.string.fee_category_removed))
         FeeMovement(state, type, destinationName, currencies)
-        state.error?.let { Text(it.text(), color = MaterialTheme.colorScheme.error) }
         if (state.amount?.isPositive == true && state.roleError != null) {
             Text(state.roleError.text(), color = MaterialTheme.colorScheme.error)
             TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
@@ -68,7 +115,7 @@ private fun feeLabel(mode: FeeMode): String = stringResource(
 @Composable
 private fun FeeCategoryPicker(selected: Long?, categories: List<Category>, onSelect: (Long?) -> Unit) {
     val offered = categories.filter { it.kind == CategoryKind.EXPENSE && !it.isSubCategory }
-    LabeledDropdown(label = stringResource(R.string.fee_category),
+    TransactionChoiceField(label = stringResource(R.string.fee_category),
         selectedText = offered.firstOrNull { it.id == selected }?.label()?.text()?.let(::bidiIsolate)
             ?: stringResource(R.string.fee_uncategorized),
         items = listOf<Category?>(null) + offered,

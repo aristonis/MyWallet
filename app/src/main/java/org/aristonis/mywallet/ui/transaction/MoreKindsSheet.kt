@@ -16,12 +16,12 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.ui.theme.WalletTheme
 
 /** The three kinds always on the form; the rest sit behind "More". */
 internal val standardTransactionTypes =
-    listOf(TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER)
+    listOf(TransactionType.EXPENSE, TransactionType.INCOME, TransactionType.TRANSFER)
 /** The kinds offered in the "More" sheet. */
 internal val moreTransactionTypes = listOf(TransactionType.REFUND, TransactionType.BORROW, TransactionType.LEND,
     TransactionType.OWED_BEFORE, TransactionType.CREDIT_PURCHASE, TransactionType.EARNED_UNPAID)
@@ -32,12 +32,15 @@ internal val moreTransactionTypes = listOf(TransactionType.REFUND, TransactionTy
 internal fun MoreKindsSheet(onTypeSelected: (TransactionType) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(WalletTheme.dimensions.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap),
+        ) {
             Text(stringResource(R.string.kind_more_title), style = MaterialTheme.typography.titleLarge)
             moreTransactionTypes.forEach { type ->
                 TextButton(onClick = { onTypeSelected(type); onDismiss() },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    modifier = Modifier.fillMaxWidth().heightIn(min = WalletTheme.dimensions.minTouchTarget)) {
                     Text(typeLabel(type), modifier = Modifier.fillMaxWidth())
                 }
             }

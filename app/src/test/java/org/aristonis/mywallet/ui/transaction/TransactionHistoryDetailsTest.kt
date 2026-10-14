@@ -36,19 +36,38 @@ class TransactionHistoryDetailsTest {
         timing = timing, categoryId = 3, amount = eur(amount),
     )
 
-    @Test fun `income shows gross and every immutable deduction including rounded zero`() {
+    @Test fun `income exposes saved gross and net account receipt without changing reporting amount`() {
         val receipt = income().copy(deductions = listOf(
             line(0, "10", DeductionTiming.NOW), line(1, "5", DeductionTiming.LATER),
             line(2, "0", DeductionTiming.LATER),
         ))
         val row = receipt.toRow(lookups, formatter)
         assertEquals(eur("100"), row.amount)
+        assertEquals(eur("100"), row.grossAmount)
+        assertEquals("100.00 EUR", row.grossAmountDisplay)
+        assertEquals(eur("90"), row.accountMovement)
+        assertEquals("90.00 EUR", row.accountMovementDisplay)
+        assertEquals(eur("100"), row.countedAmount)
         assertEquals(listOf("Snapshot 0", "Snapshot 1", "Snapshot 2"), row.deductions.map { it.name })
         assertEquals(listOf("10.00 EUR", "5.00 EUR", "0.00 EUR"), row.deductions.map { it.amountDisplay })
         assertEquals(DeductionTiming.LATER, row.deductions[2].timing)
         assertEquals(listOf("12.50 USD", "6.25 USD", "0.00 USD"),
             row.deductions.map { it.baseAmountDisplay })
+        assertEquals(
+            listOf(DeductionTiming.NOW to eur("10"), DeductionTiming.LATER to eur("5")),
+            row.deductionSummaries.map { it.timing to it.amount },
+        )
+        assertEquals(listOf(1, 2), row.deductionSummaries.map { it.snapshotCount })
+        assertEquals(listOf("10.00 EUR", "5.00 EUR"), row.deductionSummaries.map { it.amountDisplay })
         assertEquals("125.00 USD", row.countedBaseAmountDisplay)
+    }
+
+    @Test fun `income with all deductions due later receives its full saved gross`() {
+        val row = income().copy(deductions = listOf(line(0, "5", DeductionTiming.LATER)))
+            .toRow(lookups, formatter)
+        assertEquals(eur("100"), row.grossAmount)
+        assertEquals(eur("100"), row.accountMovement)
+        assertEquals(eur("100"), row.countedAmount)
     }
 
     @Test fun `expense main value and fee are separate counted amounts`() {
@@ -57,6 +76,7 @@ class TransactionHistoryDetailsTest {
             rateToBase = BigDecimal("1.25"), fee = eur("2"), feeCategoryId = 3,
         ).toRow(lookups, formatter)
         assertEquals("100.00 EUR", row.amountDisplay)
+        assertEquals(eur("100"), row.countedAmount)
         assertEquals("2.00 EUR", row.feeDisplay)
         assertEquals("125.00 USD", row.countedBaseAmountDisplay)
         assertEquals("2.50 USD", row.feeBaseAmountDisplay)

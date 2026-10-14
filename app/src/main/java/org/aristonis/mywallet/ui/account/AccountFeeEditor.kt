@@ -4,10 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.error as semanticsError
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -16,8 +19,10 @@ import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.FeeRule
-import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.format.bidiIsolate
+import org.aristonis.mywallet.ui.message.UiMessage
+import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.theme.WalletTheme
 
 /**
  * Parses a locale-aware exact value; None or blank removes the default. Negative values are refused
@@ -53,9 +58,11 @@ internal fun AccountFeeEditor(
     onModeChanged: (FeeMode?) -> Unit,
     onValueChanged: (String) -> Unit,
     enabled: Boolean = true,
+    error: UiMessage? = null,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        LabeledDropdown(
+    val errorText = error?.text()
+    Column(verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
+        AccountDropdownField(
             label = stringResource(R.string.account_default_fee),
             selectedText = feeModeLabel(mode),
             items = listOf(null, FeeMode.PERCENT, FeeMode.FIXED),
@@ -64,7 +71,7 @@ internal fun AccountFeeEditor(
             enabled = enabled,
         )
         if (mode != null) {
-            OutlinedTextField(
+            TextField(
                 value = value,
                 onValueChange = onValueChanged,
                 enabled = enabled,
@@ -73,10 +80,19 @@ internal fun AccountFeeEditor(
                     Text(stringResource(label))
                 },
                 suffix = { Text(if (mode == FeeMode.PERCENT) "%" else bidiIsolate(currencyCode.orEmpty())) },
-                supportingText = { Text(stringResource(R.string.account_default_fee_hint)) },
+                isError = errorText != null,
+                shape = MaterialTheme.shapes.medium,
+                colors = accountFieldColors(),
+                supportingText = {
+                    Column {
+                        errorText?.let { Text(it) }
+                        Text(stringResource(R.string.account_default_fee_hint))
+                    }
+                },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().accountErrorOutline(errorText != null)
+                    .semantics { errorText?.let { semanticsError(it) } },
             )
         }
     }

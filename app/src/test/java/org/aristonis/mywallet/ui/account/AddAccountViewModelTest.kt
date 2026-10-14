@@ -148,6 +148,7 @@ class AddAccountViewModelTest {
             f.viewModel.submit()
             advanceUntilIdle()
             assertEquals("$mode $input", message, f.viewModel.state.value.error)
+            assertEquals("$mode $input", AccountInputField.DEFAULT_FEE, f.viewModel.state.value.errorField)
             assertTrue("$mode $input", f.accountRepo.upserted.isEmpty())
         }
     }
@@ -246,6 +247,7 @@ class AddAccountViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(f.viewModel.state.value.error)
+        assertNull(f.viewModel.state.value.errorField)
         assertFalse(f.viewModel.state.value.created)
         assertTrue(f.accountRepo.upserted.isEmpty())
     }
@@ -283,6 +285,7 @@ class AddAccountViewModelTest {
         advanceUntilIdle()
 
         assertNotNull(f.viewModel.state.value.error)
+        assertEquals(AccountInputField.OPENING_BALANCE, f.viewModel.state.value.errorField)
         assertFalse(f.viewModel.state.value.created)
         assertTrue(f.accountRepo.upserted.isEmpty())
     }
@@ -319,6 +322,7 @@ class AddAccountViewModelTest {
         f.viewModel.submit()
         advanceUntilIdle()
         assertEquals(UiMessage.AmountNotPositive, f.viewModel.state.value.error)
+        assertEquals(AccountInputField.CREDIT_LIMIT, f.viewModel.state.value.errorField)
         assertTrue(f.accountRepo.upserted.isEmpty())
 
         f.viewModel.selectAccountType("cash")

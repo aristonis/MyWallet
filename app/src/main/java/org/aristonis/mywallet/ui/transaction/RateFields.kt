@@ -6,16 +6,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.format.bidiIsolate
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import java.math.BigDecimal
 import java.text.NumberFormat
 
@@ -56,7 +56,7 @@ internal fun RateSection(
     rateRequired: Boolean = false,
 ) {
     if (baseCode == null || rateFields.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
         rateFields.forEach { field -> RateFieldRow(field, baseCode, onRateChanged) }
         transferPreview?.invoke()
         if (rateRequired) {
@@ -89,13 +89,13 @@ private fun RateFieldRow(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap),
         ) {
             Text(
                 text = stringResource(R.string.add_transaction_rate_lead, bidiIsolate(field.currencyCode)),
                 style = MaterialTheme.typography.bodyLarge,
             )
-            OutlinedTextField(
+            TextField(
                 value = field.input,
                 onValueChange = { onRateChanged(field.currencyCode, it) },
                 // Names both currencies so two rate fields on one transfer never read as the same box.
@@ -110,8 +110,10 @@ private fun RateFieldRow(
                     null
                 },
                 singleLine = true,
+                shape = MaterialTheme.shapes.medium,
+                colors = transactionFieldColors(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).transactionErrorBorder(field.isError),
             )
             Text(text = baseCode, style = MaterialTheme.typography.bodyLarge)
         }

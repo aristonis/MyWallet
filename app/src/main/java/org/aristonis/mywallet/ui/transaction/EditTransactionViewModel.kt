@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.aristonis.mywallet.data.format.MoneyFormatter
+import org.aristonis.mywallet.data.format.MoneyParseException
 import org.aristonis.mywallet.data.format.MoneyParser
 import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
@@ -290,10 +291,14 @@ class EditTransactionViewModel @Inject constructor(
         if (snapshot.type == TransactionType.INCOME && !snapshot.deductions.isCatalogReady) return
         if (snapshot.undoableDelete != null) return // the row is deleted with an undo pending — don't save a ghost
         if (snapshot.isSubmitting || snapshot.savedOn != null) return
-        _state.update { it.copy(isSubmitting = true, error = null) }
+        _state.update { it.copy(isSubmitting = true, error = null, errorIsAmountInput = false) }
         viewModelScope.launch {
             try {
-                val built = buildEdited(snapshot, loaded)
+                val built = try { buildEdited(snapshot, loaded) }
+                    catch (e: MoneyParseException) {
+                        _state.update { it.copy(isSubmitting = false, error = e.toUiMessage(), errorIsAmountInput = true) }
+                        return@launch
+                    }
                 val saved = saveEntry(
                     entry = feeForm.forSave(deductionForm.forSave(built.entry, snapshot.deductions,
                         snapshot.amountInput, snapshot.quoteInput()), snapshot.fee),
@@ -308,7 +313,7 @@ class EditTransactionViewModel @Inject constructor(
                 // amount or rate, or a missing choice names itself; anything else shows as unexpected,
                 // and the form is freed so it can be tried again.
                 if (e.toUiMessage() == UiMessage.Unexpected) errors.report("Entry could not be saved", e)
-                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
+                _state.update { it.copy(isSubmitting = false, error = e.toUiMessage(), errorIsAmountInput = false) }
             }
         }
     }

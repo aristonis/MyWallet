@@ -128,8 +128,8 @@ internal class UnreadableScreenDatabase(kind: String) : AutoCloseable {
     fun editAccount() = EditAccountViewModel(accounts, currencies, ledger, health,
         UpdateAccount(currencies, accounts, ledger), MoneyParser(Locale.US), errors)
 
-    fun deleteAccount() = ManageAccountsViewModel(accounts, ledger, SetAccountArchived(accounts),
-        DeleteAccount(accounts, ledger), health, errors)
+    fun deleteAccount() = ManageAccountsViewModel(accounts, ledger, currencies, formatter, Dispatchers.Default,
+        SetAccountArchived(accounts), DeleteAccount(accounts, ledger), health, errors)
 
     fun unusedAccountExists(): Boolean = sql.query("SELECT id FROM accounts WHERE id = 2").use { it.moveToFirst() }
 

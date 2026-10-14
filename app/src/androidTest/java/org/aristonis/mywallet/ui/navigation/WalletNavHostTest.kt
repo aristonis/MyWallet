@@ -120,18 +120,17 @@ class WalletNavHostTest {
         compose.onNodeWithText("home root").assertIsDisplayed()
     }
 
-    /**
-     * A supporting screen keeps the bar. Without it the tabs would be unreachable the moment you
-     * opened anything, and a tab could never be left part-way through — so its saved stack would
-     * never exist to be restored.
-     */
+    /** Back from a child restores its caller tab and its navigation bar. */
     @Test
-    fun theNavigationBarStaysOnASupportingScreen() {
+    fun aSupportingScreenHidesTheBarUntilBack() {
         start()
 
         compose.onNodeWithText("open rates from home").performClick()
 
         compose.onNodeWithText("home rates").assertIsDisplayed()
+        compose.onNodeWithText("Tracking").assertDoesNotExist()
+        pressBack()
+        compose.onNodeWithText("home root").assertIsDisplayed()
         compose.onNodeWithText("Tracking").assertIsDisplayed()
     }
 
@@ -162,10 +161,7 @@ class WalletNavHostTest {
         compose.onNodeWithText("Settings").assertIsSelected()
     }
 
-    /**
-     * The reason each tab is its own graph. Leaving a tab part-way through a flow and coming back has
-     * to land where the user was, not restart them at the top.
-     */
+    /** The navigation controller still saves each tab's child stack during a tab switch. */
     @Test
     fun switchingTabsRestoresTheStackLeftBehind() {
         start()
@@ -173,10 +169,12 @@ class WalletNavHostTest {
         compose.onNodeWithText("open rates from home").performClick()
         compose.onNodeWithText("home rates").assertIsDisplayed()
 
-        compose.onNodeWithText("Tracking").performClick()
+        compose.runOnUiThread { nav.switchTab(WalletTab.TRACKING) }
+        compose.waitForIdle()
         compose.onNodeWithText("tracking root").assertIsDisplayed()
 
-        compose.onNodeWithText("Home").performClick()
+        compose.runOnUiThread { nav.switchTab(WalletTab.HOME) }
+        compose.waitForIdle()
 
         compose.onNodeWithText("home rates").assertIsDisplayed()
     }
@@ -231,7 +229,7 @@ class WalletNavHostTest {
 
         compose.onNodeWithText("open debts").performClick()
         compose.onNodeWithText("home debts").assertIsDisplayed()
-        compose.onNodeWithText("Tracking").assertIsDisplayed()
+        compose.onNodeWithText("Tracking").assertDoesNotExist()
         compose.onNodeWithText("open debt").performClick()
         compose.onNodeWithText("debt 4294967296").assertIsDisplayed()
         compose.onNodeWithText("open debt history entry").performClick()
@@ -240,11 +238,12 @@ class WalletNavHostTest {
 
         pressBack()
         compose.onNodeWithText("debt 4294967296").assertIsDisplayed()
-        compose.onNodeWithText("Home").assertIsSelected()
+        compose.onNodeWithText("Home").assertDoesNotExist()
         pressBack()
         compose.onNodeWithText("home debts").assertIsDisplayed()
         pressBack()
         compose.onNodeWithText("home root").assertIsDisplayed()
+        compose.onNodeWithText("Home").assertIsSelected()
     }
 
     @Test
@@ -253,9 +252,11 @@ class WalletNavHostTest {
         compose.onNodeWithText("open debts").performClick()
         compose.onNodeWithText("open debt").performClick()
 
-        compose.onNodeWithText("Tracking").performClick()
+        compose.runOnUiThread { nav.switchTab(WalletTab.TRACKING) }
+        compose.waitForIdle()
         compose.onNodeWithText("tracking root").assertIsDisplayed()
-        compose.onNodeWithText("Home").performClick()
+        compose.runOnUiThread { nav.switchTab(WalletTab.HOME) }
+        compose.waitForIdle()
 
         compose.onNodeWithText("debt 4294967296").assertIsDisplayed()
         pressBack()

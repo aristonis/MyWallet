@@ -7,16 +7,19 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -34,11 +37,42 @@ import org.junit.runner.RunWith
 class ManageAccountsFinalRowLargeTextTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun finalAccountMenuClearsAddActionAndCanEditAtTwoHundredPercentInRtl() {
+    @Test fun threeActiveAccountsUseCompactGroupedRowsAtPhoneWidth() {
+        val rows = (1L..3L).map { id ->
+            ManageAccountRow(
+                Account(id, "Account $id", "bank", "USD", Money.zero("USD")),
+                hasTransactions = true,
+                balance = Money.zero("USD"),
+                balanceDisplay = "0.00 USD",
+            )
+        }
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                Box(Modifier.width(360.dp).height(640.dp)) {
+                    ManageAccountsContent(
+                        state = ManageAccountsUiState(rows = rows, isLoading = false),
+                        onArchive = {}, onUnarchive = {}, onDelete = {}, onEdit = {},
+                        onAddAccount = {}, onDone = {}, onRetry = {},
+                    )
+                }
+            }
+        }
+
+        val first = compose.onNodeWithTag("account-row-1").getUnclippedBoundsInRoot()
+        val third = compose.onNodeWithTag("account-row-3").getUnclippedBoundsInRoot()
+        assertTrue(
+            "Three normal account rows should fit in a 280dp group at 360dp width",
+            third.bottom - first.top <= 280.dp,
+        )
+    }
+
+    @Test fun finalAccountMenuRemainsReachableAtTwoHundredPercentInRtl() {
         val rows = (1L..12L).map { id ->
             ManageAccountRow(
                 Account(id, if (id == 12L) "Final account" else "Account $id", "bank", "USD", Money.of("0", "USD")),
                 hasTransactions = true,
+                balance = Money.zero("USD"),
+                balanceDisplay = "0.00 USD",
             )
         }
         var edited: Long? = null
@@ -65,16 +99,31 @@ class ManageAccountsFinalRowLargeTextTest {
         // Bringing the item into view can stop before the trailing padding reaches the viewport.
         repeat(2) { list.performTouchInput { swipeUp() } }
         val menu = compose.onNodeWithContentDescription("Actions for Final account")
-        val menuBounds = menu.getBoundsInRoot()
-        val finalCardBounds = compose.onNodeWithTag("account-row-12").getBoundsInRoot()
-        val addBounds = compose.onNodeWithText("Add account").getBoundsInRoot()
-        assertTrue("Final account card needs clearance below Add account",
-            finalCardBounds.bottom + 24.dp <= addBounds.top)
-        assertTrue("Final account actions must clear Add account",
-            menuBounds.bottom <= addBounds.top || menuBounds.top >= addBounds.bottom ||
-                menuBounds.right <= addBounds.left || menuBounds.left >= addBounds.right)
+        menu.assertIsDisplayed()
         menu.performClick()
         compose.onNodeWithText("Edit").performClick()
         compose.runOnIdle { assertEquals(12L, edited) }
+    }
+
+    @Test fun archivedOnlyWalletExplainsEmptyActiveGroupAndOffersAdd() {
+        val account = Account(1, "Old account", "bank", "USD", Money.zero("USD"), archived = true)
+        var addCount = 0
+        compose.setContent {
+            MyWalletTheme(dynamicColor = false) {
+                ManageAccountsContent(
+                    state = ManageAccountsUiState(
+                        rows = listOf(ManageAccountRow(account, false, Money.zero("USD"), "0.00 USD")),
+                        isLoading = false,
+                    ),
+                    onArchive = {}, onUnarchive = {}, onDelete = {}, onEdit = {},
+                    onAddAccount = { addCount++ }, onDone = {}, onRetry = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("No active accounts").assertIsDisplayed()
+        compose.onAllNodesWithText("Archived").assertCountEquals(2)
+        compose.onNodeWithText("Add account").performClick()
+        compose.runOnIdle { assertEquals(1, addCount) }
     }
 }

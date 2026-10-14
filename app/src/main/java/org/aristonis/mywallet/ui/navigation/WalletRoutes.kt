@@ -87,10 +87,7 @@ object Leaf {
     /** Every leaf that edits one row. */
     val withId = listOf(EDIT_TRANSACTION, EDIT_ACCOUNT, DEBT_DETAIL, RECORD_REPAYMENT, EDIT_DEDUCTION)
 
-    /**
-     * Leaves that end in one committing action. These give up the navigation bar so nothing sits
-     * under their primary button.
-     */
+    /** Leaves that end in one committing action. */
     val forms = setOf(ADD_TRANSACTION, EDIT_TRANSACTION, ADD_ACCOUNT, EDIT_ACCOUNT, BASE_CURRENCY, RECORD_REPAYMENT,
         ADD_DEDUCTION, EDIT_DEDUCTION)
 }
@@ -103,20 +100,5 @@ fun tabOf(route: String?): WalletTab? =
 fun isTopLevel(route: String?): Boolean =
     route != null && WalletTab.entries.any { it.rootRoute == route }
 
-/**
- * Whether a destination wears the navigation bar.
- *
- * Everything inside a tab keeps it, not just the tab's own screen. That is what lets a user walk
- * away from a tab part-way through something and come back to where they were — without it, a tab's
- * saved back stack could never be left behind in the first place, and the four destinations stop
- * being reachable the moment you open anything.
- *
- * Forms are the exception. They end in one committing action of their own, and a second row of
- * destinations under a full-width Save button invites the wrong tap at the worst moment; their back
- * arrow is how you leave them.
- */
-fun showsNavigationBar(route: String?): Boolean {
-    val tab = tabOf(route) ?: return false
-    val leaf = route?.removePrefix("${tab.route}/")?.substringBefore('/')
-    return leaf != null && leaf !in Leaf.forms
-}
+/** Only tab roots wear the navigation bar; Back returns child screens to their owning tab. */
+fun showsNavigationBar(route: String?): Boolean = isTopLevel(route)

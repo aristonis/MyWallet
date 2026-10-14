@@ -9,7 +9,9 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.aristonis.mywallet.RecordingErrorReporter
+import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.Account
+import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.usecase.DeleteAccount
 import org.aristonis.mywallet.domain.usecase.SetAccountArchived
@@ -22,6 +24,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ManageAccountsViewModelTest {
@@ -43,7 +46,8 @@ class ManageAccountsViewModelTest {
         ledger: HealthLedger = HealthLedger().apply { this.accountsInUse = accountsInUse },
     ): ManageAccountsViewModel {
         val accountRepo = FakeAccountRepository(accounts)
-        return ManageAccountsViewModel(accountRepo, ledger, SetAccountArchived(accountRepo),
+        return ManageAccountsViewModel(accountRepo, ledger,
+            FakeCurrencyRepository(listOf(Currency("USD", "$", 2))), MoneyFormatter(Locale.US), dispatcher, SetAccountArchived(accountRepo),
             DeleteAccount(accountRepo, ledger), ledger.health(), RecordingErrorReporter())
     }
 

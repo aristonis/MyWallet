@@ -34,6 +34,7 @@ data class AddAccountUiState(
     val feeValueInput: String = "",
     val isSubmitting: Boolean = false,
     val error: UiMessage? = null,
+    val errorField: AccountInputField? = null,
     val created: Boolean = false,
 ) {
     val canSubmit: Boolean
@@ -80,46 +81,54 @@ class AddAccountViewModel @Inject constructor(
         it.copy(
             selectedCurrencyCode = code,
             feeValueInput = feeInputAfterCurrencyChange(it.feeMode, it.selectedCurrencyCode, code, it.feeValueInput),
-            error = null,
+            error = null, errorField = null,
         )
     }
 
-    fun setName(name: String) = updateDraft { it.copy(name = name, error = null) }
+    fun setName(name: String) = updateDraft { it.copy(name = name, error = null, errorField = null) }
 
-    fun selectAccountType(typeKey: String) = updateDraft { it.copy(accountTypeKey = typeKey, error = null) }
+    fun selectAccountType(typeKey: String) = updateDraft { it.copy(accountTypeKey = typeKey, error = null, errorField = null) }
 
     fun setOpeningBalance(text: String) = updateDraft {
-        it.copy(openingBalanceInput = text, error = null)
+        it.copy(openingBalanceInput = text, error = null, errorField = null)
     }
 
-    fun setCreditLimit(text: String) = updateDraft { it.copy(creditLimitInput = text, error = null) }
+    fun setCreditLimit(text: String) = updateDraft { it.copy(creditLimitInput = text, error = null, errorField = null) }
 
     fun selectFeeMode(mode: FeeMode?) = updateDraft {
-        it.copy(feeMode = mode, feeValueInput = feeInputAfterModeChange(it.feeMode, mode, it.feeValueInput), error = null)
+        it.copy(feeMode = mode, feeValueInput = feeInputAfterModeChange(it.feeMode, mode, it.feeValueInput),
+            error = null, errorField = null)
     }
 
-    fun setFeeValue(text: String) = updateDraft { it.copy(feeValueInput = text, error = null) }
+    fun setFeeValue(text: String) = updateDraft { it.copy(feeValueInput = text, error = null, errorField = null) }
 
     fun submit() {
         val snapshot = _state.value
         if (snapshot.isSubmitting || snapshot.created) return
         val currencyCode = snapshot.selectedCurrencyCode ?: return
-        if (!_state.compareAndSet(snapshot, snapshot.copy(isSubmitting = true, error = null))) return
+        if (!_state.compareAndSet(snapshot, snapshot.copy(isSubmitting = true, error = null, errorField = null))) return
         viewModelScope.launch {
             try {
-                val openingBalance = moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
-                val creditLimit = moneyParser.parseCreditLimit(
-                    snapshot.creditLimitInput, snapshot.showsCreditLimit, currencyCode,
-                )
+                val openingBalance = parseAccountField(AccountInputField.OPENING_BALANCE) {
+                    moneyParser.parseOpeningBalance(snapshot.openingBalanceInput, currencyCode)
+                }
+                val creditLimit = parseAccountField(AccountInputField.CREDIT_LIMIT) {
+                    moneyParser.parseCreditLimit(snapshot.creditLimitInput, snapshot.showsCreditLimit, currencyCode)
+                }
+                val defaultFee = parseAccountField(AccountInputField.DEFAULT_FEE) {
+                    parseDefaultFee(snapshot.feeMode, snapshot.feeValueInput, currencyCode, moneyParser)
+                }
                 createAccount(
                     name = snapshot.name.trim(),
                     typeKey = snapshot.accountTypeKey,
                     currencyCode = currencyCode,
                     openingBalance = openingBalance,
                     creditLimit = creditLimit,
-                    defaultFee = parseDefaultFee(snapshot.feeMode, snapshot.feeValueInput, currencyCode, moneyParser),
+                    defaultFee = defaultFee,
                 )
                 _state.update { it.copy(isSubmitting = false, created = true) }
+            } catch (e: AccountFieldFailure) {
+                _state.update { it.copy(isSubmitting = false, error = e.uiMessage, errorField = e.field) }
             } catch (e: WalletException) {
                 _state.update { it.copy(isSubmitting = false, error = e.toUiMessage()) }
             } catch (e: IllegalArgumentException) {
@@ -138,7 +147,7 @@ class AddAccountViewModel @Inject constructor(
     fun acknowledgeCreated() = _state.update {
         it.copy(
             created = false, name = "", openingBalanceInput = "", creditLimitInput = "",
-            feeMode = null, feeValueInput = "", error = null,
+            feeMode = null, feeValueInput = "", error = null, errorField = null,
         )
     }
 

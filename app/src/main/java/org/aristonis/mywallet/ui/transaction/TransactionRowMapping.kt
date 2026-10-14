@@ -5,6 +5,7 @@ import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.CategoryLabel
@@ -50,7 +51,22 @@ internal fun Transaction.toRow(lookups: RowLookups, moneyFormatter: MoneyFormatt
     val counted = countedAmount()
     val display = { money: Money -> moneyFormatter.display(money, lookups.currencies) }
     val amountDisplay = display(amount)
-    // Most kinds count exactly the money that moved; its text is reused rather than formatted twice.
+    val income = this as? Transaction.Income
+    val deductionSummaries = income?.let { saved ->
+        DeductionTiming.entries.mapNotNull { timing ->
+            val lines = saved.deductions.filter { it.timing == timing }
+            if (lines.isEmpty()) return@mapNotNull null
+            val total = lines.fold(Money.zero(saved.amount.currencyCode)) { sum, line -> sum + line.amount }
+            TransactionDeductionSummary(timing, total, display(total), lines.size)
+        }
+    }.orEmpty()
+    val accountMovement = income?.let { saved ->
+        val paidNow = deductionSummaries.firstOrNull { it.timing == DeductionTiming.NOW }?.amount
+            ?: Money.zero(saved.amount.currencyCode)
+        saved.amount - paidNow
+    }
+    // Reuse saved gross text when the reporting value matches the entry amount; income receipt is
+    // displayed separately and never changes this reporting value.
     val countedDisplay = if (counted == amount) amountDisplay else counted?.let(display)
     return TransactionRow(
         id = id, date = date, type = rowType(),
@@ -60,6 +76,10 @@ internal fun Transaction.toRow(lookups: RowLookups, moneyFormatter: MoneyFormatt
         amount = amount, destAmount = shape.destAmount,
         amountDisplay = amountDisplay, destAmountDisplay = shape.destAmount?.let(display),
         note = note,
+        grossAmount = income?.amount,
+        grossAmountDisplay = income?.let { amountDisplay },
+        accountMovement = accountMovement,
+        accountMovementDisplay = accountMovement?.let(display),
         countedAmount = counted, countedAmountDisplay = countedDisplay,
         countedAmountRole = counted?.let { countedRole() },
         countedBaseAmountDisplay = counted?.let { baseDisplay(it, countedRate(), lookups, moneyFormatter) },
@@ -70,6 +90,7 @@ internal fun Transaction.toRow(lookups: RowLookups, moneyFormatter: MoneyFormatt
                 baseAmountDisplay = baseDisplay(line.amount, countedRate(), lookups, moneyFormatter),
             )
         },
+        deductionSummaries = deductionSummaries,
         feeDisplay = feeAmount()?.takeIf { it.isPositive }?.let(display),
         feeBaseAmountDisplay = feeAmount()?.takeIf { it.isPositive }?.let {
             baseDisplay(it, feeRate(), lookups, moneyFormatter)
