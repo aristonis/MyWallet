@@ -98,9 +98,12 @@ internal fun LazyListScope.categorySection(
     }
 }
 
-/** Gives a line the group's surface, rounded at the group's ends, with a divider to the next line. */
+/**
+ * Gives a line the group's surface, rounded at the group's ends, with a divider to the next line.
+ * The chart screens' exact tables use it too, so a table reads like the Tracking list it came from.
+ */
 @Composable
-private fun GroupedLine(isFirst: Boolean, isLast: Boolean, content: @Composable () -> Unit) {
+internal fun GroupedLine(isFirst: Boolean, isLast: Boolean, content: @Composable () -> Unit) {
     val dimensions = WalletTheme.dimensions
     val corner = dimensions.cornerMedium
     val shape = RoundedCornerShape(
