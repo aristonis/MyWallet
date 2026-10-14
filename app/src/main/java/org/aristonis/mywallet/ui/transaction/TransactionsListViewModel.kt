@@ -132,7 +132,7 @@ class TransactionsListViewModel @Inject constructor(
      */
     private val pagesWanted = MutableStateFlow(PagesWanted.FIRST)
 
-    private val pages = TransactionPages(entries, PAGE_SIZE)
+    private val pages = TransactionPages(entries::observePage, PAGE_SIZE)
 
     /**
      * The window's pages. Only the page count for this window is followed, so a page asked for

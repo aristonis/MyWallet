@@ -10,7 +10,6 @@ import kotlinx.coroutines.sync.withLock
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.EntryKey
-import org.aristonis.mywallet.domain.port.EntryRepository
 
 /**
  * The newest [pages] pages of a window as loaded so far, newest first. [hasMore] says the window
@@ -22,8 +21,12 @@ internal data class LoadedPages(
     val hasMore: Boolean,
 )
 
+/** One keyset read of a page: entries of [DateRange] strictly after the key, at most the limit, newest first. */
+internal typealias PageSource = (range: DateRange, after: EntryKey?, limit: Int) -> Flow<List<Transaction>>
+
 /**
- * Loads a window's entries a page at a time and keeps the loaded pages current.
+ * Loads a window's entries a page at a time and keeps the loaded pages current. [readPage] says
+ * which entries are paged, so the all-entries list and one account's entries share this logic.
  *
  * Three reads, each of [pageSize] plus one entry (the extra one says whether more exist):
  * - the first page is one live read from the newest entry. It stays open, and its answer to every
@@ -39,7 +42,7 @@ internal data class LoadedPages(
  * replacing. A newer write cancels a refresh still reading. Any failed read fails the flow.
  */
 internal class TransactionPages(
-    private val entries: EntryRepository,
+    private val readPage: PageSource,
     private val pageSize: Int,
 ) {
 
@@ -58,7 +61,7 @@ internal class TransactionPages(
             var current = loaded ?: return
             while (current.hasMore && current.pages < wanted) {
                 val last = current.transactions.last()
-                val next = entries.observePage(range, after = EntryKey(last.date, last.id), limit = pageSize + 1).first()
+                val next = readPage(range, EntryKey(last.date, last.id), pageSize + 1).first()
                 current = LoadedPages(
                     transactions = current.transactions + next.take(pageSize),
                     pages = current.pages + 1,
@@ -78,11 +81,11 @@ internal class TransactionPages(
             }
         }
 
-        entries.observePage(range, after = null, limit = pageSize + 1).collectLatest { firstPage ->
+        readPage(range, null, pageSize + 1).collectLatest { firstPage ->
             lock.withLock {
                 val pages = loaded?.pages ?: 1
                 val limit = pages * pageSize
-                val rows = if (pages == 1) firstPage else entries.observePage(range, after = null, limit = limit + 1).first()
+                val rows = if (pages == 1) firstPage else readPage(range, null, limit + 1).first()
                 val refreshed = LoadedPages(rows.take(limit), pages, hasMore = rows.size > limit)
                 loaded = refreshed
                 send(refreshed)
