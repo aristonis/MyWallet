@@ -14,8 +14,10 @@ import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.port.AccountEntryReader
 import org.aristonis.mywallet.domain.port.EntryKey
 import org.aristonis.mywallet.domain.port.EntryRepository
+import java.time.LocalDate
 
 /**
  * Stores each entry as a header plus legs, and reads them back through the kind's recipe, so a row
@@ -27,7 +29,23 @@ import org.aristonis.mywallet.domain.port.EntryRepository
 class RoomEntryRepository(
     private val database: WalletDatabase,
     private val dao: EntryDao,
-) : EntryRepository {
+) : EntryRepository, AccountEntryReader {
+
+    /**
+     * [observePage] narrowed to the entries with a leg on [accountId]. The filter runs in
+     * [EntryDao.readAccountPage], so the limit counts the account's entries only.
+     */
+    override fun observeAccountPage(
+        accountId: Long,
+        range: DateRange,
+        after: EntryKey?,
+        limit: Int,
+    ): Flow<List<Transaction>> {
+        val (upper, beforeId) = pageBounds(range, after, limit)
+        return database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {
+            dao.readAccountPage(accountId, range.start, upper, beforeId, limit).toTransactions()
+        }
+    }
 
     override fun observeAll(): Flow<List<Transaction>> = observeBetween(DateRange.ALL_TIME)
 
@@ -51,19 +69,23 @@ class RoomEntryRepository(
             dao.readBetween(range.start, range.endInclusive).toTransactions()
         }
 
-    /**
-     * One keyset page, re-read on the same tables as [observeBetween]. The key becomes an upper date
-     * bound plus an id: a key dated after the range starts at the range's end with nothing excluded,
-     * and a key inside it starts at its own date, past the ids already shown.
-     */
+    /** One keyset page, re-read on the same tables as [observeBetween]. */
     override fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>> {
-        require(limit > 0) { "a page holds at least one entry, but the limit was $limit" }
-        val inside = after?.takeIf { it.date <= range.endInclusive }
-        val upper = inside?.date ?: range.endInclusive
-        val beforeId = inside?.id ?: Long.MAX_VALUE
+        val (upper, beforeId) = pageBounds(range, after, limit)
         return database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {
             dao.readPage(range.start, upper, beforeId, limit).toTransactions()
         }
+    }
+
+    /**
+     * The upper date bound and the id a keyset page starts from. A key dated after the range starts
+     * at the range's end with nothing excluded, and a key inside it starts at its own date, past the
+     * ids already shown.
+     */
+    private fun pageBounds(range: DateRange, after: EntryKey?, limit: Int): Pair<LocalDate, Long> {
+        require(limit > 0) { "a page holds at least one entry, but the limit was $limit" }
+        val inside = after?.takeIf { it.date <= range.endInclusive }
+        return (inside?.date ?: range.endInclusive) to (inside?.id ?: Long.MAX_VALUE)
     }
 
     override suspend fun findById(id: Long): Transaction? = database.withTransaction {

@@ -79,6 +79,18 @@ private const val ENTRY_ROWS_SQL =
 /** The debt index finds matching entry ids before any headers or sibling legs are read. */
 private const val DEBT_ENTRY_IDS_SQL = "SELECT entryId FROM entry_legs WHERE debtId = :debtId"
 
+/**
+ * The ids of the entries with a leg on the account, read off the account index. `IN` keeps each
+ * entry once, however many of its legs are on the account.
+ */
+private const val ACCOUNT_ENTRY_IDS_SQL = "SELECT entryId FROM entry_legs WHERE accountId = :accountId"
+
+/**
+ * How many entry ids one `IN (...)` list binds. Older Android ships SQLite builds that refuse more
+ * than 999 bound variables in a statement, so a page larger than that is read in several lists.
+ */
+private const val ENTRY_ID_CHUNK = 500
+
 @Dao
 interface EntryDao {
 
@@ -251,6 +263,79 @@ interface EntryDao {
             headers = headers,
             legs = legsOfPage(upper, beforeId, last.date, last.id),
             deductionLines = deductionLinesOfPage(upper, beforeId, last.date, last.id),
+        )
+    }
+
+    /**
+     * [headersPage] for the entries with a leg on [accountId]: same key, same order, same limit.
+     *
+     * The account index builds the list of matching ids once, and the date index then walks the
+     * entries newest first, keeping those on the list, so the limit counts matches only and no
+     * sort is needed. The `+` on `id IN` keeps SQLite from looking the entries up by id from that
+     * list instead, which would lose the date order and sort every match before the limit.
+     */
+    @Query(
+        "SELECT id, kind, date, note, pairRate FROM entries " +
+            "WHERE +id IN ($ACCOUNT_ENTRY_IDS_SQL) " +
+            "AND date BETWEEN :start AND :upper AND (+date < :upper OR +id < :beforeId) " +
+            "ORDER BY date DESC, id DESC LIMIT :limit",
+    )
+    suspend fun accountHeadersPage(
+        accountId: Long,
+        start: LocalDate,
+        upper: LocalDate,
+        beforeId: Long,
+        limit: Int,
+    ): List<EntryEntity>
+
+    /**
+     * Every leg, not only the account's, of the entries with these ids, with the side of any debt
+     * they point at. Each id is a lookup on the `(entryId, position)` index, so the read costs the
+     * listed entries' own legs. No order: [readAccountPage] puts the rows in page order itself.
+     */
+    @Query(
+        "SELECT l.entryId AS entryId, l.id AS legId, l.role AS role, l.position AS position, " +
+            "l.accountId AS accountId, l.debtId AS debtId, l.categoryId AS categoryId, " +
+            "l.subCategoryId AS subCategoryId, l.amount AS amount, l.currencyCode AS currencyCode, " +
+            "l.rateToBase AS rateToBase, d.side AS debtSide " +
+            "FROM entry_legs AS l LEFT JOIN debts AS d ON d.id = l.debtId " +
+            "WHERE l.entryId IN (:entryIds)",
+    )
+    suspend fun legsOfEntries(entryIds: List<Long>): List<LegRow>
+
+    /** The deduction lines of the entries with these ids, off the `(entryId, position)` index, unordered. */
+    @Query("SELECT * FROM income_deduction_lines WHERE entryId IN (:entryIds)")
+    suspend fun deductionLinesOfEntries(entryIds: List<Long>): List<IncomeDeductionLineEntity>
+
+    /**
+     * [accountHeadersPage] and the complete legs and deduction lines of exactly those entries as one
+     * snapshot, like [readPage].
+     *
+     * The header read builds the account's id list once per page, so that statement grows with the
+     * number of legs on the account. The legs and lines are then read by the page's own entry ids
+     * and cost those entries only, then sorted here into the order [EntryRangeRows] promises: by
+     * entry in header order, legs by position then id, lines by position.
+     */
+    @Transaction
+    suspend fun readAccountPage(
+        accountId: Long,
+        start: LocalDate,
+        upper: LocalDate,
+        beforeId: Long,
+        limit: Int,
+    ): EntryRangeRows {
+        val headers = accountHeadersPage(accountId, start, upper, beforeId, limit)
+        if (headers.isEmpty()) return EntryRangeRows(headers = emptyList(), legs = emptyList())
+        val chunks = headers.map { it.id }.chunked(ENTRY_ID_CHUNK)
+        val rankById = headers.withIndex().associate { (index, header) -> header.id to index }
+        return EntryRangeRows(
+            headers = headers,
+            legs = chunks.flatMap { legsOfEntries(it) }.sortedWith(
+                compareBy<LegRow>({ rankById.getValue(it.entryId) }, { it.position }, { it.legId }),
+            ),
+            deductionLines = chunks.flatMap { deductionLinesOfEntries(it) }.sortedWith(
+                compareBy<IncomeDeductionLineEntity>({ rankById.getValue(it.entryId) }, { it.position }),
+            ),
         )
     }
 
