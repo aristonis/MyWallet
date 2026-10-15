@@ -1,16 +1,21 @@
 package org.aristonis.mywallet.ui.debt
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -24,8 +29,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
@@ -45,6 +56,10 @@ import org.aristonis.mywallet.ui.message.UiMessage
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.window.RefreshOnStart
+
+private const val SUMMARY_WASH_ALPHA = 0.14f
+private const val SUMMARY_ICON_BACKGROUND_ALPHA = 0.16f
+private val SUMMARY_ICON_BADGE_SIZE = 40.dp
 
 /** The debts list: one side at a time, with the total and each open and settled debt. */
 @Composable
@@ -143,15 +158,47 @@ private fun DebtTotalsCard(state: DebtsUiState, onManageRates: () -> Unit) {
     }
     val amount = if (state.selectedSide == DebtSide.I_OWE) state.iOweDisplay else state.owedToMeDisplay
     if (amount != null) {
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Column(Modifier.fillMaxWidth().padding(WalletTheme.dimensions.cardPadding),
-                verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
-                Text(stringResource(if (state.selectedSide == DebtSide.I_OWE) R.string.debts_i_owe
-                    else R.string.debts_owed_to_me), style = MaterialTheme.typography.titleMedium)
+        val isIOwe = state.selectedSide == DebtSide.I_OWE
+        val roleColor = if (isIOwe) WalletTheme.colors.expense else WalletTheme.colors.income
+        val sideIcon = if (isIOwe) WalletIcons.Borrow else WalletIcons.Lend
+        val sideTitle = stringResource(if (isIOwe) R.string.debts_i_owe else R.string.debts_owed_to_me)
+        val scheme = MaterialTheme.colorScheme
+        val wash = Brush.verticalGradient(
+            listOf(roleColor.copy(alpha = SUMMARY_WASH_ALPHA), Color.Transparent),
+        )
+        Card(
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = scheme.surfaceContainer,
+                contentColor = scheme.onSurface,
+            ),
+            border = BorderStroke(1.dp, scheme.outlineVariant),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().background(wash).padding(WalletTheme.dimensions.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.iconContentGap),
+                ) {
+                    Box(
+                        modifier = Modifier.size(SUMMARY_ICON_BADGE_SIZE).clip(CircleShape)
+                            .background(roleColor.copy(alpha = SUMMARY_ICON_BACKGROUND_ALPHA)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(sideIcon, contentDescription = null, tint = roleColor)
+                    }
+                    Text(sideTitle, style = MaterialTheme.typography.titleMedium)
+                }
                 Text(stringResource(R.string.debts_remaining_w2),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                MoneyText(amount, style = MaterialTheme.typography.headlineMedium)
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant)
+                MoneyText(
+                    amount,
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    color = roleColor,
+                )
             }
         }
     }
