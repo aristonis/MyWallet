@@ -6,6 +6,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -141,5 +143,14 @@ class WalletComponentsTest {
         compose.onNodeWithText("Retry").performClick()
 
         assertEquals(1, retried)
+    }
+
+    @Test
+    fun aSectionTitleIsATalkBackHeading() {
+        setContent { SectionHeader(title = "Accounts") }
+
+        // TalkBack users move section by section with the headings control; without the flag the
+        // title is read as one more line of text and the jump skips it.
+        compose.onNode(hasText("Accounts") and isHeading()).assertIsDisplayed()
     }
 }
