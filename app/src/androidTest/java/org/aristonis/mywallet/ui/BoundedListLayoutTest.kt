@@ -143,9 +143,9 @@ class BoundedListLayoutTest {
             )
         }
 
-        compose.onNodeWithText("Balance").assertIsDisplayed()
+        compose.onNodeWithText("Total balance").assertIsDisplayed()
         scrollToLast("Account $rowCount")
-        compose.onNodeWithText("Balance").assertDoesNotExist()
+        compose.onNodeWithText("Total balance").assertDoesNotExist()
     }
 
     @Test

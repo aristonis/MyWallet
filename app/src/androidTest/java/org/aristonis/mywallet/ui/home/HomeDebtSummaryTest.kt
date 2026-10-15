@@ -46,21 +46,20 @@ class HomeDebtSummaryTest {
         var openings = 0
         show(HomeUiState(summary = HomeSummaryState.Amounts("700.00 USD", "300.00 USD", "1,450.00 USD", "-450.00 USD"),
             isLoading = false), onDebts = { openings++ })
-        compose.onNodeWithText("Balance").assertIsDisplayed()
-        compose.onNodeWithText("-450.00 USD").assertIsDisplayed()
-        compose.onNodeWithText("In my pocket").assertIsDisplayed()
-        compose.onNodeWithText("700.00 USD").assertIsDisplayed()
-        compose.onNode(hasText("Owed to me") and hasClickAction()).performClick()
-        compose.onNode(hasText("I owe") and hasClickAction()).performClick()
+        compose.onNodeWithText("Total balance").assertIsDisplayed()
+        compose.onNodeWithText("-450.00 USD", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasContentDescription("In my pocket") and hasText("700.00 USD")).assertIsDisplayed()
+        compose.onNode(hasContentDescription("Owed to me") and hasClickAction()).performClick()
+        compose.onNode(hasContentDescription("I owe") and hasClickAction()).performClick()
         compose.runOnIdle { assertEquals(2, openings) }
     }
 
     @Test fun clickableDebtRowsHaveFortyEightDpTouchTargetsAtSmallTextSize() {
         showWithScale(0.85f)
 
-        compose.onNode(hasText("Owed to me") and hasClickAction()).assertHeightIsAtLeast(48.dp)
-        compose.onNode(hasText("I owe") and hasClickAction()).assertHeightIsAtLeast(48.dp)
-        compose.onNode(hasText("In my pocket") and hasClickAction()).assertDoesNotExist()
+        compose.onNode(hasContentDescription("Owed to me") and hasClickAction()).assertHeightIsAtLeast(48.dp)
+        compose.onNode(hasContentDescription("I owe") and hasClickAction()).assertHeightIsAtLeast(48.dp)
+        compose.onNode(hasContentDescription("In my pocket") and hasClickAction()).assertDoesNotExist()
     }
 
     @Test fun clickableDebtRowsRemainReachableAtCompactWidthAndTwoHundredPercentRtl() {
@@ -68,7 +67,7 @@ class HomeDebtSummaryTest {
         showWithScale(2f, onDebts = { openings++ })
 
         for (label in listOf("Owed to me", "I owe")) {
-            val row = compose.onNode(hasText(label) and hasClickAction()).performScrollTo().assertIsDisplayed()
+            val row = compose.onNode(hasContentDescription(label) and hasClickAction()).performScrollTo().assertIsDisplayed()
             val bounds = row.getBoundsInRoot()
             assertTrue("$label touch area must be at least 48dp", bounds.bottom - bounds.top >= 48.dp)
             row.performClick()

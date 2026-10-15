@@ -12,6 +12,7 @@ import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -116,7 +117,7 @@ class HomeScreenTest {
             }
         }
 
-        val owed = compose.onNodeWithText(text(R.string.home_i_owe)).performScrollTo().getBoundsInRoot()
+        val owed = compose.onNodeWithContentDescription(text(R.string.home_i_owe), substring = true).performScrollTo().getBoundsInRoot()
         val add = compose.onNodeWithText(text(R.string.home_add_transaction)).getBoundsInRoot()
         assertTrue("The I owe text must clear the Add action", owed.bottom <= add.top || owed.top >= add.bottom)
     }
@@ -187,8 +188,9 @@ class HomeScreenTest {
         }
 
         // The account row is one tappable item, so its texts only have their own bounds unmerged.
-        val nameBounds = compose.onNodeWithText(name, useUnmergedTree = true).performScrollTo().getBoundsInRoot()
-        val amountBounds = compose.onNodeWithText(amount, useUnmergedTree = true).getBoundsInRoot()
+        // Scroll to the amount, the lower of the two, so both are on screen when the bounds are read.
+        val amountBounds = compose.onNodeWithText(amount, useUnmergedTree = true).performScrollTo().getBoundsInRoot()
+        val nameBounds = compose.onNodeWithText(name, useUnmergedTree = true).getBoundsInRoot()
         assertTrue("The full balance should use a line below the account name",
             amountBounds.top >= nameBounds.bottom)
     }

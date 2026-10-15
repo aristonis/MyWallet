@@ -1,5 +1,5 @@
 <resources>
-    <string name="home_balance">Balance</string>
+    <string name="home_balance">Total balance</string>
     <string name="home_in_my_pocket">In my pocket</string>
     <string name="home_owed_to_me">Owed to me</string>
     <string name="home_i_owe">I owe</string>

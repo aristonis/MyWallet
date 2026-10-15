@@ -22,9 +22,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
@@ -211,67 +207,6 @@ internal fun HomeContent(
                 }
             }
         }
-    }
-}
-
-/**
- * The summary the screen exists to show. The balance gets the full width and the display type size;
- * the pocket, owed-to-me and I-owe figures below it are the working detail behind that number. A
- * missing rate is recoverable and the card is the way to recover it: tapping opens the rates screen.
- */
-@Composable
-private fun HomeSummaryHero(summary: HomeSummaryState, onManageRates: () -> Unit, onDebts: () -> Unit) {
-    val dimensions = WalletTheme.dimensions
-    when (summary) {
-        HomeSummaryState.Loading -> CircularProgressIndicator()
-        is HomeSummaryState.MissingRate -> StatusCard(StatusTone.WARNING,
-            stringResource(R.string.home_missing_rate, summary.currencyCode),
-            iconDescription = stringResource(R.string.cd_warning), onClick = onManageRates)
-        is HomeSummaryState.Amounts -> Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer),
-        ) {
-            Column(Modifier.padding(dimensions.cardPadding), verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
-                Text(stringResource(R.string.home_balance), style = MaterialTheme.typography.labelMedium)
-                MoneyText(summary.balanceDisplay, style = MaterialTheme.typography.displaySmall)
-                HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
-                BoxWithConstraints {
-                    val stack = maxWidth / LocalDensity.current.fontScale < ACCOUNT_STACK_WIDTH
-                    if (stack) {
-                        Column(verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
-                            SummaryAmount(stringResource(R.string.home_in_my_pocket), summary.pocketDisplay)
-                            SummaryAmount(stringResource(R.string.home_owed_to_me), summary.owedToMeDisplay, onDebts)
-                            SummaryAmount(stringResource(R.string.home_i_owe), summary.iOweDisplay, onDebts)
-                        }
-                    } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
-                            Column(Modifier.weight(1f)) {
-                                SummaryAmount(stringResource(R.string.home_in_my_pocket), summary.pocketDisplay)
-                            }
-                            Text("+", style = MaterialTheme.typography.titleMedium)
-                            Column(Modifier.weight(1f)) {
-                                SummaryAmount(stringResource(R.string.home_owed_to_me), summary.owedToMeDisplay, onDebts)
-                            }
-                            Text("−", style = MaterialTheme.typography.titleMedium)
-                            Column(Modifier.weight(1f)) {
-                                SummaryAmount(stringResource(R.string.home_i_owe), summary.iOweDisplay, onDebts)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SummaryAmount(label: String, amount: String, onClick: (() -> Unit)? = null) {
-    val tappable = if (onClick != null) Modifier.heightIn(min = WalletTheme.dimensions.minTouchTarget)
-        .clickable(role = Role.Button, onClick = onClick) else Modifier
-    Column(Modifier.fillMaxWidth().then(tappable)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        MoneyText(amount, style = MaterialTheme.typography.titleMedium)
     }
 }
 
