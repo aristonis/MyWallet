@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
@@ -36,12 +37,14 @@ fun SettingsRow(
     value: String? = null,
     supporting: String? = null,
     icon: ImageVector? = null,
+    accent: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     enabled: Boolean = true,
 ) {
     WalletListRow(
         headline = label,
         supporting = supporting,
         leadingIcon = icon,
+        leadingIconTint = accent,
         modifier = if (enabled) modifier else modifier
             .alpha(DISABLED_ROW_ALPHA)
             .semantics(mergeDescendants = true) { disabled() },
@@ -78,11 +81,13 @@ fun SettingsSwitchRow(
     modifier: Modifier = Modifier,
     supporting: String? = null,
     icon: ImageVector? = null,
+    accent: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     WalletListRow(
         headline = label,
         supporting = supporting,
         leadingIcon = icon,
+        leadingIconTint = accent,
         modifier = modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
         // The row carries the click and the announcement, so the switch itself is inert.
         trailing = { Switch(checked = checked, onCheckedChange = null) },

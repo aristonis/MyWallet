@@ -180,6 +180,7 @@ internal fun SettingsContent(
                     label = stringResource(R.string.settings_theme),
                     value = stringResource(currentTheme.labelRes()),
                     icon = WalletIcons.Appearance,
+                    accent = MaterialTheme.colorScheme.primary,
                     onClick = { pickingTheme = true },
                 )
             }
@@ -190,24 +191,28 @@ internal fun SettingsContent(
                     supporting = stringResource(R.string.settings_base_currency_body),
                     value = baseCurrencyCode,
                     icon = WalletIcons.Rates,
+                    accent = MaterialTheme.colorScheme.tertiary,
                     onClick = onChangeBaseCurrency,
                 )
                 SettingsRow(
                     label = stringResource(R.string.settings_accounts),
                     supporting = stringResource(R.string.settings_accounts_body),
                     icon = WalletIcons.AccountDefault,
+                    accent = MaterialTheme.colorScheme.tertiary,
                     onClick = onManageAccounts,
                 )
                 SettingsRow(
                     label = stringResource(R.string.settings_categories),
                     supporting = stringResource(R.string.settings_categories_body),
                     icon = WalletIcons.Categories,
+                    accent = MaterialTheme.colorScheme.tertiary,
                     onClick = onManageCategories,
                 )
                 SettingsRow(
                     label = stringResource(R.string.deductions_title),
                     supporting = stringResource(R.string.settings_deductions_body),
                     icon = WalletIcons.Transactions,
+                    accent = MaterialTheme.colorScheme.tertiary,
                     onClick = onManageDeductions,
                 )
             }
@@ -219,6 +224,7 @@ internal fun SettingsContent(
                     label = stringResource(R.string.settings_rates),
                     supporting = stringResource(R.string.settings_rates_body),
                     icon = WalletIcons.Rates,
+                    accent = MaterialTheme.colorScheme.secondary,
                     onClick = onManageRates,
                 )
                 SettingsSwitchRow(
@@ -227,6 +233,7 @@ internal fun SettingsContent(
                     checked = saveTransactionRates,
                     onCheckedChange = onSaveTransactionRatesChanged,
                     icon = WalletIcons.Edit,
+                    accent = MaterialTheme.colorScheme.secondary,
                 )
             }
 
@@ -235,6 +242,7 @@ internal fun SettingsContent(
                     label = stringResource(R.string.settings_export),
                     supporting = stringResource(R.string.settings_export_body),
                     icon = WalletIcons.Backup,
+                    accent = WalletTheme.colors.warning,
                     enabled = !isWorking,
                     onClick = { if (!isWorking) onExport() },
                 )
@@ -243,6 +251,7 @@ internal fun SettingsContent(
                     // Kept because it is the one action here that cannot be taken back.
                     supporting = stringResource(R.string.settings_restore_body),
                     icon = WalletIcons.Restore,
+                    accent = MaterialTheme.colorScheme.error,
                     enabled = !isWorking,
                     onClick = { if (!isWorking) onImport() },
                 )
