@@ -14,16 +14,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+
+/** The selected tab's pill: the primary blue, faint enough that its icon and label stay readable on it. */
+private const val INDICATOR_ALPHA = 0.16f
 
 /**
  * The four top-level destinations.
@@ -41,7 +47,15 @@ fun WalletNavigationBar(
     BoxWithConstraints(modifier = modifier) {
         val isLargeText = LocalDensity.current.fontScale >= 1.3f
         val useTwoRows = maxWidth < 600.dp && isLargeText
-        NavigationBar {
+        // A flat bar one step above the page, split from it by a hairline instead of a shadow.
+        val hairline = MaterialTheme.colorScheme.outlineVariant
+        NavigationBar(
+            modifier = Modifier.drawBehind {
+                drawLine(hairline, Offset.Zero, Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp,
+        ) {
             if (useTwoRows) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     WalletTab.entries.chunked(2).forEach { tabs ->
@@ -84,11 +98,11 @@ private fun RowScope.LargeTextNavigationItem(
         Icon(
             imageVector = tab.icon,
             contentDescription = null,
-            tint = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer
+            tint = if (isSelected) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .background(
-                    if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = INDICATOR_ALPHA) else Color.Transparent,
                     RoundedCornerShape(50),
                 )
                 .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -96,7 +110,7 @@ private fun RowScope.LargeTextNavigationItem(
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = if (isSelected) MaterialTheme.colorScheme.onSurface
+            color = if (isSelected) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             softWrap = false,
@@ -119,5 +133,10 @@ private fun RowScope.WalletNavigationItem(
         // The visible label already provides the accessible name.
         icon = { Icon(imageVector = tab.icon, contentDescription = null) },
         label = { Text(label) },
+        colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.primary,
+            selectedTextColor = MaterialTheme.colorScheme.primary,
+            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = INDICATOR_ALPHA),
+        ),
     )
 }

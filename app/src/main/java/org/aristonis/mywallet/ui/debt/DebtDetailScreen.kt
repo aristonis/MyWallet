@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.ui.debt
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,8 +39,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.time.LocalDate
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Transaction
@@ -56,7 +59,6 @@ import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.transaction.kindLabel
 import org.aristonis.mywallet.ui.transaction.rowType
 import org.aristonis.mywallet.ui.window.RefreshOnStart
-import java.time.LocalDate
 
 /** One debt: its balance, editable name, due date and note, and the entries that make it up. */
 @Composable
@@ -175,7 +177,7 @@ internal fun DebtDetailContent(
 private fun DebtDetailSummary(state: DebtDetailUiState, formatDate: (LocalDate) -> String) {
     val summary = state.detail?.summary ?: return
     val side = if (summary.debt.side == DebtSide.I_OWE) R.string.debts_i_owe else R.string.debts_owed_to_me
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
         Column(Modifier.fillMaxWidth().padding(WalletTheme.dimensions.cardPadding),
             verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
             Text(stringResource(side), style = MaterialTheme.typography.titleMedium)

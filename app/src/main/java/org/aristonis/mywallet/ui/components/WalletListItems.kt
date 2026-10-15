@@ -1,13 +1,18 @@
 package org.aristonis.mywallet.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -19,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
@@ -28,11 +34,15 @@ import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.theme.WalletTheme
 
-/** Between a heading and its content. Larger gaps separate whole regions; see docs/Design.md 2.3. */
+/** Between a heading and its content. Larger gaps separate whole regions. */
 private val SECTION_SPACING = 8.dp
 private val CARD_PADDING = 16.dp
 private val COMPACT_ROW_WIDTH = 360.dp
 private const val LARGE_TEXT_SCALE = 1.8f
+private val BADGE_SIZE = 36.dp
+private val BADGE_ICON_SIZE = 20.dp
+private const val BADGE_TINT_ALPHA = 0.14f
+private const val STATUS_BORDER_ALPHA = 0.32f
 
 /**
  * A titled band with optional actions on the trailing side ("Accounts … Manage"). Actions sit at the
@@ -51,7 +61,8 @@ fun SectionHeader(
         // A heading for TalkBack, so its users can jump section by section instead of row by row.
         Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
         actions()
@@ -89,11 +100,7 @@ fun WalletListRow(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (leadingIcon != null) {
-                        Icon(
-                            imageVector = leadingIcon,
-                            contentDescription = leadingIconDescription,
-                            tint = leadingIconTint,
-                        )
+                        LeadingBadge(leadingIcon, leadingIconDescription, leadingIconTint)
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(headline, style = MaterialTheme.typography.titleMedium)
@@ -153,18 +160,24 @@ private fun WalletListItemBody(
                 )
             }
         },
-        leadingContent = leadingIcon?.let {
-            {
-                Icon(
-                    imageVector = it,
-                    contentDescription = leadingIconDescription,
-                    tint = leadingIconTint,
-                )
-            }
-        },
+        leadingContent = leadingIcon?.let { { LeadingBadge(it, leadingIconDescription, leadingIconTint) } },
         trailingContent = trailing,
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
     )
+}
+
+/**
+ * The row's type icon on a soft disc of its own tint, so a list scans by kind before it is read.
+ * The disc is decoration; the icon keeps the description the caller gave it.
+ */
+@Composable
+private fun LeadingBadge(icon: ImageVector, description: String?, tint: Color) {
+    Box(
+        modifier = Modifier.size(BADGE_SIZE).clip(CircleShape).background(tint.copy(alpha = BADGE_TINT_ALPHA)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(imageVector = icon, contentDescription = description, tint = tint, modifier = Modifier.size(BADGE_ICON_SIZE))
+    }
 }
 
 /** How urgent a [StatusCard] is. Each tone brings its own icon so colour never carries it alone. */
@@ -209,6 +222,7 @@ fun StatusCard(
             modifier.fillMaxWidth()
         },
         colors = CardDefaults.cardColors(containerColor = container, contentColor = content),
+        border = BorderStroke(1.dp, content.copy(alpha = STATUS_BORDER_ALPHA)),
     ) {
         Row(
             modifier = Modifier.padding(CARD_PADDING),

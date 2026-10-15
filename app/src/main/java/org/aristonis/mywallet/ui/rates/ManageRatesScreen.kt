@@ -4,6 +4,7 @@ package org.aristonis.mywallet.ui.rates
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,17 +33,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.math.BigDecimal
 import org.aristonis.mywallet.R
-import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.SectionHeader
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
+import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.theme.WalletTheme
-import java.math.BigDecimal
 
 /**
  * Manage-rates screen. Lists currencies used by active accounts and outstanding debts (base excluded) and lets each be
@@ -136,7 +138,7 @@ private fun RateRowCard(
     val dimensions = WalletTheme.dimensions
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(
             modifier = Modifier.padding(dimensions.cardPadding),

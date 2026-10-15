@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.category
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,10 +45,10 @@ import org.aristonis.mywallet.ui.components.MenuAction
 import org.aristonis.mywallet.ui.components.OverflowMenu
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.icons.WalletIcons
-import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.label
-import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.message.text
+import org.aristonis.mywallet.ui.text
+import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.theme.WalletTheme
 
 @Composable
@@ -342,7 +343,7 @@ private fun CategoryCard(
     // Resolved once, in composition: the click handlers below need the same text and run outside it.
     val rowLabel = row.labelText()
     Card(modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
         Column(modifier = Modifier.padding(WalletTheme.dimensions.cardPadding),
             verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
             Row(

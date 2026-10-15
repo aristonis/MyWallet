@@ -7,6 +7,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -29,7 +30,13 @@ fun WalletTopAppBar(
 ) {
     TopAppBar(
         modifier = modifier,
-        title = { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) },
+        // A top-level screen names a whole area of the app, so its title is a size larger than a
+        // pushed screen's.
+        title = {
+            val style = if (onBack == null) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge
+            Text(title, style = style, fontWeight = FontWeight.SemiBold)
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
         navigationIcon = {
             if (onBack != null) {
                 IconButton(onClick = onBack) {

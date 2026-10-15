@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.debt
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.time.LocalDate
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.ui.components.LabeledDropdown
@@ -44,7 +46,6 @@ import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.transaction.DateField
 import org.aristonis.mywallet.ui.transaction.RateSection
 import org.aristonis.mywallet.ui.transaction.accountLabel
-import java.time.LocalDate
 
 /**
  * Form that records a repayment, or edits one when [repaymentId] is set. The domain resolves the
@@ -205,7 +206,7 @@ internal fun RecordRepaymentContent(
 private fun RepaymentIdentity(state: RecordRepaymentUiState) {
     val debt = state.debt?.summary?.debt ?: return
     val side = if (debt.side == DebtSide.I_OWE) R.string.debts_i_owe else R.string.debts_owed_to_me
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
         Column(Modifier.fillMaxWidth().padding(WalletTheme.dimensions.cardPadding),
             verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap)) {
             Text(stringResource(R.string.repayment_context_w2, bidiIsolate(debt.counterparty), stringResource(side)),
