@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,7 +31,10 @@ import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.signedAmount
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.text
+import org.aristonis.mywallet.ui.theme.WalletTheme
 import org.aristonis.mywallet.ui.theme.amountColor
+
+private const val AMOUNT_PILL_BACKGROUND_ALPHA = 0.12f
 
 /** One row of the transactions list. Amounts arrive formatted; the row adds the sign its kind carries. */
 @Composable
@@ -99,7 +104,18 @@ private fun CompactTransferRow(row: TransactionRow, onClick: () -> Unit) {
 @Composable
 private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
     Column(horizontalAlignment = Alignment.End) {
-        MoneyText(amount = amountLine(row), style = MaterialTheme.typography.titleMedium, color = amountColor(role))
+        val roleColor = amountColor(role)
+        MoneyText(
+            amount = amountLine(row),
+            modifier = Modifier
+                .background(roleColor.copy(alpha = AMOUNT_PILL_BACKGROUND_ALPHA), CircleShape)
+                .padding(
+                    horizontal = WalletTheme.dimensions.relatedGap,
+                    vertical = WalletTheme.dimensions.grid,
+                ),
+            style = MaterialTheme.typography.titleMedium,
+            color = roleColor,
+        )
         val hasDeductionDetails = row.type == TransactionRowType.INCOME && row.deductions.isNotEmpty()
         if (hasDeductionDetails) {
             Text(

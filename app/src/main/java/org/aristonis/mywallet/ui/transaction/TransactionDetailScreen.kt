@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.ui.transaction
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -254,8 +256,19 @@ private fun DetailBody(state: TransactionDetailUiState, row: TransactionRow, onE
         verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap),
     ) {
         Hero(row)
-        SectionHeader(title = stringResource(R.string.transaction_detail_recorded))
-        RecordedDetails(row)
+        SectionHeader(
+            title = stringResource(R.string.transaction_detail_recorded),
+            modifier = Modifier.padding(top = WalletTheme.dimensions.regionGap),
+        )
+        // The recorded fields read as one record, so they share one bordered surface.
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            // RecordedDetails emits bare rows; inside a Surface they need a column or they stack.
+            Column { RecordedDetails(row) }
+        }
         state.deleteError?.let { error ->
             StatusCard(tone = StatusTone.ERROR, message = error.text(), modifier = Modifier.testTag(DELETE_ERROR_TAG))
         }
@@ -290,7 +303,7 @@ private fun Hero(row: TransactionRow) {
         MoneyText(
             amount = signedAmount(role, row.amountDisplay),
             modifier = Modifier.testTag(HERO_AMOUNT_TAG),
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineMedium,
             color = amountColor(role),
         )
         if (role != AmountRole.NEUTRAL) row.countedBaseAmountDisplay?.let { BaseAmountText(it) }

@@ -4,6 +4,7 @@ package org.aristonis.mywallet.ui.transaction
 // the sign each kind carries.
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,10 +18,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -275,29 +274,25 @@ private fun TransactionDays(
         contentPadding = PaddingValues(bottom = listBottomPadding),
     ) {
         sections.forEach { section ->
-            item(key = "day-${section.date}") {
+            stickyHeader(key = "day-${section.date}") {
                 DayHeader(text = dayHeaderText(section, formatDay))
             }
             items(section.rows, key = { it.id }) { row ->
-                val isFirst = row.id == section.rows.first().id
-                val isLast = row.id == section.rows.last().id
-                val corners = RoundedCornerShape(
-                    topStart = if (isFirst) dimensions.cornerMedium else 0.dp,
-                    topEnd = if (isFirst) dimensions.cornerMedium else 0.dp,
-                    bottomStart = if (isLast) dimensions.cornerMedium else 0.dp,
-                    bottomEnd = if (isLast) dimensions.cornerMedium else 0.dp,
-                )
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = dimensions.screenPadding)
-                        .background(MaterialTheme.colorScheme.surfaceContainer, corners),
+                    Modifier.fillMaxWidth().padding(
+                        start = dimensions.screenPadding,
+                        end = dimensions.screenPadding,
+                        bottom = dimensions.relatedGap,
+                    ).background(
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        shape = MaterialTheme.shapes.medium,
+                    ).border(
+                        width = TRANSACTION_CARD_BORDER_WIDTH,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        shape = MaterialTheme.shapes.medium,
+                    ),
                 ) {
                     TransactionRowItem(row = row, onClick = { onOpenTransaction(row.id) })
-                    if (!isLast) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = dimensions.cardPadding),
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                        )
-                    }
                 }
             }
         }
@@ -318,6 +313,8 @@ private fun TransactionDays(
 /** Key of the item that stands for the rows not loaded yet; no entry id can take it. */
 private const val NEXT_PAGE_KEY = "next-page"
 
+private val TRANSACTION_CARD_BORDER_WIDTH = 1.dp
+
 @Composable
 private fun dayHeaderText(section: TransactionSection, formatDay: (LocalDate) -> String): String =
     when (section.relation) {
@@ -330,12 +327,12 @@ private fun dayHeaderText(section: TransactionSection, formatDay: (LocalDate) ->
 @Composable
 private fun DayHeader(text: String) {
     val dimensions = WalletTheme.dimensions
-    Column(modifier = Modifier.fillMaxWidth().padding(
-        start = dimensions.screenPadding,
-        end = dimensions.screenPadding,
-        top = dimensions.sectionGap,
-        bottom = dimensions.relatedGap,
-    )) {
+    Column(
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(
+            horizontal = dimensions.screenPadding,
+            vertical = dimensions.relatedGap,
+        ),
+    ) {
         Text(
             text = text,
             style = MaterialTheme.typography.titleSmall,
