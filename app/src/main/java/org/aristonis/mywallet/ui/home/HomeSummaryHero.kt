@@ -1,5 +1,6 @@
 package org.aristonis.mywallet.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,30 +13,34 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.StatusCard
@@ -61,14 +66,17 @@ internal fun breakableAtGroups(display: String): String = display.replace(GROUP_
 /** Same OpenType feature MoneyText draws with, so the balance digits line up like every other amount. */
 private const val TABULAR_FIGURES = "tnum"
 
-/** Muted text on the card, such as the balance label (the frame's overline opacity). */
-private const val LABEL_ALPHA = 0.78f
+/** Strength of the blue wash at the top of the balance card. */
+private const val WASH_ALPHA = 0.14f
+
+/** Strength of the tinted disc behind each figure's icon. */
+private const val BADGE_ALPHA = 0.16f
 
 /**
- * The summary the screen exists to show: one primary-container card with the balance, then the
- * pocket, owed-to-me and I-owe figures as surface rows inside it, colored as the frame's metric cells. Each figure is an icon and an
- * amount; the label is spoken by TalkBack only, and the owed and owe rows carry the income and
- * expense hues on their amounts so the two debt directions are told apart by color as well as by icon. A missing
+ * The summary the screen exists to show: one card with the balance, then the pocket, owed-to-me and
+ * I-owe figures as labelled rows inside it. The owed and owe rows carry the income and expense hues
+ * on their icons and amounts, so the two debt directions are told apart by colour as well as by icon
+ * and label. A missing
  * rate is recoverable and the card is the way to recover it: tapping opens the rates screen.
  */
 @Composable
@@ -86,28 +94,32 @@ internal fun HomeSummaryHero(summary: HomeSummaryState, onManageRates: () -> Uni
 private fun BalanceCard(summary: HomeSummaryState.Amounts, onDebts: () -> Unit) {
     val dimensions = WalletTheme.dimensions
     val scheme = MaterialTheme.colorScheme
-    val onCard = scheme.onPrimaryContainer
-    ElevatedCard(
+    // A faint wash of the primary blue at the top of the card, fading into it: the one place on the
+    // screen that carries the brand colour as a surface rather than as a control.
+    val wash = Brush.verticalGradient(listOf(scheme.primary.copy(alpha = WASH_ALPHA), Color.Transparent))
+    Card(
         modifier = Modifier.fillMaxWidth().testTag(TAG_BALANCE_CARD),
-        shape = RoundedCornerShape(dimensions.sectionGap),
-        colors = CardDefaults.elevatedCardColors(containerColor = scheme.primaryContainer, contentColor = onCard),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer, contentColor = scheme.onSurface),
+        border = BorderStroke(1.dp, scheme.outlineVariant),
     ) {
         Column(
-            Modifier.padding(dimensions.sectionGap),
+            Modifier.background(wash).padding(dimensions.sectionGap),
             verticalArrangement = Arrangement.spacedBy(dimensions.regionGap),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(dimensions.grid)) {
                 Text(stringResource(R.string.home_balance), style = MaterialTheme.typography.bodyMedium,
-                    color = onCard.copy(alpha = LABEL_ALPHA))
+                    color = scheme.onSurfaceVariant)
                 BalanceAmount(summary.balanceDisplay)
             }
-            Column(verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
+            HorizontalDivider(color = scheme.outlineVariant)
+            Column(verticalArrangement = Arrangement.spacedBy(dimensions.grid)) {
                 FigureRow(WalletIcons.AccountDefault, stringResource(R.string.home_in_my_pocket),
-                    summary.pocketDisplay, scheme.onSurface, null)
+                    summary.pocketDisplay, scheme.onSurface, scheme.primary, null)
                 FigureRow(WalletIcons.Lend, stringResource(R.string.home_owed_to_me),
-                    summary.owedToMeDisplay, WalletTheme.colors.income, onDebts)
+                    summary.owedToMeDisplay, WalletTheme.colors.income, WalletTheme.colors.income, onDebts)
                 FigureRow(WalletIcons.Borrow, stringResource(R.string.home_i_owe),
-                    summary.iOweDisplay, WalletTheme.colors.expense, onDebts)
+                    summary.iOweDisplay, WalletTheme.colors.expense, WalletTheme.colors.expense, onDebts)
             }
         }
     }
@@ -138,28 +150,37 @@ private fun BalanceAmount(display: String) {
     }
 }
 
-/** One surface row: the icon in a round badge at the start, the amount at the end. The label is for TalkBack. */
+/**
+ * One figure row: the icon on a disc of its own hue, then the label with the amount under it.
+ * TalkBack still hears the label once, from the row's description; the visible copy is hidden from it
+ * so it is not read twice.
+ */
 @Composable
-private fun FigureRow(icon: ImageVector, label: String, amount: String, tint: Color, onClick: (() -> Unit)?) {
+private fun FigureRow(icon: ImageVector, label: String, amount: String, tint: Color, accent: Color, onClick: (() -> Unit)?) {
     val dimensions = WalletTheme.dimensions
     val scheme = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(dimensions.cornerMedium)
     val tap = if (onClick == null) Modifier else Modifier.clickable(role = Role.Button, onClick = onClick)
     Row(
-        Modifier.fillMaxWidth().clip(shape).background(scheme.surfaceContainer).then(tap)
+        Modifier.fillMaxWidth().clip(shape).then(tap)
             .semantics(mergeDescendants = true) { contentDescription = label }
             .heightIn(min = dimensions.minTouchTarget)
-            .padding(horizontal = dimensions.cardPadding, vertical = dimensions.relatedGap),
+            .padding(vertical = dimensions.relatedGap),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dimensions.iconContentGap),
     ) {
         Box(
-            Modifier.size(dimensions.iconSize + dimensions.relatedGap * 2).clip(CircleShape).background(scheme.background),
+            Modifier.size(dimensions.iconSize + dimensions.relatedGap * 2).clip(CircleShape)
+                .background(accent.copy(alpha = BADGE_ALPHA)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(dimensions.iconSize))
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(dimensions.iconSize))
         }
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+        // Label over amount rather than beside it: a long balance then never squeezes the label into
+        // a wrap, and both grow with the font scale on their own line.
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                modifier = Modifier.clearAndSetSemantics {})
             MoneyText(breakableAtGroups(amount), style = MaterialTheme.typography.titleMedium, color = tint)
         }
     }
