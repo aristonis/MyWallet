@@ -187,22 +187,26 @@ internal fun SettingsContent(
             SettingsSection(title = stringResource(R.string.settings_section_wallet)) {
                 SettingsRow(
                     label = stringResource(R.string.settings_base_currency),
+                    supporting = stringResource(R.string.settings_base_currency_body),
                     value = baseCurrencyCode,
                     icon = WalletIcons.Rates,
                     onClick = onChangeBaseCurrency,
                 )
                 SettingsRow(
                     label = stringResource(R.string.settings_accounts),
+                    supporting = stringResource(R.string.settings_accounts_body),
                     icon = WalletIcons.AccountDefault,
                     onClick = onManageAccounts,
                 )
                 SettingsRow(
                     label = stringResource(R.string.settings_categories),
+                    supporting = stringResource(R.string.settings_categories_body),
                     icon = WalletIcons.Categories,
                     onClick = onManageCategories,
                 )
                 SettingsRow(
                     label = stringResource(R.string.deductions_title),
+                    supporting = stringResource(R.string.settings_deductions_body),
                     icon = WalletIcons.Transactions,
                     onClick = onManageDeductions,
                 )
@@ -213,6 +217,7 @@ internal fun SettingsContent(
             SettingsSection(title = stringResource(R.string.settings_section_currencies)) {
                 SettingsRow(
                     label = stringResource(R.string.settings_rates),
+                    supporting = stringResource(R.string.settings_rates_body),
                     icon = WalletIcons.Rates,
                     onClick = onManageRates,
                 )

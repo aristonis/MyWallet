@@ -201,6 +201,11 @@
     <string name="settings_accounts">Accounts</string>
     <string name="settings_categories">Categories</string>
     <string name="settings_rates">Currencies &amp; rates</string>
+    <string name="settings_rates_body">Conversion rates</string>
+    <string name="settings_base_currency_body">Currency used for summaries</string>
+    <string name="settings_accounts_body">Manage active and archived accounts</string>
+    <string name="settings_categories_body">Expense and income</string>
+    <string name="settings_deductions_body">Income deduction rules</string>
     <string name="settings_save_transaction_rates">Save rates I enter on transactions</string>
     <string name="settings_save_transaction_rates_body">On: a rate you type on a transaction becomes the saved rate. Off: it is used for that transfer only.</string>
     <string name="settings_section_currencies">Currencies</string>
