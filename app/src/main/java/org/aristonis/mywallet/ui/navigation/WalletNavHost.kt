@@ -1,5 +1,9 @@
 package org.aristonis.mywallet.ui.navigation
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
@@ -7,6 +11,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection.Ltr
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
@@ -45,6 +51,11 @@ import org.aristonis.mywallet.ui.transaction.EditTransactionScreen
 import org.aristonis.mywallet.ui.transaction.TransactionDetailScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListScreen
 import org.aristonis.mywallet.ui.transaction.TransactionsListViewModel
+import kotlin.math.roundToInt
+
+private const val ENTER_TRANSITION_DURATION_MILLIS = 220
+private const val EXIT_TRANSITION_DURATION_MILLIS = 160
+private const val SLIDE_OFFSET_FRACTION = 1f / 12f
 
 /**
  * The tabbed shell.
@@ -64,6 +75,8 @@ fun WalletNavHost(
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val layoutDirection = LocalLayoutDirection.current
+    val readingDirection = if (layoutDirection == Ltr) 1 else -1
 
     Scaffold(
         bottomBar = {
@@ -83,10 +96,39 @@ fun WalletNavHost(
             // for the system bar again, which left an empty strip above the bottom bar. A screen shown
             // without the bottom bar gets no padding here and still clears the system bar itself.
             modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
+            // Compose honors the system animator duration scale, including a disabled scale of zero.
+            enterTransition = {
+                val fade = fadeIn(tween(ENTER_TRANSITION_DURATION_MILLIS))
+                if (isTabSwitch(initialState, targetState)) {
+                    fade
+                } else {
+                    fade + slideInHorizontally(tween(ENTER_TRANSITION_DURATION_MILLIS)) { width ->
+                        (width * SLIDE_OFFSET_FRACTION * readingDirection).roundToInt()
+                    }
+                }
+            },
+            exitTransition = { fadeOut(tween(EXIT_TRANSITION_DURATION_MILLIS)) },
+            popEnterTransition = {
+                val fade = fadeIn(tween(ENTER_TRANSITION_DURATION_MILLIS))
+                if (isTabSwitch(initialState, targetState)) {
+                    fade
+                } else {
+                    fade + slideInHorizontally(tween(ENTER_TRANSITION_DURATION_MILLIS)) { width ->
+                        (width * SLIDE_OFFSET_FRACTION * -readingDirection).roundToInt()
+                    }
+                }
+            },
+            popExitTransition = { fadeOut(tween(EXIT_TRANSITION_DURATION_MILLIS)) },
         ) {
             graph(navController)
         }
     }
+}
+
+private fun isTabSwitch(initial: NavBackStackEntry, target: NavBackStackEntry): Boolean {
+    val initialTab = tabOf(initial.destination.route)
+    val targetTab = tabOf(target.destination.route)
+    return initialTab != null && targetTab != null && initialTab != targetTab
 }
 
 /** The app's own destinations. */
