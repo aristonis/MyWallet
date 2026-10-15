@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -117,7 +122,11 @@ internal fun HomeContent(
         bottomBar = {
             // Recording a transaction is the primary action, so it gets the FAB. Adding an account is
             // a rarer, setup-time action, so it lives behind Manage.
-            Box(Modifier.fillMaxWidth().padding(dimensions.screenPadding), contentAlignment = Alignment.CenterEnd) {
+            Box(
+                Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                    .padding(dimensions.screenPadding),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
                 ExtendedFloatingActionButton(onClick = onAddTransaction) {
                     Icon(imageVector = WalletIcons.Add, contentDescription = null)
                     Text(

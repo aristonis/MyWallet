@@ -7,6 +7,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -126,7 +131,7 @@ internal fun TransactionsListContent(
             // Reserve the action's height outside the scrolling ledger so a visible row never sits
             // behind it; the list still has its own clearance after the final row.
             Box(
-                modifier = Modifier.fillMaxWidth().padding(
+                modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).padding(
                     horizontal = dimensions.screenPadding,
                     vertical = dimensions.relatedGap,
                 ),
