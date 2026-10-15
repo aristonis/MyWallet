@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -59,10 +60,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FeeMode
-import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.format.rememberDateFormatter
@@ -169,14 +168,6 @@ internal fun AddTransactionContent(
                 onSelect = onTypeSelected,
                 onMore = { showingMore = true },
             )
-            if (state.type !in standardTransactionTypes) {
-                Text(typeLabel(state.type), style = MaterialTheme.typography.titleMedium)
-            }
-            DebtKindFields(
-                state.type, state.formInputs(), state.fx?.currencies.orEmpty(), state.counterpartySuggestions,
-                onCounterpartyChanged, onSuggestionSelected, onCurrencySelected, onDebtSideSelected,
-            )
-
             val rule = EntryFormRules.forType(state.type)
             val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
             AmountField(
@@ -188,98 +179,119 @@ internal fun AddTransactionContent(
                 },
                 errorText = state.error?.takeIf { it.isAmountEntryError(state.errorIsAmountInput) }?.text(),
             )
-            if (rule.requiresAccount) {
-                TransactionChoiceField(
-                    label = stringResource(
-                        if (state.type == TransactionType.TRANSFER) R.string.field_from_account else R.string.field_account,
-                    ),
-                    selectedText = selectedAccount?.let { accountLabel(it) }
-                        ?: stringResource(R.string.value_select_prompt),
-                    items = state.accounts,
-                    itemLabel = { accountLabel(it) },
-                    onSelect = { onAccountSelected(it.id) },
-                )
-                EntryFieldError(state.error.takeIf { it == UiMessage.AccountRequired })
-            }
 
-            when (state.type) {
-                TransactionType.TRANSFER -> {
-                    if (state.accounts.size <= 1 || state.destAccounts.isEmpty()) {
-                        Text(
-                            text = stringResource(
-                                if (state.accounts.isEmpty()) R.string.transfer_add_first_account
-                                else R.string.transfer_add_second_account,
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
+            TransactionFieldsCard {
+                if (state.type !in standardTransactionTypes) {
+                    Text(typeLabel(state.type), style = MaterialTheme.typography.titleMedium)
+                }
+                if (rule.requiresCounterparty || rule.requiresCurrency || rule.showsDebtSide) {
+                    TransactionFieldSurface {
+                        DebtKindFields(
+                            state.type, state.formInputs(), state.fx?.currencies.orEmpty(),
+                            state.counterpartySuggestions, onCounterpartyChanged, onSuggestionSelected,
+                            onCurrencySelected, onDebtSideSelected,
                         )
-                    } else {
-                        val dest = state.accounts.firstOrNull { it.id == state.destAccountId }
-                        TransactionChoiceField(
-                            label = stringResource(R.string.field_to_account),
-                            selectedText = dest?.let { accountLabel(it) }
-                                ?: stringResource(R.string.value_select_prompt),
-                            items = state.destAccounts,
-                            itemLabel = { accountLabel(it) },
-                            onSelect = { onDestAccountSelected(it.id) },
-                        )
-                        EntryFieldError(state.error.takeIf { it == UiMessage.DestinationAccountRequired })
                     }
                 }
-                else -> if (rule.requiresCategory) {
-                    val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
+
+                if (rule.requiresAccount) {
                     TransactionChoiceField(
-                        label = stringResource(R.string.field_category),
-                        selectedText = category?.label()?.text() ?: stringResource(R.string.value_select_prompt),
-                        items = state.categoriesForType,
-                        itemLabel = { it.label().text() },
-                        onSelect = { onCategorySelected(it.id) },
+                        label = stringResource(
+                            if (state.type == TransactionType.TRANSFER) R.string.field_from_account
+                            else R.string.field_account,
+                        ),
+                        selectedText = selectedAccount?.let { accountLabel(it) }
+                            ?: stringResource(R.string.value_select_prompt),
+                        items = state.accounts,
+                        itemLabel = { accountLabel(it) },
+                        onSelect = { onAccountSelected(it.id) },
                     )
-                    EntryFieldError(state.error.takeIf { it == UiMessage.CategoryRequired })
-                    // Only offered when the chosen category actually has children, so an ordinary
-                    // entry stays a two-tap job rather than growing a field that is always empty.
-                    val subCategories = state.subCategoriesForSelected
-                    if (subCategories.isNotEmpty()) {
-                        val chosen = subCategories.firstOrNull { it.id == state.selectedSubCategoryId }
+                    EntryFieldError(state.error.takeIf { it == UiMessage.AccountRequired })
+                }
+
+                when (state.type) {
+                    TransactionType.TRANSFER -> {
+                        if (state.accounts.size <= 1 || state.destAccounts.isEmpty()) {
+                            Text(
+                                text = stringResource(
+                                    if (state.accounts.isEmpty()) R.string.transfer_add_first_account
+                                    else R.string.transfer_add_second_account,
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        } else {
+                            val dest = state.accounts.firstOrNull { it.id == state.destAccountId }
+                            TransactionChoiceField(
+                                label = stringResource(R.string.field_to_account),
+                                selectedText = dest?.let { accountLabel(it) }
+                                    ?: stringResource(R.string.value_select_prompt),
+                                items = state.destAccounts,
+                                itemLabel = { accountLabel(it) },
+                                onSelect = { onDestAccountSelected(it.id) },
+                            )
+                            EntryFieldError(state.error.takeIf { it == UiMessage.DestinationAccountRequired })
+                        }
+                    }
+                    else -> if (rule.requiresCategory) {
+                        val category = state.categoriesForType.firstOrNull { it.id == state.selectedCategoryId }
                         TransactionChoiceField(
-                            label = stringResource(R.string.field_sub_category),
-                            selectedText = chosen?.label()?.text() ?: stringResource(R.string.value_none),
-                            items = subCategories,
+                            label = stringResource(R.string.field_category),
+                            selectedText = category?.label()?.text() ?: stringResource(R.string.value_select_prompt),
+                            items = state.categoriesForType,
                             itemLabel = { it.label().text() },
-                            onSelect = { onSubCategorySelected(it.id) },
+                            onSelect = { onCategorySelected(it.id) },
+                        )
+                        EntryFieldError(state.error.takeIf { it == UiMessage.CategoryRequired })
+                        // Only offered when the chosen category actually has children, so an ordinary
+                        // entry stays a two-tap job rather than growing a field that is always empty.
+                        val subCategories = state.subCategoriesForSelected
+                        if (subCategories.isNotEmpty()) {
+                            val chosen = subCategories.firstOrNull { it.id == state.selectedSubCategoryId }
+                            TransactionChoiceField(
+                                label = stringResource(R.string.field_sub_category),
+                                selectedText = chosen?.label()?.text() ?: stringResource(R.string.value_none),
+                                items = subCategories,
+                                itemLabel = { it.label().text() },
+                                onSelect = { onSubCategorySelected(it.id) },
+                            )
+                        }
+                    }
+                }
+
+                if (state.type == TransactionType.INCOME) {
+                    TransactionFieldSurface {
+                        DeductionsSection(
+                            state.deductions, state.fx?.currencies.orEmpty(), selectedAccount?.currencyCode,
+                            onDeductionEdited, onRetryDeductions,
                         )
                     }
                 }
-            }
 
-            if (state.type == TransactionType.INCOME) DeductionsSection(
-                state.deductions, state.fx?.currencies.orEmpty(), selectedAccount?.currencyCode,
-                onDeductionEdited, onRetryDeductions,
-            )
+                FeeField(state.fee, state.type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
+                    selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
+                    onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
+                RateSection(state = state, onRateChanged = onRateChanged)
+                FeeQuoteError(state.fee, rateAlreadyExplained = state.rateRequired)
 
-            FeeField(state.fee, state.type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
-                selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
-                onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
-            RateSection(state = state, onRateChanged = onRateChanged)
-            FeeQuoteError(state.fee, rateAlreadyExplained = state.rateRequired)
+                DateField(date = state.date, onDateSelected = onDateSelected)
 
-            DateField(date = state.date, onDateSelected = onDateSelected)
-
-            TextField(
-                value = state.note,
-                onValueChange = onNoteChanged,
-                label = { Text(stringResource(R.string.field_note)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
-                colors = transactionFieldColors(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            state.error?.takeUnless { it.isInlineEntryError(state.errorIsAmountInput) }?.let { message ->
-                Text(
-                    text = message.text(),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
+                TextField(
+                    value = state.note,
+                    onValueChange = onNoteChanged,
+                    label = { Text(stringResource(R.string.field_note)) },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
+                    colors = transactionFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
+
+                state.error?.takeUnless { it.isInlineEntryError(state.errorIsAmountInput) }?.let { message ->
+                    Text(
+                        text = message.text(),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
 
             Spacer(Modifier.weight(1f))
@@ -481,7 +493,7 @@ internal fun AmountField(
             shape = MaterialTheme.shapes.medium,
             colors = transactionFieldColors(),
             singleLine = true,
-            textStyle = MaterialTheme.typography.headlineSmall,
+            textStyle = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth().transactionErrorBorder(errorText != null).semantics {
                 if (errorText != null) {

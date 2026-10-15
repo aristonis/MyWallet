@@ -1,9 +1,11 @@
 package org.aristonis.mywallet.ui.transaction
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -27,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.aristonis.mywallet.ui.theme.WalletTheme
 
+private val TRANSACTION_FIELD_BORDER_WIDTH = 1.dp
+
 /** A two-line filled choice that keeps long values and large text inside a full-width tap target. */
 @Composable
 internal fun TransactionFieldButton(
@@ -41,7 +45,7 @@ internal fun TransactionFieldButton(
         enabled = enabled,
         modifier = Modifier.fillMaxWidth().heightIn(min = WalletTheme.dimensions.fieldHeight),
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Row(
             modifier = Modifier.padding(
@@ -90,19 +94,57 @@ internal fun <T> TransactionChoiceField(
     }
 }
 
-/** Filled Material fields keep their floating labels on the same neutral surface. */
+/** Groups the supporting transaction fields on one shared surface. */
+@Composable
+internal fun TransactionFieldsCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(TRANSACTION_FIELD_BORDER_WIDTH, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(WalletTheme.dimensions.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap),
+            content = content,
+        )
+    }
+}
+
+/** Gives legacy transaction controls the same elevated field container as the shared visuals. */
+@Composable
+internal fun TransactionFieldSurface(content: @Composable () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(
+            modifier = Modifier.padding(WalletTheme.dimensions.relatedGap),
+            verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.relatedGap),
+            content = { content() },
+        )
+    }
+}
+
+/** Filled Material fields stand out from the transaction card behind them. */
 @Composable
 internal fun transactionFieldColors(): TextFieldColors = TextFieldDefaults.colors(
-    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-    errorContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    errorContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
     focusedIndicatorColor = Color.Transparent,
     unfocusedIndicatorColor = Color.Transparent,
     disabledIndicatorColor = Color.Transparent,
     errorIndicatorColor = Color.Transparent,
 )
 
+/** Adds the transaction field's error outline without replacing its other modifiers. */
 @Composable
 internal fun Modifier.transactionErrorBorder(hasError: Boolean): Modifier =
-    if (hasError) border(1.dp, MaterialTheme.colorScheme.error, MaterialTheme.shapes.medium) else this
+    if (hasError) {
+        border(TRANSACTION_FIELD_BORDER_WIDTH, MaterialTheme.colorScheme.error, MaterialTheme.shapes.medium)
+    } else {
+        this
+    }

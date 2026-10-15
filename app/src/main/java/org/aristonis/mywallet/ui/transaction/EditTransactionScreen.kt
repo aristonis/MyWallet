@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,7 +38,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
@@ -47,11 +45,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
-import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FeeMode
-import org.aristonis.mywallet.domain.model.Money
-import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.label
@@ -243,25 +238,7 @@ private fun EditTransactionForm(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.regionGap),
     ) {
-        // The kind is a fact of the row, not a choice — show it, never let it be re-picked.
-        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainer) {
-            Column(
-                modifier = Modifier.padding(WalletTheme.dimensions.cardPadding),
-                verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.grid),
-            ) {
-                Text(typeLabel(type), style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface)
-                Text(
-                    stringResource(R.string.edit_transaction_kind_fixed),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
         val rule = EntryFormRules.forType(type)
-        DebtKindFields(type, state.formInputs(), state.fx?.currencies.orEmpty(), state.counterpartySuggestions,
-            onCounterpartyChanged, onSuggestionSelected, onCurrencySelected, onDebtSideSelected)
         val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
         AmountField(
             value = state.amountInput,
@@ -273,48 +250,83 @@ private fun EditTransactionForm(
             errorText = state.error?.takeIf { it.isAmountEntryError(state.errorIsAmountInput) }?.text(),
         )
 
-        AccountAndCategoryFields(
-            state = state,
-            type = type,
-            onAccountSelected = onAccountSelected,
-            onCategorySelected = onCategorySelected,
-            onSubCategorySelected = onSubCategorySelected,
-        )
+        TransactionFieldsCard {
+            // The kind is a fact of the row, not a choice — show it, never let it be re-picked.
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Column(
+                    modifier = Modifier.padding(WalletTheme.dimensions.cardPadding),
+                    verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.grid),
+                ) {
+                    Text(typeLabel(type), style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        stringResource(R.string.edit_transaction_kind_fixed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
-        if (type == TransactionType.INCOME) DeductionsSection(
-            state.deductions, state.fx?.currencies.orEmpty(), selectedAccount?.currencyCode,
-            onDeductionEdited, onRetryDeductions,
-        )
+            if (rule.requiresCounterparty || rule.requiresCurrency || rule.showsDebtSide) {
+                TransactionFieldSurface {
+                    DebtKindFields(
+                        type, state.formInputs(), state.fx?.currencies.orEmpty(), state.counterpartySuggestions,
+                        onCounterpartyChanged, onSuggestionSelected, onCurrencySelected, onDebtSideSelected,
+                    )
+                }
+            }
 
-        FeeField(state.fee, type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
-            selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
-            onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
-        RateSection(
-            baseCode = state.fx?.baseCurrencyCode,
-            rateFields = state.rateFields,
-            onRateChanged = onRateChanged,
-        )
-        FeeQuoteError(state.fee)
-
-        DateField(date = date, onDateSelected = onDateSelected)
-
-        TextField(
-            value = state.note,
-            onValueChange = onNoteChanged,
-            label = { Text(stringResource(R.string.field_note)) },
-            singleLine = true,
-            shape = MaterialTheme.shapes.medium,
-            colors = transactionFieldColors(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        state.error?.takeUnless { it.isInlineEntryError(state.errorIsAmountInput) }?.let { message ->
-            Text(
-                text = message.text(),
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            AccountAndCategoryFields(
+                state = state,
+                type = type,
+                onAccountSelected = onAccountSelected,
+                onCategorySelected = onCategorySelected,
+                onSubCategorySelected = onSubCategorySelected,
             )
+
+            if (type == TransactionType.INCOME) {
+                TransactionFieldSurface {
+                    DeductionsSection(
+                        state.deductions, state.fx?.currencies.orEmpty(), selectedAccount?.currencyCode,
+                        onDeductionEdited, onRetryDeductions,
+                    )
+                }
+            }
+
+            FeeField(state.fee, type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
+                selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
+                onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
+            RateSection(
+                baseCode = state.fx?.baseCurrencyCode,
+                rateFields = state.rateFields,
+                onRateChanged = onRateChanged,
+            )
+            FeeQuoteError(state.fee)
+
+            DateField(date = date, onDateSelected = onDateSelected)
+
+            TextField(
+                value = state.note,
+                onValueChange = onNoteChanged,
+                label = { Text(stringResource(R.string.field_note)) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium,
+                colors = transactionFieldColors(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            state.error?.takeUnless { it.isInlineEntryError(state.errorIsAmountInput) }?.let { message ->
+                Text(
+                    text = message.text(),
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
 
         Spacer(Modifier.weight(1f))
