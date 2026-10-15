@@ -137,7 +137,12 @@ internal fun TransactionsListContent(
                 ),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                ExtendedFloatingActionButton(onClick = onAddTransaction) {
+                // Primary, as the frame draws the main action and as Home draws the same button.
+                ExtendedFloatingActionButton(
+                    onClick = onAddTransaction,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
                     Icon(imageVector = WalletIcons.Add, contentDescription = null)
                     Text(
                         text = stringResource(R.string.home_add_transaction),

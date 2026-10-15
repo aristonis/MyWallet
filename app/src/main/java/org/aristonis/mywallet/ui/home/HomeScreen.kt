@@ -123,7 +123,13 @@ internal fun HomeContent(
                     .padding(dimensions.screenPadding),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                ExtendedFloatingActionButton(onClick = onAddTransaction) {
+                // Primary, not primaryContainer: the balance card above already uses the container color,
+                // and the one main action must stand apart from it, as the frame draws it.
+                ExtendedFloatingActionButton(
+                    onClick = onAddTransaction,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
                     Icon(imageVector = WalletIcons.Add, contentDescription = null)
                     Text(
                         text = stringResource(R.string.home_add_transaction),
