@@ -123,8 +123,9 @@ internal val DarkColors = darkColorScheme(
 )
 
 /**
- * App theme. Dynamic colour on Android 12+ (per design-constraints.md), otherwise the complete teal
- * scheme above. Light + dark are both first-class.
+ * App theme: the Slate Ledger scheme above, with its own type scale and corner shapes. Dynamic colour
+ * is off by default so the wallet looks the same on every device; a caller can still opt in.
+ * Light + dark are both first-class.
  *
  * The ledger semantics ride alongside the Material scheme rather than inside it: income, expense and
  * warning have to stay distinguishable even when the rest of the app is wearing the user's wallpaper.
@@ -132,7 +133,7 @@ internal val DarkColors = darkColorScheme(
 @Composable
 fun MyWalletTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
@@ -146,6 +147,8 @@ fun MyWalletTheme(
     CompositionLocalProvider(LocalWalletColors provides walletColors(darkTheme)) {
         MaterialTheme(
             colorScheme = colorScheme,
+            typography = WalletTypography,
+            shapes = WalletShapes,
             content = content,
         )
     }

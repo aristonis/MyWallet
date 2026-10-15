@@ -55,8 +55,8 @@ class WalletThemePaletteTest {
                 else -> LightColors.primary
             }
             assertEquals(expectedPrimary, primary)
-            assertEquals(if (isDark) Color(0xFF8EDCAF) else Color(0xFF226C46), income)
-            assertEquals(if (isDark) Color(0xFFFFB4AB) else Color(0xFFBA1A1A), expense)
+            assertEquals(if (isDark) Color(0xFF34D399) else Color(0xFF065F46), income)
+            assertEquals(if (isDark) Color(0xFFF87171) else Color(0xFFB91C1C), expense)
             assertReadableOnSurface(income, surface)
             assertReadableOnSurface(expense, surface)
         }

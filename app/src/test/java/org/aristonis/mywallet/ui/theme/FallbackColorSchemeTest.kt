@@ -4,6 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,7 +21,7 @@ class FallbackColorSchemeTest {
 
     /**
      * Roles where matching Material's baseline is the correct answer, not an oversight: pure white,
-     * pure black, and the scrim. Every other role must come from the Calm Ledger palette.
+     * pure black, and the scrim. Every other role must come from the Slate Ledger palette.
      */
     private val allowedToMatchBaseline = setOf(
         "onPrimary", "onSecondary", "onTertiary", "onError",
@@ -38,27 +39,27 @@ class FallbackColorSchemeTest {
     }
 
     @Test
-    fun `the light fallback keeps the approved Calm Ledger anchors`() {
+    fun `the light fallback keeps the approved Slate Ledger anchors`() {
         val scheme = LightColors
 
-        assertEquals(Color(0xFF00696D), scheme.primary)
-        assertEquals(Color(0xFF82F5F7), scheme.primaryContainer)
-        assertEquals(Color(0xFFF8FAF9), scheme.surface)
-        assertEquals(Color(0xFF191C1C), scheme.onSurface)
-        assertEquals(Color(0xFF3F4948), scheme.onSurfaceVariant)
-        assertEquals(Color(0xFF6F7978), scheme.outline)
+        assertEquals(Color(0xFF1D4ED8), scheme.primary)
+        assertEquals(Color(0xFFDBEAFE), scheme.primaryContainer)
+        assertEquals(Color(0xFFF8FAFC), scheme.surface)
+        assertEquals(Color(0xFF0F172A), scheme.onSurface)
+        assertEquals(Color(0xFF475569), scheme.onSurfaceVariant)
+        assertEquals(Color(0xFF5F6E84), scheme.outline)
     }
 
     @Test
-    fun `the dark fallback keeps the approved Calm Ledger anchors`() {
+    fun `the dark fallback keeps the approved Slate Ledger anchors`() {
         val scheme = DarkColors
 
-        assertEquals(Color(0xFF4FD8DE), scheme.primary)
-        assertEquals(Color(0xFF004F53), scheme.primaryContainer)
-        assertEquals(Color(0xFF101414), scheme.surface)
-        assertEquals(Color(0xFFE0E3E2), scheme.onSurface)
-        assertEquals(Color(0xFFBFC9C7), scheme.onSurfaceVariant)
-        assertEquals(Color(0xFF899392), scheme.outline)
+        assertEquals(Color(0xFF60A5FA), scheme.primary)
+        assertEquals(Color(0xFF1E3A8A), scheme.primaryContainer)
+        assertEquals(Color(0xFF0F172A), scheme.surface)
+        assertEquals(Color(0xFFF1F5F9), scheme.onSurface)
+        assertEquals(Color(0xFF94A3B8), scheme.onSurfaceVariant)
+        assertEquals(Color(0xFF64748B), scheme.outline)
     }
 
     /** Background and surface are the same tone here, so neither can be the odd one out. */
@@ -66,6 +67,46 @@ class FallbackColorSchemeTest {
     fun `background matches surface in both schemes`() {
         assertEquals(LightColors.surface, LightColors.background)
         assertEquals(DarkColors.surface, DarkColors.background)
+    }
+
+    @Test
+    fun `ledger colours meet minimum contrast on every fallback surface`() {
+        assertLedgerColorsMeetContrast(walletScheme = LightColors, ledgerColors = walletColors(darkTheme = false))
+        assertLedgerColorsMeetContrast(walletScheme = DarkColors, ledgerColors = walletColors(darkTheme = true))
+    }
+
+    private fun assertLedgerColorsMeetContrast(walletScheme: ColorScheme, ledgerColors: WalletColors) {
+        val foregrounds = mapOf(
+            "income" to ledgerColors.income,
+            "expense" to ledgerColors.expense,
+            "warning" to ledgerColors.warning,
+        )
+        val backgrounds = mapOf(
+            "surface" to walletScheme.surface,
+            "surfaceContainerLowest" to walletScheme.surfaceContainerLowest,
+            "surfaceContainerLow" to walletScheme.surfaceContainerLow,
+            "surfaceContainer" to walletScheme.surfaceContainer,
+            "surfaceContainerHigh" to walletScheme.surfaceContainerHigh,
+            "surfaceContainerHighest" to walletScheme.surfaceContainerHighest,
+            "background" to walletScheme.background,
+        )
+
+        foregrounds.forEach { (foregroundName, foreground) ->
+            backgrounds.forEach { (backgroundName, background) ->
+                val contrastRatio = contrastRatio(foreground, background)
+                assertTrue(
+                    "$foregroundName on $backgroundName must have at least $MIN_TEXT_CONTRAST_RATIO:1 contrast; " +
+                        "was $contrastRatio:1",
+                    contrastRatio >= MIN_TEXT_CONTRAST_RATIO,
+                )
+            }
+        }
+    }
+
+    private fun contrastRatio(foreground: Color, background: Color): Float {
+        val lighter = maxOf(foreground.luminance(), background.luminance())
+        val darker = minOf(foreground.luminance(), background.luminance())
+        return (lighter + WCAG_LUMINANCE_OFFSET) / (darker + WCAG_LUMINANCE_OFFSET)
     }
 
     private fun assertNoRoleFallsBackToMaterial(walletScheme: ColorScheme, materialBaseline: ColorScheme) {
@@ -96,5 +137,11 @@ class FallbackColorSchemeTest {
 
         /** Material 3 1.4 exposes 48 colour roles; fewer means reflection silently found nothing. */
         private const val EXPECTED_ROLE_COUNT = 48
+
+        /** WCAG AA contrast required for normal text. */
+        private const val MIN_TEXT_CONTRAST_RATIO = 4.5f
+
+        /** WCAG contrast formula offset for relative luminance. */
+        private const val WCAG_LUMINANCE_OFFSET = 0.05f
     }
 }

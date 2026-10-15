@@ -3,200 +3,208 @@ package org.aristonis.mywallet.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /*
- * The Calm Ledger palette, written as Material 3 tonal ramps rather than as a list of finished
- * roles. The values docs/Design.md pins by name are the anchors — Primary 40 is its #00696D,
- * Primary 90 its #82F5F7, Neutral 98 its surface — and the rest of each ramp is the tone that sits
- * around them. Building it this way is what lets Theme.kt fill in every one of Material's roles
- * from the same source, so a device that cannot do dynamic colour never falls through to Material's
- * purple defaults on a role nobody thought to set.
+ * The Slate Ledger palette: a deep slate base, a trust blue for actions, and green / red reserved for
+ * money in and money out. Written as tonal ramps so Theme.kt can fill every Material role from one
+ * source; a device without dynamic colour (and this app turns it off by default) must never fall
+ * through to Material's purple defaults on a role nobody thought to set.
+ *
+ * Dark is the primary design target. Every text colour below was measured against the three dark
+ * surfaces it sits on (background, card, raised card) and clears 4.5:1.
  */
 
-// -- Primary: teal, the wallet's identity ---------------------------------------------------------
+// -- Primary: trust blue -------------------------------------------------------------------------
 
-private val Primary10 = Color(0xFF002021)
-private val Primary20 = Color(0xFF003739)
-private val Primary30 = Color(0xFF004F53)
-private val Primary40 = Color(0xFF00696D)
-private val Primary80 = Color(0xFF4FD8DE)
-private val Primary90 = Color(0xFF82F5F7)
-private val Primary100 = Color(0xFFFFFFFF)
+private val Blue950 = Color(0xFF172554)
+private val Blue900 = Color(0xFF1E3A8A)
+private val Blue800 = Color(0xFF1E40AF)
+private val Blue700 = Color(0xFF1D4ED8)
+private val Blue600 = Color(0xFF2563EB)
+private val Blue400 = Color(0xFF60A5FA)
+private val Blue300 = Color(0xFF93C5FD)
+private val Blue100 = Color(0xFFDBEAFE)
 
-// -- Secondary: the same hue, drained of most of its colour ---------------------------------------
+// -- Secondary: slate, the quiet companion to blue ------------------------------------------------
 
-private val Secondary10 = Color(0xFF051F21)
-private val Secondary20 = Color(0xFF1C3436)
-private val Secondary30 = Color(0xFF334B4D)
-private val Secondary40 = Color(0xFF4A6365)
-private val Secondary80 = Color(0xFFB1CBCD)
-private val Secondary90 = Color(0xFFCCE8E9)
-private val Secondary100 = Color(0xFFFFFFFF)
+private val Slate950 = Color(0xFF0B1222)
+private val Slate900 = Color(0xFF0F172A)
+private val Slate875 = Color(0xFF131C30)
+private val Slate850 = Color(0xFF192134)
+private val Slate825 = Color(0xFF222B40)
+private val Slate835 = Color(0xFF1D2538)
+private val Slate800 = Color(0xFF1E293B)
+private val Slate790 = Color(0xFF273349)
+private val Slate775 = Color(0xFF2A3550)
+private val Slate740 = Color(0xFF334058)
+private val Slate700 = Color(0xFF334155)
+private val Slate600 = Color(0xFF475569)
+private val Slate550 = Color(0xFF5F6E84)
+private val Slate500 = Color(0xFF64748B)
+private val Slate400 = Color(0xFF94A3B8)
+private val Slate350 = Color(0xFFA5B4CB)
+private val Slate300 = Color(0xFFCBD5E1)
+private val Slate250 = Color(0xFFD5DCE6)
+private val Slate225 = Color(0xFFDCE3EC)
+private val Slate200 = Color(0xFFE2E8F0)
+private val Slate175 = Color(0xFFDCE3EE)
+private val Slate150 = Color(0xFFEEF2F7)
+private val Slate100 = Color(0xFFF1F5F9)
+private val Slate50 = Color(0xFFF8FAFC)
+private val White = Color(0xFFFFFFFF)
 
-// -- Tertiary: a cooler blue, for the rare accent that must not read as primary -------------------
+// -- Tertiary: emerald, the "money grew" accent ---------------------------------------------------
 
-private val Tertiary10 = Color(0xFF041C35)
-private val Tertiary20 = Color(0xFF1C314B)
-private val Tertiary30 = Color(0xFF334863)
-private val Tertiary40 = Color(0xFF4B607C)
-private val Tertiary80 = Color(0xFFB3C8E8)
-private val Tertiary90 = Color(0xFFD3E4FF)
-private val Tertiary100 = Color(0xFFFFFFFF)
+private val Emerald950 = Color(0xFF022C22)
+private val Emerald900 = Color(0xFF064E3B)
+private val Emerald800 = Color(0xFF065F46)
+private val Emerald700 = Color(0xFF047857)
+private val Emerald400 = Color(0xFF34D399)
+private val Emerald300 = Color(0xFF6EE7B7)
+private val Emerald200 = Color(0xFFA7F3D0)
+private val Emerald100 = Color(0xFFD1FAE5)
 
-// -- Neutral: backgrounds, text, and the surface-container stack ----------------------------------
+// -- Error / expense: red -------------------------------------------------------------------------
 
-private val Neutral4 = Color(0xFF0B0F0F)
-private val Neutral6 = Color(0xFF101414)
-private val Neutral10 = Color(0xFF191C1C)
-private val Neutral12 = Color(0xFF1D2121)
-private val Neutral17 = Color(0xFF272B2B)
-private val Neutral20 = Color(0xFF2D3131)
-private val Neutral22 = Color(0xFF313535)
-private val Neutral24 = Color(0xFF363A3A)
-private val Neutral87 = Color(0xFFD8DBDA)
-private val Neutral90 = Color(0xFFE0E3E2)
-private val Neutral92 = Color(0xFFE6E9E8)
-private val Neutral94 = Color(0xFFECEFEE)
-private val Neutral95 = Color(0xFFEFF1F0)
-private val Neutral96 = Color(0xFFF2F4F3)
-private val Neutral98 = Color(0xFFF8FAF9)
-private val Neutral100 = Color(0xFFFFFFFF)
+private val Red950 = Color(0xFF450A0A)
+private val Red900 = Color(0xFF7F1D1D)
+private val Red700 = Color(0xFFB91C1C)
+private val Red400 = Color(0xFFF87171)
+private val Red200 = Color(0xFFFECACA)
+private val Red100 = Color(0xFFFEE2E2)
 
-// -- Neutral variant: dividers, outlines, and quiet containers ------------------------------------
+// -- Warning: amber -------------------------------------------------------------------------------
 
-private val NeutralVariant30 = Color(0xFF3F4948)
-private val NeutralVariant50 = Color(0xFF6F7978)
-private val NeutralVariant60 = Color(0xFF899392)
-private val NeutralVariant80 = Color(0xFFBFC9C7)
-private val NeutralVariant90 = Color(0xFFDBE5E3)
-
-// -- Error ----------------------------------------------------------------------------------------
-
-private val Error10 = Color(0xFF410002)
-private val Error20 = Color(0xFF690005)
-private val Error30 = Color(0xFF93000A)
-private val Error40 = Color(0xFFBA1A1A)
-private val Error80 = Color(0xFFFFB4AB)
-private val Error90 = Color(0xFFFFDAD6)
-private val Error100 = Color(0xFFFFFFFF)
+private val Amber950 = Color(0xFF451A03)
+private val Amber900 = Color(0xFF78350F)
+private val Amber800 = Color(0xFF92400E)
+private val Amber400 = Color(0xFFFBBF24)
+private val Amber100 = Color(0xFFFEF3C7)
 
 private val Scrim = Color(0xFF000000)
 
 // -- Light roles ----------------------------------------------------------------------------------
 
-internal val PrimaryLight = Primary40
-internal val OnPrimaryLight = Primary100
-internal val PrimaryContainerLight = Primary90
-internal val OnPrimaryContainerLight = Primary10
-internal val InversePrimaryLight = Primary80
+internal val PrimaryLight = Blue700
+internal val OnPrimaryLight = White
+internal val PrimaryContainerLight = Blue100
+internal val OnPrimaryContainerLight = Blue900
+internal val InversePrimaryLight = Blue300
 
-internal val SecondaryLight = Secondary40
-internal val OnSecondaryLight = Secondary100
-internal val SecondaryContainerLight = Secondary90
-internal val OnSecondaryContainerLight = Secondary10
+internal val SecondaryLight = Slate600
+internal val OnSecondaryLight = White
+internal val SecondaryContainerLight = Slate200
+internal val OnSecondaryContainerLight = Slate800
 
-internal val TertiaryLight = Tertiary40
-internal val OnTertiaryLight = Tertiary100
-internal val TertiaryContainerLight = Tertiary90
-internal val OnTertiaryContainerLight = Tertiary10
+internal val TertiaryLight = Emerald700
+internal val OnTertiaryLight = White
+internal val TertiaryContainerLight = Emerald100
+internal val OnTertiaryContainerLight = Emerald900
 
-internal val ErrorLight = Error40
-internal val OnErrorLight = Error100
-internal val ErrorContainerLight = Error90
-internal val OnErrorContainerLight = Error10
+internal val ErrorLight = Red700
+internal val OnErrorLight = White
+internal val ErrorContainerLight = Red100
+internal val OnErrorContainerLight = Red900
 
-internal val BackgroundLight = Neutral98
-internal val OnBackgroundLight = Neutral10
-internal val SurfaceLight = Neutral98
-internal val OnSurfaceLight = Neutral10
-internal val SurfaceVariantLight = NeutralVariant90
-internal val OnSurfaceVariantLight = NeutralVariant30
-internal val OutlineLight = NeutralVariant50
-internal val OutlineVariantLight = NeutralVariant80
-internal val InverseSurfaceLight = Neutral20
-internal val InverseOnSurfaceLight = Neutral95
+internal val BackgroundLight = Slate50
+internal val OnBackgroundLight = Slate900
+internal val SurfaceLight = Slate50
+internal val OnSurfaceLight = Slate900
+internal val SurfaceVariantLight = Slate200
+internal val OnSurfaceVariantLight = Slate600
+// Slate500 sits at 2.98:1 on the highest light container, just under the 3:1 a control border needs.
+internal val OutlineLight = Slate550
+internal val OutlineVariantLight = Slate300
+internal val InverseSurfaceLight = Slate800
+internal val InverseOnSurfaceLight = Slate100
 internal val ScrimLight = Scrim
 
-internal val SurfaceBrightLight = Neutral98
-internal val SurfaceDimLight = Neutral87
-internal val SurfaceContainerLowestLight = Neutral100
-internal val SurfaceContainerLowLight = Neutral96
-internal val SurfaceContainerLight = Neutral94
-internal val SurfaceContainerHighLight = Neutral92
-internal val SurfaceContainerHighestLight = Neutral90
+internal val SurfaceBrightLight = Slate50
+internal val SurfaceDimLight = Slate250
+internal val SurfaceContainerLowestLight = White
+internal val SurfaceContainerLowLight = Slate100
+internal val SurfaceContainerLight = Slate150
+internal val SurfaceContainerHighLight = Slate200
+internal val SurfaceContainerHighestLight = Slate225
 
 // -- Dark roles -----------------------------------------------------------------------------------
 
-internal val PrimaryDark = Primary80
-internal val OnPrimaryDark = Primary20
-internal val PrimaryContainerDark = Primary30
-internal val OnPrimaryContainerDark = Primary90
-internal val InversePrimaryDark = Primary40
+internal val PrimaryDark = Blue400
+internal val OnPrimaryDark = Slate900
+internal val PrimaryContainerDark = Blue900
+internal val OnPrimaryContainerDark = Blue100
+internal val InversePrimaryDark = Blue600
 
-internal val SecondaryDark = Secondary80
-internal val OnSecondaryDark = Secondary20
-internal val SecondaryContainerDark = Secondary30
-internal val OnSecondaryContainerDark = Secondary90
+internal val SecondaryDark = Slate350
+internal val OnSecondaryDark = Slate800
+internal val SecondaryContainerDark = Slate790
+internal val OnSecondaryContainerDark = Slate175
 
-internal val TertiaryDark = Tertiary80
-internal val OnTertiaryDark = Tertiary20
-internal val TertiaryContainerDark = Tertiary30
-internal val OnTertiaryContainerDark = Tertiary90
+internal val TertiaryDark = Emerald400
+internal val OnTertiaryDark = Emerald950
+internal val TertiaryContainerDark = Emerald900
+internal val OnTertiaryContainerDark = Emerald200
 
-internal val ErrorDark = Error80
-internal val OnErrorDark = Error20
-internal val ErrorContainerDark = Error30
-internal val OnErrorContainerDark = Error90
+internal val ErrorDark = Red400
+internal val OnErrorDark = Red950
+internal val ErrorContainerDark = Red900
+internal val OnErrorContainerDark = Red200
 
-internal val BackgroundDark = Neutral6
-internal val OnBackgroundDark = Neutral90
-internal val SurfaceDark = Neutral6
-internal val OnSurfaceDark = Neutral90
-internal val SurfaceVariantDark = NeutralVariant30
-internal val OnSurfaceVariantDark = NeutralVariant80
-internal val OutlineDark = NeutralVariant60
-internal val OutlineVariantDark = NeutralVariant30
-internal val InverseSurfaceDark = Neutral90
-internal val InverseOnSurfaceDark = Neutral20
+internal val BackgroundDark = Slate900
+internal val OnBackgroundDark = Slate100
+internal val SurfaceDark = Slate900
+internal val OnSurfaceDark = Slate100
+internal val SurfaceVariantDark = Slate825
+internal val OnSurfaceVariantDark = Slate400
+// Outline must reach 3:1 on the background for outlined buttons and fields; the hairline that
+// separates cards is outlineVariant, which only has to be visible, not legible.
+internal val OutlineDark = Slate500
+internal val OutlineVariantDark = Slate775
+internal val InverseSurfaceDark = Slate200
+internal val InverseOnSurfaceDark = Slate800
 internal val ScrimDark = Scrim
 
-internal val SurfaceBrightDark = Neutral24
-internal val SurfaceDimDark = Neutral6
-internal val SurfaceContainerLowestDark = Neutral4
-internal val SurfaceContainerLowDark = Neutral10
-internal val SurfaceContainerDark = Neutral12
-internal val SurfaceContainerHighDark = Neutral17
-internal val SurfaceContainerHighestDark = Neutral22
+internal val SurfaceBrightDark = Slate740
+internal val SurfaceDimDark = Slate900
+internal val SurfaceContainerLowestDark = Slate950
+internal val SurfaceContainerLowDark = Slate875
+internal val SurfaceContainerDark = Slate850
+// Material's filled cards and text fields sit on surfaceContainerHighest, so it is kept one quiet step
+// above the page rather than the brightest tone in the stack.
+internal val SurfaceContainerHighDark = Slate835
+internal val SurfaceContainerHighestDark = Slate825
 
 // -- Fixed roles ----------------------------------------------------------------------------------
 // "Fixed" means exactly that: identical in light and dark, for the rare element that must keep the
 // same colour when the theme flips. One set serves both schemes.
 
-internal val PrimaryFixed = Primary90
-internal val PrimaryFixedDim = Primary80
-internal val OnPrimaryFixed = Primary10
-internal val OnPrimaryFixedVariant = Primary30
+internal val PrimaryFixed = Blue100
+internal val PrimaryFixedDim = Blue300
+internal val OnPrimaryFixed = Blue950
+internal val OnPrimaryFixedVariant = Blue800
 
-internal val SecondaryFixed = Secondary90
-internal val SecondaryFixedDim = Secondary80
-internal val OnSecondaryFixed = Secondary10
-internal val OnSecondaryFixedVariant = Secondary30
+internal val SecondaryFixed = Slate200
+internal val SecondaryFixedDim = Slate300
+internal val OnSecondaryFixed = Slate900
+internal val OnSecondaryFixedVariant = Slate700
 
-internal val TertiaryFixed = Tertiary90
-internal val TertiaryFixedDim = Tertiary80
-internal val OnTertiaryFixed = Tertiary10
-internal val OnTertiaryFixedVariant = Tertiary30
+internal val TertiaryFixed = Emerald100
+internal val TertiaryFixedDim = Emerald300
+internal val OnTertiaryFixed = Emerald950
+internal val OnTertiaryFixedVariant = Emerald800
 
 // -- Ledger semantics -----------------------------------------------------------------------------
 // Material 3 has no role for "money came in" / "money went out" / "recoverable problem", and these
 // must not follow dynamic colour: a user's wallpaper could make income and expense near-identical.
 
-internal val IncomeLight = Color(0xFF226C46)
-internal val ExpenseLight = Error40
-internal val WarningLight = Color(0xFF805500)
-internal val WarningContainerLight = Color(0xFFFFDDB0)
-internal val OnWarningContainerLight = Color(0xFF291800)
+// One step darker than the light tertiary green: Emerald700 drops to 4.4:1 on the raised
+// light surfaces, under the 4.5:1 that amounts need.
+internal val IncomeLight = Emerald800
+internal val ExpenseLight = Red700
+internal val WarningLight = Amber800
+internal val WarningContainerLight = Amber100
+internal val OnWarningContainerLight = Amber950
 
-internal val IncomeDark = Color(0xFF8EDCAF)
-internal val ExpenseDark = Error80
-internal val WarningDark = Color(0xFFFFB86B)
-internal val WarningContainerDark = Color(0xFF613F00)
-internal val OnWarningContainerDark = Color(0xFFFFDDB0)
+internal val IncomeDark = Emerald400
+internal val ExpenseDark = Red400
+internal val WarningDark = Amber400
+internal val WarningContainerDark = Amber900
+internal val OnWarningContainerDark = Amber100
