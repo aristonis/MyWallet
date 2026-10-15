@@ -5,6 +5,7 @@ package org.aristonis.mywallet.ui.reports
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,9 +16,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -30,9 +37,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,11 +53,12 @@ import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.ui.CategoryLabel
 import org.aristonis.mywallet.ui.components.LoadFailedState
-import org.aristonis.mywallet.ui.components.MetricCell
+import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.StatusCard
 import org.aristonis.mywallet.ui.components.StatusTone
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.AmountRole
+import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.theme.WalletTheme
@@ -63,6 +75,11 @@ private val PAIR_ROW_MIN_WIDTH = 288.dp
 
 /** The longest figure, in characters, that still fits a pair cell at 360dp; longer ones stack. */
 private const val PAIR_ROW_MAX_FIGURE_CHARS = 15
+
+/** Diameter of the role marker in each income and expense summary. */
+private val SUMMARY_ROLE_MARKER_SIZE = 28.dp
+private val SUMMARY_ROLE_ICON_SIZE = 18.dp
+private const val SUMMARY_ROLE_MARKER_ALPHA = 0.16f
 
 /**
  * Tracking: income / expense / net and both by-category breakdowns over a chosen span. Read-only.
@@ -241,8 +258,8 @@ private fun ReportList(
 }
 
 /**
- * Income and expenses side by side, Net below them as the conclusion. When the width, after the
- * text scale, cannot give each pair cell a full amount, all three stack so no figure is cut or wraps.
+ * One summary card read like the sum it is: money in and money out side by side (stacked when the
+ * figures or the text are large), then the net they leave below a divider.
  */
 @Composable
 private fun SummaryMetrics(data: ReportsData.Ready) {
@@ -254,18 +271,124 @@ private fun SummaryMetrics(data: ReportsData.Ready) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val sideBySide = maxWidth / LocalDensity.current.fontScale >= PAIR_ROW_MIN_WIDTH &&
             maxOf(data.incomeDisplay.length, data.expenseDisplay.length) <= PAIR_ROW_MAX_FIGURE_CHARS
-        Column(verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
-            if (sideBySide) {
-                Row(horizontalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
-                    MetricCell(income, data.incomeDisplay, noFigure, Modifier.weight(1f), amountColor(AmountRole.INCOME))
-                    MetricCell(expenses, data.expenseDisplay, noFigure, Modifier.weight(1f), amountColor(AmountRole.EXPENSE))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = MaterialTheme.shapes.large,
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (sideBySide) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(dimensions.cardPadding),
+                        horizontalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
+                    ) {
+                        SummaryRoleMetric(
+                            label = income,
+                            value = data.incomeDisplay,
+                            missingText = noFigure,
+                            role = AmountRole.INCOME,
+                            modifier = Modifier.weight(1f),
+                        )
+                        SummaryRoleMetric(
+                            label = expenses,
+                            value = data.expenseDisplay,
+                            missingText = noFigure,
+                            role = AmountRole.EXPENSE,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(dimensions.cardPadding),
+                        verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
+                    ) {
+                        SummaryRoleMetric(
+                            income,
+                            data.incomeDisplay,
+                            noFigure,
+                            AmountRole.INCOME,
+                            Modifier.fillMaxWidth(),
+                        )
+                        SummaryRoleMetric(
+                            expenses,
+                            data.expenseDisplay,
+                            noFigure,
+                            AmountRole.EXPENSE,
+                            Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
-            } else {
-                MetricCell(income, data.incomeDisplay, noFigure, Modifier.fillMaxWidth(), amountColor(AmountRole.INCOME))
-                MetricCell(expenses, data.expenseDisplay, noFigure, Modifier.fillMaxWidth(), amountColor(AmountRole.EXPENSE))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(dimensions.cardPadding),
+                    verticalArrangement = Arrangement.spacedBy(dimensions.grid),
+                ) {
+                    Text(
+                        text = net,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    MoneyText(
+                        amount = data.netDisplay,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    )
+                }
             }
-            MetricCell(net, data.netDisplay, noFigure, Modifier.fillMaxWidth())
         }
+    }
+}
+
+/**
+ * A merged income or expense summary: the direction icon and its caption on one line, the figure under
+ * them at the half's full width, so a long amount never has to share its line with the icon.
+ */
+@Composable
+private fun SummaryRoleMetric(
+    label: String,
+    value: String?,
+    missingText: String,
+    role: AmountRole,
+    modifier: Modifier = Modifier,
+) {
+    val dimensions = WalletTheme.dimensions
+    val roleColor = amountColor(role)
+    val icon = if (role == AmountRole.INCOME) WalletIcons.Income else WalletIcons.Expense
+    // Merged so TalkBack reads the caption and the figure as one item.
+    Column(
+        modifier = modifier.semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(SUMMARY_ROLE_MARKER_SIZE)
+                    .clip(CircleShape)
+                    .background(roleColor.copy(alpha = SUMMARY_ROLE_MARKER_ALPHA)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = roleColor,
+                    modifier = Modifier.size(SUMMARY_ROLE_ICON_SIZE),
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        MoneyText(
+            amount = value ?: missingText,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = roleColor,
+        )
     }
 }
 
