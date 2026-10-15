@@ -116,8 +116,10 @@ class SpendingBreakdownViewModelTest {
         // One bar per table row, in the table's order, carrying the row's exact amount text.
         assertEquals(data.rows.map { it.id }, data.bars.map { it.id })
         assertEquals(data.rows.map { it.amountDisplay }, data.bars.map { it.amountDisplay })
-        assertEquals(1f, data.bars[0].length)
-        assertEquals(71.00f / 126.40f, data.bars[1].length, 0.0001f)
+        // Bars are sized by their share of the window's positive spending, and carry it as a whole %.
+        assertEquals(126.40f / 197.40f, data.bars[0].length, 0.0001f)
+        assertEquals(71.00f / 197.40f, data.bars[1].length, 0.0001f)
+        assertEquals(listOf(64, 36), data.bars.map { it.sharePercent })
     }
 
     @Test

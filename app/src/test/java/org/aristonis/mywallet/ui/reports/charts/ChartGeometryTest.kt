@@ -80,26 +80,72 @@ class ChartGeometryTest {
         assertNull(ChartGeometry.zeroLine(values("0", "0")))
     }
 
-    @Test
-    fun barLengths_scaleToTheLargestPositiveSpend() {
-        val lengths = ChartGeometry.barLengths(values("200.00", "50.00", "100.00"))
 
-        assertEquals(listOf(1f, 0.25f, 0.5f), lengths)
-    }
 
     @Test
-    fun barLengths_drawNothingForARefundOrZeroCategory() {
-        // A negative net category is a refund effect, not a share: it never gets a positive bar.
-        val lengths = ChartGeometry.barLengths(values("40.00", "-8.00", "0.00"))
-
-        assertEquals(listOf(1f, 0f, 0f), lengths)
-    }
-
-    @Test
-    fun barLengths_whenNothingIsPositive_areAllZero_withoutDividingByZero() {
-        val lengths = ChartGeometry.barLengths(values("-8.00", "0.00"))
+    fun shareLengths_whenNothingIsPositive_areAllZero_withoutDividingByZero() {
+        val lengths = ChartGeometry.shareLengths(values("-8.00", "0.00"))
 
         assertEquals(listOf(0f, 0f), lengths)
+        assertFinite(lengths)
+    }
+
+    /** Positive spending shares use the positive subtotal and ignore refunds. */
+    @Test
+    fun `spending shares use positive values as the base`() {
+        val shares = ChartGeometry.spendingShares(values("100", "50", "-30"))
+
+        assertEquals(listOf(67, 33, null), shares)
+    }
+
+    /** Equal remainders are awarded in input order so rounding is deterministic. */
+    @Test
+    fun `spending shares break equal largest remainders by earlier index`() {
+        val shares = ChartGeometry.spendingShares(values("1", "1", "1"))
+
+        assertEquals(listOf(34, 33, 33), shares)
+    }
+
+    /** A lone positive category owns the whole positive spending base. */
+    @Test
+    fun `spending shares give a single positive value one hundred percent`() {
+        val shares = ChartGeometry.spendingShares(values("42.50"))
+
+        assertEquals(listOf(100), shares)
+    }
+
+    /** Refund-only input has no spending base and therefore no shares. */
+    @Test
+    fun `spending shares are null when every value is a refund`() {
+        val shares = ChartGeometry.spendingShares(values("-10", "-25"))
+
+        assertEquals(listOf(null, null), shares)
+    }
+
+    /** Empty input preserves its empty shape. */
+    @Test
+    fun `spending shares of empty input are empty`() {
+        val shares = ChartGeometry.spendingShares(emptyList<BigDecimal>())
+
+        assertEquals(emptyList<Int?>(), shares)
+    }
+
+    /** Zero values receive no share and do not affect the positive base. */
+    @Test
+    fun `spending shares are null for zero values`() {
+        val shares = ChartGeometry.spendingShares(values("0", "25", "0"))
+
+        assertEquals(listOf(null, 100, null), shares)
+    }
+
+    /** Share lengths use the positive subtotal while refunds draw no bar. */
+    @Test
+    fun `share lengths are fractions of positive spending`() {
+        val lengths = ChartGeometry.shareLengths(values("100", "50", "-30"))
+
+        assertEquals(0.6667f, lengths[0], 0.001f)
+        assertEquals(0.3333f, lengths[1], 0.001f)
+        assertEquals(0f, lengths[2], 0.001f)
         assertFinite(lengths)
     }
 }

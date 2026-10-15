@@ -131,7 +131,7 @@ private fun LazyListScope.readyItems(data: SpendingData.Ready) {
             )
         }
     }
-    // A bar is drawn only for a positive spend (ChartGeometry.barLengths).
+    // A bar is drawn only for a positive spend (ChartGeometry.shareLengths).
     if (data.rows.any { it.amount.signum() > 0 }) {
         item(key = "chart-header") { SectionHeader(stringResource(R.string.spending_chart_title)) }
         item(key = "chart") { SpendingChart(data) }

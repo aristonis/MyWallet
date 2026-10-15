@@ -16,8 +16,19 @@ internal object ChartGeometry {
     /** Where a point sits when there is no spread to place it on: halfway up, or halfway across. */
     private const val MIDDLE = 0.5f
 
+    /** The complete share distributed among positive spending categories. */
+    private const val WHOLE_PERCENT = 100
+
     /** Enough digits for any fraction that ends as a pixel offset. */
     private val FRACTION_CONTEXT = MathContext.DECIMAL64
+
+    private val WHOLE_PERCENT_DECIMAL = BigDecimal.valueOf(WHOLE_PERCENT.toLong())
+
+    private data class ShareRemainder(
+        val index: Int,
+        val wholePercent: Int,
+        val remainder: BigDecimal,
+    )
 
     /**
      * The height of each value as a fraction, 0 at the lowest value and 1 at the highest. A series
@@ -56,15 +67,54 @@ internal object ChartGeometry {
         return fraction(lowest.negate(), highest - lowest)
     }
 
+
     /**
-     * Each bar's length as a fraction of the longest. Only a positive value is drawn, scaled to the
-     * largest positive value. Zero and negative values (a refund that outweighs the spending) get 0:
-     * a bar for them would claim a share of spending that is not there.
+     * Each positive value's whole-percent share, distributed by largest remainder so the shares add
+     * to 100. The base excludes refunds because one larger than its spending makes the net total
+     * smaller than the positive parts, so shares of that net would add past 100%. Zero and negative
+     * values have no spending share.
      */
-    fun barLengths(values: List<BigDecimal>): List<Float> {
-        val largest = values.filter { it.signum() > 0 }.maxOrNull() ?: return List(values.size) { 0f }
-        return values.map { if (it.signum() > 0) fraction(it, largest) else 0f }
+    fun spendingShares(values: List<BigDecimal>): List<Int?> {
+        val base = positiveBase(values)
+        if (base.signum() == 0) return List(values.size) { null }
+
+        val remainders = values.mapIndexedNotNull { index, value ->
+            if (value.signum() <= 0) return@mapIndexedNotNull null
+            val (wholePercent, remainder) = value
+                .multiply(WHOLE_PERCENT_DECIMAL)
+                .divideAndRemainder(base)
+            ShareRemainder(index, wholePercent.intValueExact(), remainder)
+        }
+        val unallocated = WHOLE_PERCENT - remainders.sumOf { it.wholePercent }
+        val roundedUpIndexes = remainders
+            .sortedWith(compareByDescending<ShareRemainder> { it.remainder }.thenBy { it.index })
+            .take(unallocated)
+            .map { it.index }
+            .toSet()
+        val sharesByIndex = remainders.associateBy { it.index }
+
+        return values.indices.map { index ->
+            sharesByIndex[index]?.let { share ->
+                share.wholePercent + if (index in roundedUpIndexes) 1 else 0
+            }
+        }
     }
+
+    /**
+     * Each positive value's fraction of positive spending. The base excludes refunds because one
+     * larger than its spending makes the net total smaller than the positive parts, so shares of
+     * that net would add past 100%. Zero and negative values get no bar.
+     */
+    fun shareLengths(values: List<BigDecimal>): List<Float> {
+        val base = positiveBase(values)
+        if (base.signum() == 0) return List(values.size) { 0f }
+        return values.map { value -> if (value.signum() > 0) fraction(value, base) else 0f }
+    }
+
+    private fun positiveBase(values: List<BigDecimal>): BigDecimal =
+        values.asSequence()
+            .filter { it.signum() > 0 }
+            .fold(BigDecimal.ZERO) { total, value -> total.add(value) }
 
     /** [part] / [whole] as a Float clamped to 0..1; [whole] is always positive here. */
     private fun fraction(part: BigDecimal, whole: BigDecimal): Float =

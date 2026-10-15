@@ -22,13 +22,16 @@ data class SpendingRow(
 
 /**
  * One bar of the chart, made from one [SpendingRow] and kept in the table's order. [length] is the
- * fraction of the longest bar; a category that is not a positive spend has length 0 and no bar.
+ * fraction of the window's positive spending; a category that is not a positive spend has length 0
+ * and no bar.
  */
 data class SpendingBar(
     val id: Long,
     val label: CategoryLabel,
     val amountDisplay: String,
     val length: Float,
+    /** Whole-percent share of the window's positive spending; null for a refund effect or zero. */
+    val sharePercent: Int?,
 ) {
     val isDrawn: Boolean get() = length > 0f
 }
@@ -55,8 +58,14 @@ sealed interface SpendingData {
 
         /** The chart, built from [rows] and nothing else, so the table and the bars cannot disagree. */
         val bars: List<SpendingBar>
-            get() = rows.zip(ChartGeometry.barLengths(rows.map { it.amount })) { row, length ->
-                SpendingBar(row.id, row.label, row.amountDisplay, length)
+            get() {
+                val values = rows.map { it.amount }
+                val lengths = ChartGeometry.shareLengths(values)
+                val shares = ChartGeometry.spendingShares(values)
+                return rows.indices.map { index ->
+                    val row = rows[index]
+                    SpendingBar(row.id, row.label, row.amountDisplay, lengths[index], shares[index])
+                }
             }
     }
 }
