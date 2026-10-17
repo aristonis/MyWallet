@@ -72,6 +72,7 @@ class TransactionsListHealthReadsTest {
         ledger: HealthLedger,
         currencies: List<Currency> = listOf(Currency("USD", "$", 2)),
     ) = TransactionsListViewModel(
+        debts = FakeDebtRepository(),
         entries = entries,
         accounts = FakeAccountRepository(listOf(cash)),
         categories = FakeCategoryRepository(listOf(food)),

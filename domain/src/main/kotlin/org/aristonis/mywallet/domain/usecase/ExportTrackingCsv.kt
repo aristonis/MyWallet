@@ -27,7 +27,7 @@ class ExportTrackingCsv(private val source: CsvExportSource, private val encoder
             .maxWithOrNull(compareBy<CsvCategoryLeg> { it.leg.date }.thenBy { it.leg.entryId })
         if (missing != null) throw WalletException.MissingRate(missing.leg.amount.currencyCode)
         val context = RowContext(snapshot)
-        return encoder.encode(snapshot.legs.sortedWith(
+        return encoder.encode(snapshot.legs.filterNot { it.leg.amount.isZero }.sortedWith(
             compareByDescending<CsvCategoryLeg> { it.leg.date }.thenByDescending { it.leg.entryId }
                 .thenBy { it.leg.role.ordinal }.thenBy { it.position },
         ).map { row(it, context) })
@@ -61,6 +61,7 @@ class ExportTrackingCsv(private val source: CsvExportSource, private val encoder
                 ?: throw WalletException.UnreadableRow(entry.id, csvLeg.leg.entryKind)
             return line.debtId?.let { context.debts[it]?.counterparty } ?: line.name
         }
+        if (entry is Transaction.Expense && csvLeg.leg.role != LegRole.PAID_LATER) return ""
         val debtId = context.parts[entry.id]?.legs
             ?.mapNotNull { (it.target as? LegTarget.Debt)?.id }?.firstOrNull()
         return debtId?.let { context.debts[it]?.counterparty ?: it.toString() } ?: ""

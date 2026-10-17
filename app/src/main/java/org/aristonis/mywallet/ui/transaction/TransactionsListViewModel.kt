@@ -24,6 +24,7 @@ import org.aristonis.mywallet.domain.model.TrackingWindow
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
@@ -101,6 +102,7 @@ class TransactionsListViewModel @Inject constructor(
     categories: CategoryRepository,
     currencies: CurrencyRepository,
     settings: SettingsRepository,
+    debts: DebtRepository,
     observeLedgerHealth: ObserveLedgerHealth,
     private val moneyFormatter: MoneyFormatter,
     private val today: TodayProvider,
@@ -173,12 +175,14 @@ class TransactionsListViewModel @Inject constructor(
             categories.observeAll(),
             currencies.observeAll(),
             settings.observeOrNull(),
-        ) { accountList, categoryList, currencyList, currentSettings ->
+            debts.observeAll(),
+        ) { accountList, categoryList, currencyList, currentSettings, debtList ->
             RowLookups(
                 accountsById = accountList.associateBy { it.id },
                 categoriesById = categoryList.associateBy { it.id },
                 currencies = currencyList,
                 baseCurrencyCode = currentSettings?.baseCurrencyCode,
+                debtNamesById = debtList.associate { it.id to it.counterparty },
             )
         }
             .catch<RowLookups?> { error ->

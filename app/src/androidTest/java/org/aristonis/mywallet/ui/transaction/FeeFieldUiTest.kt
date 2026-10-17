@@ -87,4 +87,12 @@ class FeeFieldUiTest {
         compose.onNodeWithText(context.getString(R.string.fee_transfer_receives,
             bidiIsolate("Cash"), shown("294"))).assertIsDisplayed()
     }
+    @Test fun incomeShowsFeeAndAccountReceipt() {
+        show(FeeFormState(FeeMode.PERCENT, "2", accountMovement = Money.of("980", "USD")),
+            type = TransactionType.INCOME)
+        compose.onNodeWithText(text(R.string.fee_income_hint)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.fee_income_receives, shown("980")))
+            .assertIsDisplayed()
+    }
+
 }

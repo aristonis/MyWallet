@@ -31,4 +31,14 @@ class DebtHistoryRoutingTest {
         assertEquals(listOf(12L), edited)
         assertEquals(emptyList<Pair<Long, Long>>(), repaid)
     }
+    @Test fun paidLaterExpenseOpensTheEditableExpenseForm() {
+        open(Transaction.Expense(
+            id = 13, accountId = 1, amount = Money.of("1000", "USD"), categoryId = 2,
+            date = day, owed = Money.of("700", "USD"), owedDebtId = 5,
+        ))
+
+        assertEquals(listOf(13L), edited)
+        assertEquals(emptyList<Pair<Long, Long>>(), repaid)
+    }
+
 }

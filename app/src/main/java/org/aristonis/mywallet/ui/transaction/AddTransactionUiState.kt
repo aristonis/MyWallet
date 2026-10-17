@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.transaction
 
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.ui.message.UiMessage
@@ -41,6 +42,9 @@ data class AddTransactionUiState(
     val deductions: IncomeDeductionFormState = IncomeDeductionFormState(),
     /** Optional entry fee; ignored by kinds without a fee field. */
     val fee: FeeFormState = FeeFormState(),
+    val paidLater: PaidLaterFormState = PaidLaterFormState(),
+    val paidLaterDebts: List<Debt> = emptyList(),
+    val paidLaterDebtError: UiMessage? = null,
     /** The saved rates and base currency the previews are priced against; null until loaded. */
     val fx: FxSnapshot? = null,
     val rateFields: List<RateField> = emptyList(),
@@ -79,6 +83,7 @@ data class AddTransactionUiState(
     val canSubmit: Boolean
         get() = !isSubmitting && savedOn == null && !rateRequired &&
             (type != TransactionType.INCOME || deductions.allowsIncomeSave) &&
+            (type != TransactionType.EXPENSE || (paidLater.allowsSave && (!paidLater.enabled || paidLaterDebtError == null))) &&
             (!type.hasFeeField() || fee.allowsSave) &&
             EntryFormRules.forType(type).isSubmittable(formInputs())
 

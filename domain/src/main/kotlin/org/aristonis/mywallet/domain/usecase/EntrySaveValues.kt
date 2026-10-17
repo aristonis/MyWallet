@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.domain.usecase
 
 import org.aristonis.mywallet.domain.error.WalletException
+import org.aristonis.mywallet.domain.model.DebtRef
 import org.aristonis.mywallet.domain.model.DeductionInput
 import org.aristonis.mywallet.domain.model.DeductionMode
 import org.aristonis.mywallet.domain.model.DeductionTiming
@@ -14,16 +15,29 @@ internal suspend fun requireSaveValues(
     entry: Transaction,
     snapshot: FxSnapshot,
     deductions: DeductionItemRepository,
+    debt: DebtRef? = null,
 ) {
     when (entry) {
         is Transaction.Income -> {
             if (entry.amount.currencyCode !in snapshot.decimalPlaces) {
                 throw WalletException.CurrencyNotFound(entry.amount.currencyCode)
             }
+            requireFeeValue(entry.fee)
+            if (entry.fee != null && entry.fee >= entry.amount) {
+                throw WalletException.FeeNotBelowAmount(entry.amount, entry.fee)
+            }
             requireDeductionItems(entry, deductions)
             requireDeductionValues(entry, snapshot)
         }
-        is Transaction.Expense -> requireFeeValue(entry.fee)
+        is Transaction.Expense -> {
+            requireFeeValue(entry.fee)
+            if (entry.owed != null) {
+                if (debt?.counterparty?.isBlank() == true) throw WalletException.NameBlank()
+                if (entry.owed == entry.amount && entry.fee?.isPositive == true) {
+                    throw WalletException.PaidLaterFeeWithoutPaidNow()
+                }
+            }
+        }
         is Transaction.Transfer -> {
             requireFeeValue(entry.fee)
             if (entry.fee != null && entry.fee >= entry.sourceAmount) {
@@ -64,6 +78,10 @@ private fun requireDeductionValues(income: Transaction.Income, snapshot: FxSnaps
     }
     val total = income.deductions.fold(Money.zero(income.amount.currencyCode)) { sum, line -> sum + line.amount }
     if (total > income.amount) throw WalletException.DeductionsExceedIncome(income.amount, total)
+    val totalWithFee = total + (income.fee ?: Money.zero(income.amount.currencyCode))
+    if (totalWithFee > income.amount) {
+        throw WalletException.FeeAndDeductionsExceedIncome(income.amount, totalWithFee)
+    }
 }
 
 /** The model already holds the fee to the entry's currency; its sign is checked here, as a typed error. */

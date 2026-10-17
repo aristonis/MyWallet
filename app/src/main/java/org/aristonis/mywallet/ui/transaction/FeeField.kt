@@ -37,6 +37,7 @@ import org.aristonis.mywallet.ui.theme.WalletTheme
 /** Only these messages describe a value entered in the fee control itself. */
 internal fun UiMessage.isFeeInputError(): Boolean = when (this) {
     UiMessage.FeeNotBelowAmount,
+    UiMessage.FeeAndDeductionsExceedIncome,
     UiMessage.FeeValueNegative,
     UiMessage.FeePercentAboveHundred,
     is UiMessage.FeeTooManyDecimals,
@@ -86,7 +87,8 @@ internal fun FeeField(
                 })
             Text(
                 text = feeErrorText ?: stringResource(if (type == TransactionType.TRANSFER)
-                    R.string.fee_transfer_hint else R.string.fee_expense_hint),
+                    R.string.fee_transfer_hint else if (type == TransactionType.INCOME)
+                    R.string.fee_income_hint else R.string.fee_expense_hint),
                 modifier = Modifier.padding(
                     start = WalletTheme.dimensions.screenPadding,
                     top = WalletTheme.dimensions.relatedGap,
@@ -129,7 +131,8 @@ private fun FeeMovement(state: FeeFormState, type: TransactionType, destination:
     val locale = LocalConfiguration.current.locales[0]
     val formatter = remember(locale) { MoneyFormatter(locale) }
     val amount = bidiIsolate(formatter.display(movement, currencies))
-    val text = if (type == TransactionType.EXPENSE) stringResource(R.string.fee_expense_pays, amount)
+    val text = if (type == TransactionType.INCOME) stringResource(R.string.fee_income_receives, amount)
+        else if (type == TransactionType.EXPENSE) stringResource(R.string.fee_expense_pays, amount)
         else stringResource(R.string.fee_transfer_receives,
             bidiIsolate(destination ?: stringResource(R.string.fee_destination)), amount)
     Text(text, style = MaterialTheme.typography.bodyLarge)

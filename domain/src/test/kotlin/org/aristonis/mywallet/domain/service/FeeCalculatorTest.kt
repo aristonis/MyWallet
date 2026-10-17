@@ -87,4 +87,13 @@ class FeeCalculatorTest {
             assertEquals(money(value), fee)
         }
     }
+    @Test fun roundsIncomePercentFeeAtTheCurrencyBoundary() {
+        val fee = FeeCalculator.calculate(
+            sent = money("333.33"),
+            rule = FeeRule(FeeMode.PERCENT, BigDecimal("2.5")),
+            converter = converter,
+        )
+        assertEquals(money("8.33"), fee)
+    }
+
 }

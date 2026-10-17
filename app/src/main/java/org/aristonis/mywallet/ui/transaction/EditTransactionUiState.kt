@@ -2,6 +2,7 @@ package org.aristonis.mywallet.ui.transaction
 
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.Debt
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Transaction
@@ -47,6 +48,9 @@ data class EditTransactionUiState(
     val deductions: IncomeDeductionFormState = IncomeDeductionFormState(),
     /** Optional entry fee; ignored by kinds without a fee field. */
     val fee: FeeFormState = FeeFormState(),
+    val paidLater: PaidLaterFormState = PaidLaterFormState(),
+    val paidLaterDebts: List<Debt> = emptyList(),
+    val paidLaterDebtError: UiMessage? = null,
     /** The saved rates and base currency the previews are priced against; null until loaded. */
     val fx: FxSnapshot? = null,
     val rateFields: List<RateField> = emptyList(),
@@ -88,6 +92,7 @@ data class EditTransactionUiState(
     val canSubmit: Boolean
         get() = canEdit && undoableDelete == null && !isSubmitting && savedOn == null &&
             (type != TransactionType.INCOME || deductions.allowsIncomeSave) &&
+            (type != TransactionType.EXPENSE || (paidLater.allowsSave && (!paidLater.enabled || paidLaterDebtError == null))) &&
             (!type.hasFeeField() || fee.allowsSave) &&
             type?.let { EntryFormRules.forType(it).isSubmittable(formInputs()) } == true
 

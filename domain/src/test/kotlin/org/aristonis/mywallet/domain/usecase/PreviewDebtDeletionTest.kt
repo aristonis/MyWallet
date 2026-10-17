@@ -44,4 +44,22 @@ class PreviewDebtDeletionTest {
         val rig = SaveEntryRig(atomic = true)
         PreviewDebtDeletion(rig.runner, rig.debts, rig.deletionEntries(), rig.ledger)(99)
     }
+    @Test fun retainsPaidLaterExpenseAndItsDebtLegsWithoutDecodingIt() = runTest {
+        val debt = deletionDebt()
+        val expense = org.aristonis.mywallet.domain.model.Transaction.Expense(10, 1,
+            Money.of("1000", "USD"), 7, date = deletionDay,
+            owed = Money.of("700", "USD"), owedDebtId = debt.id)
+        val rig = SaveEntryRig(initialEntries = listOf(deletionOpening(debt), expense),
+            initialDebts = listOf(debt), atomic = true)
+        val guarded = object : org.aristonis.mywallet.domain.port.EntryRepository by rig.deletionEntries() {
+            override suspend fun findById(id: Long): org.aristonis.mywallet.domain.model.Transaction? {
+                check(id != expense.id) { "retained expense must not be decoded" }
+                return rig.entries.findById(id)
+            }
+        }
+        val preview = PreviewDebtDeletion(rig.runner, rig.debts, guarded, rig.ledger)(debt.id)
+        assertEquals(listOf(1L), preview.entries.map { it.id })
+        assertEquals(listOf(expense.id), preview.retainedEntryIds)
+        assertEquals(Money.of("700", "USD"), preview.remainingAfter)
+    }
 }

@@ -32,7 +32,7 @@ data class FeeFormState(
 
 /** Whether the kind can charge an entry fee; other kinds never consume its draft. */
 internal fun TransactionType?.hasFeeField(): Boolean =
-    this == TransactionType.EXPENSE || this == TransactionType.TRANSFER
+    this == TransactionType.INCOME || this == TransactionType.EXPENSE || this == TransactionType.TRANSFER
 
 /** A fee is an expense, and the ledger books it on a top-level category only. */
 private fun Category.takesFee(): Boolean = kind == CategoryKind.EXPENSE && !isSubCategory

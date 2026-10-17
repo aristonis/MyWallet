@@ -38,6 +38,7 @@ class TransactionHistoryBaseSettingsTest {
             date = LocalDate.of(2026, 10, 12), rateToBase = BigDecimal("1.25"),
         )
         val viewModel = TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = FakeEntryRepository(listOf(entry)), accounts = FakeAccountRepository(),
             categories = FakeCategoryRepository(),
             currencies = FakeCurrencyRepository(listOf(Currency("USD", "$", 2), Currency("EUR", "€", 2))),

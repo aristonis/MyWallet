@@ -55,14 +55,17 @@ class RecipeContractTest {
     }
 
     @Test
-    fun aMissingLegMakesTheEntryUnreadable() {
+    fun everyIncomeAndExpenseLegAndTheFirstLegOfOtherRecipesAreRequired() {
         EntryRecipes.all.forEach { recipe ->
             recipe.examples().forEach { example ->
                 val parts = recipe.asAny().toLegs(example)
-                val short = parts.copy(legs = parts.legs.drop(1))
-                val error = assertThrows(WalletException.UnreadableRow::class.java) { recipe.asAny().fromLegs(short) }
-                assertEquals(parts.header.id, error.id)
-                assertEquals(recipe.kind, error.kind)
+                val missingIndices = if (recipe.kind in setOf("INCOME", "EXPENSE")) parts.legs.indices else 0..0
+                missingIndices.forEach { missing ->
+                    val short = parts.copy(legs = parts.legs.filterIndexed { index, _ -> index != missing })
+                    val error = assertThrows("${recipe.kind} #${parts.header.id}: missing ${parts.legs[missing].role}", WalletException.UnreadableRow::class.java) { recipe.asAny().fromLegs(short) }
+                    assertEquals(parts.header.id, error.id)
+                    assertEquals(recipe.kind, error.kind)
+                }
             }
         }
     }
@@ -183,7 +186,9 @@ class RecipeContractTest {
             val otherCurrency = if (first.amount.currencyCode == "XTS") "XAU" else "XTS"
             val wrongTarget: LegTarget = if (first.target is LegTarget.Account) LegTarget.Category(1, null) else LegTarget.Account(1)
             val copies = mutableListOf(
-                "wrong sign on ${first.role}" to replaceFirst(first.copy(amount = -first.amount)),
+                "wrong amount on ${first.role}" to replaceFirst(first.copy(
+                    amount = if (first.amount.isZero) Money.of("1", first.amount.currencyCode) else -first.amount,
+                )),
                 "wrong target on ${first.role}" to replaceFirst(first.copy(target = wrongTarget)),
                 "position 1" to replaceFirst(first.copy(position = 1)),
                 "a duplicate ${first.role}" to parts.copy(legs = parts.legs + first),

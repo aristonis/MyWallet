@@ -53,7 +53,7 @@ class IncomeDeductionsTest {
         val reported = mutableListOf<Throwable>()
         val vm = AddTransactionViewModel(accounts, categories, use.saveEntry, TodayProvider { LocalDate.of(2026, 10, 12) },
             MoneyParser(Locale.US), FakeFxRepository(currencies, rates, settings), settings, MoneyFormatter(Locale.US),
-            SuggestCounterparties(use.debts), deductionItems = object :
+            SuggestCounterparties(use.debts), debts = use.debts, deductionItems = object :
                 org.aristonis.mywallet.domain.port.DeductionItemRepository by use.deductions {
                 override fun observeAll() = kotlinx.coroutines.flow.flow<List<DeductionItem>> {
                     if (delayRules) kotlinx.coroutines.delay(1000)

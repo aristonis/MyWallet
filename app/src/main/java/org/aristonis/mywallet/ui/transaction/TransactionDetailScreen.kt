@@ -331,6 +331,15 @@ private fun RecordedDetails(row: TransactionRow) {
         DetailRow(GROSS_TAG, stringResource(R.string.transaction_detail_gross), trailing = gross)
     }
     MovementRow(row, missing)
+    row.owedAmountDisplay?.let { owed ->
+        DetailRow(
+            "transaction-detail-owed", stringResource(R.string.transaction_detail_debt_effect),
+            stringResource(R.string.transaction_owed_to, bidiIsolate(owed), bidiIsolate(row.owedTo ?: missing)),
+        )
+        row.paidNowDisplay?.let { paidNow ->
+            DetailRow("transaction-detail-paid-now", stringResource(R.string.transaction_paid_now), trailing = paidNow)
+        }
+    }
     if (row.deductions.isNotEmpty()) {
         Text(stringResource(R.string.income_summary_deductions), style = MaterialTheme.typography.titleSmall)
         row.deductions.forEachIndexed { index, line -> DeductionRow(index, line) }
@@ -358,8 +367,11 @@ private fun MovementRow(row: TransactionRow, missing: String) {
     val destAmount = row.destAmountDisplay
     when {
         movement != null -> DetailRow(
-            MOVEMENT_TAG, label, intoAccount(row.accountName, missing),
-            trailing = signedAmount(AmountRole.INCOME, movement), role = AmountRole.INCOME,
+            MOVEMENT_TAG, label,
+            if (row.type == TransactionRowType.EXPENSE) {
+                stringResource(R.string.transaction_movement_from, bidiIsolate(row.accountName ?: missing))
+            } else intoAccount(row.accountName, missing),
+            trailing = signedAmount(row.type.amountRole(), movement), role = row.type.amountRole(),
         )
         row.type == TransactionRowType.TRANSFER && destAmount != null ->
             DetailRow(MOVEMENT_TAG, label, intoAccount(row.destAccountName, missing), trailing = destAmount)

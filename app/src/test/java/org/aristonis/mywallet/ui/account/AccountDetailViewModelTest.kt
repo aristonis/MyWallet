@@ -19,6 +19,9 @@ import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Currency
+import org.aristonis.mywallet.domain.model.Debt
+import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.ui.transaction.FakeDebtRepository
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.ExchangeRate
 import org.aristonis.mywallet.domain.model.Money
@@ -108,6 +111,7 @@ class AccountDetailViewModelTest {
         legs: List<AccountLeg> = emptyList(),
         rates: List<ExchangeRate> = emptyList(),
         accountId: Long = 1,
+        debts: FakeDebtRepository = FakeDebtRepository(),
     ): AccountDetailViewModel {
         val ledger = object : HealthLedger() {
             override fun observeAccountLegs(): Flow<List<AccountLeg>> = MutableStateFlow(legs)
@@ -120,6 +124,7 @@ class AccountDetailViewModelTest {
             getAccountBalances = GetAccountBalances(accountRepository, ledger),
             getAccountBalancesInBase = GetAccountBalancesInBase(fx),
             accountEntries = entries,
+            debts = debts,
             categories = FakeCategoryRepository(),
             currencies = currencies,
             settings = settings,
@@ -339,4 +344,35 @@ class AccountDetailViewModelTest {
         assertEquals(true, state.header?.archived)
         assertEquals(1L, state.header?.id)
     }
+    @Test fun `fully deferred expense remains visible on account page with zero movement`() = runTest {
+        val entry = expense(12, 1).copy(amount = Money.of("1000", "USD"),
+            owed = Money.of("1000", "USD"), owedDebtId = 5)
+        val vm = detailOf(listOf(checking()), AccountDetailEntriesFake(mapOf(1L to listOf(entry))))
+
+        advanceUntilIdle()
+
+        val row = vm.state.value.entries.single()
+        assertEquals(12L, row.id)
+        assertEquals(Money.of("1000", "USD"), row.amount)
+        assertEquals(Money.zero("USD"), row.accountMovement)
+        assertEquals("0.00 USD", row.accountMovementDisplay)
+    }
+
+    @Test fun `paid later account row updates its counterparty after a live debt rename`() = runTest {
+        val entry = expense(12, 1).copy(amount = Money.of("1000", "USD"),
+            owed = Money.of("1000", "USD"), owedDebtId = 5)
+        val debts = FakeDebtRepository(listOf(Debt(5, "Shop A", DebtSide.I_OWE, "USD")))
+        val vm = detailOf(listOf(checking()), AccountDetailEntriesFake(mapOf(1L to listOf(entry))), debts = debts)
+        advanceUntilIdle()
+        assertEquals("Shop A", vm.state.value.entries.single().owedTo)
+
+        debts.rename(5, "Shop B")
+        advanceUntilIdle()
+
+        val row = vm.state.value.entries.single()
+        assertEquals("Shop B", row.owedTo)
+        assertEquals("1,000.00 USD", row.owedAmountDisplay)
+        assertEquals("0.00 USD", row.paidNowDisplay)
+    }
+
 }

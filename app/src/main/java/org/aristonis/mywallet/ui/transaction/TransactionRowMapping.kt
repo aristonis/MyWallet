@@ -25,6 +25,7 @@ internal data class RowLookups(
     val categoriesById: Map<Long, Category>,
     val currencies: List<Currency>,
     val baseCurrencyCode: String?,
+    val debtNamesById: Map<Long, String> = emptyMap(),
 ) {
     // A deleted/unknown id degrades to a gap instead of crashing the whole list (defensive read).
     // Nothing here decides what a gap looks like — that would be copy, and copy lives in the UI.
@@ -52,6 +53,8 @@ internal fun Transaction.toRow(lookups: RowLookups, moneyFormatter: MoneyFormatt
     val display = { money: Money -> moneyFormatter.display(money, lookups.currencies) }
     val amountDisplay = display(amount)
     val income = this as? Transaction.Income
+    val deferredExpense = (this as? Transaction.Expense)?.takeIf { it.owed != null }
+    val paidNow = deferredExpense?.let { it.amount - checkNotNull(it.owed) }
     val deductionSummaries = income?.let { saved ->
         DeductionTiming.entries.mapNotNull { timing ->
             val lines = saved.deductions.filter { it.timing == timing }
@@ -63,8 +66,8 @@ internal fun Transaction.toRow(lookups: RowLookups, moneyFormatter: MoneyFormatt
     val accountMovement = income?.let { saved ->
         val paidNow = deductionSummaries.firstOrNull { it.timing == DeductionTiming.NOW }?.amount
             ?: Money.zero(saved.amount.currencyCode)
-        saved.amount - paidNow
-    }
+        saved.amount - paidNow - (saved.fee ?: Money.zero(saved.amount.currencyCode))
+    } ?: deferredExpense?.let { checkNotNull(paidNow) + (it.fee ?: Money.zero(it.amount.currencyCode)) }
     // Reuse saved gross text when the reporting value matches the entry amount; income receipt is
     // displayed separately and never changes this reporting value.
     val countedDisplay = if (counted == amount) amountDisplay else counted?.let(display)
@@ -80,6 +83,10 @@ internal fun Transaction.toRow(lookups: RowLookups, moneyFormatter: MoneyFormatt
         grossAmountDisplay = income?.let { amountDisplay },
         accountMovement = accountMovement,
         accountMovementDisplay = accountMovement?.let(display),
+        owedAmount = deferredExpense?.owed,
+        owedAmountDisplay = deferredExpense?.owed?.let(display),
+        owedTo = deferredExpense?.owedDebtId?.let(lookups.debtNamesById::get),
+        paidNowDisplay = paidNow?.let(display),
         countedAmount = counted, countedAmountDisplay = countedDisplay,
         countedAmountRole = counted?.let { countedRole() },
         countedBaseAmountDisplay = counted?.let { baseDisplay(it, countedRate(), lookups, moneyFormatter) },
@@ -170,12 +177,14 @@ private fun Transaction.countedRate(): BigDecimal? = when (this) {
 }
 
 private fun Transaction.feeAmount(): Money? = when (this) {
+    is Transaction.Income -> fee
     is Transaction.Expense -> fee
     is Transaction.Transfer -> fee
     else -> null
 }
 
 private fun Transaction.feeRate(): BigDecimal? = when (this) {
+    is Transaction.Income -> rateToBase
     is Transaction.Expense -> rateToBase
     is Transaction.Transfer -> feeRateToBase
     else -> null

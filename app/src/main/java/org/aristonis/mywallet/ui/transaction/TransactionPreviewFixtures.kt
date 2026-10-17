@@ -105,3 +105,26 @@ internal class EditTransactionPreviewStates : PreviewParameterProvider<EditTrans
         ),
     )
 }
+
+/** Receipts that need room for both the account movement and the full saved amount. */
+internal class DeferredReceiptPreviewRows : PreviewParameterProvider<TransactionRow> {
+    override val values: Sequence<TransactionRow> = sequenceOf(
+        TransactionRow(
+            id = 12, date = previewDate, type = TransactionRowType.EXPENSE,
+            accountName = previewBank.name, destAccountName = null, categoryLabel = null,
+            amount = Money.of("1000", "USD"), destAmount = null, amountDisplay = "1,000.00 USD",
+            destAmountDisplay = null, note = "Household purchase",
+            accountMovement = Money.zero("USD"), accountMovementDisplay = "0.00 USD",
+            owedAmount = Money.of("1000", "USD"), owedAmountDisplay = "1,000.00 USD",
+            owedTo = "Shop A", paidNowDisplay = "0.00 USD",
+        ),
+        TransactionRow(
+            id = 13, date = previewDate, type = TransactionRowType.INCOME,
+            accountName = previewBank.name, destAccountName = null, categoryLabel = null,
+            amount = Money.of("1000", "USD"), destAmount = null, amountDisplay = "1,000.00 USD",
+            destAmountDisplay = null, note = "Salary", grossAmount = Money.of("1000", "USD"),
+            grossAmountDisplay = "1,000.00 USD", accountMovement = Money.of("980", "USD"),
+            accountMovementDisplay = "980.00 USD", feeDisplay = "20.00 USD",
+        ),
+    )
+}

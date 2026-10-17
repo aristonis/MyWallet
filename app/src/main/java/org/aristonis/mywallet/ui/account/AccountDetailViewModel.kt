@@ -25,6 +25,7 @@ import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.port.AccountEntryReader
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
 import org.aristonis.mywallet.domain.usecase.GetAccountBalances
@@ -65,6 +66,7 @@ internal class AccountDetailViewModel @Inject constructor(
     private val categories: CategoryRepository,
     private val currencies: CurrencyRepository,
     private val settings: SettingsRepository,
+    private val debts: DebtRepository,
     private val observeLedgerHealth: ObserveLedgerHealth,
     private val moneyFormatter: MoneyFormatter,
     savedStateHandle: SavedStateHandle,
@@ -119,9 +121,10 @@ internal class AccountDetailViewModel @Inject constructor(
         val entryPages = pages
         if (id == null || entryPages == null) return flowOf(NOT_FOUND)
         val balances = getAccountBalancesInBase(getAccountBalances())
-        val lookups = combine(categories.observeAll(), currencies.observeAll(), settings.observeOrNull()) {
-            categoryList, currencyList, currentSettings ->
-            PartialLookups(categoryList.associateBy { it.id }, currencyList, currentSettings?.baseCurrencyCode)
+        val lookups = combine(categories.observeAll(), currencies.observeAll(), settings.observeOrNull(), debts.observeAll()) {
+            categoryList, currencyList, currentSettings, debtList ->
+            PartialLookups(categoryList.associateBy { it.id }, currencyList, currentSettings?.baseCurrencyCode,
+                debtList.associate { it.id to it.counterparty })
         }
         val healthFailure = observeLedgerHealth.loadFailure(errors, screen = "Account detail")
         val loaded = entryPages.observe(DateRange.ALL_TIME, pagesWanted)
@@ -158,6 +161,7 @@ internal class AccountDetailViewModel @Inject constructor(
                 categoriesById = partial.categoriesById,
                 currencies = partial.currencies,
                 baseCurrencyCode = partial.baseCurrencyCode,
+                debtNamesById = partial.debtNamesById,
             )
             AccountDetailUiState(
                 isLoading = false,
@@ -209,6 +213,7 @@ internal class AccountDetailViewModel @Inject constructor(
         val categoriesById: Map<Long, Category>,
         val currencies: List<Currency>,
         val baseCurrencyCode: String?,
+        val debtNamesById: Map<Long, String>,
     )
 
     private companion object {

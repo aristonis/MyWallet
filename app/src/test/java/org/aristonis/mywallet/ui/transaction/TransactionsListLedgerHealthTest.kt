@@ -57,6 +57,7 @@ class TransactionsListLedgerHealthTest {
         Transaction.Expense(id = id, accountId = 1, amount = Money.of("5.00", "USD"), categoryId = 20, date = date)
 
     private fun TestScope.listOver(entries: FakeEntryRepository) = TransactionsListViewModel(
+        debts = FakeDebtRepository(),
         entries = entries,
         accounts = FakeAccountRepository(listOf(cash, savings)),
         categories = FakeCategoryRepository(listOf(food)),

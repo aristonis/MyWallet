@@ -27,4 +27,6 @@
         <item quantity="one">Enter a %1$s fee with at most %2$d decimal place.</item>
         <item quantity="other">Enter a %1$s fee with at most %2$d decimal places.</item>
     </plurals>
+    <string name="fee_income_hint">Taken from the income. Leave blank or enter zero for no fee.</string>
+    <string name="fee_income_receives">Account receives %1$s</string>
 </resources>

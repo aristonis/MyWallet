@@ -26,22 +26,28 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
     override val kind: String = "INCOME"
 
     override suspend fun prepareForSave(entry: Transaction.Income, context: EntrySaveContext): Transaction.Income =
-        entry.copy(deductions = entry.deductions.map { line ->
-            // Clearing a rounded-zero obligation keeps the snapshot; SaveEntry checks its old debt legs.
-            if (line.amount.isZero) line.copy(debtId = null)
-            else if (line.timing == DeductionTiming.LATER) {
-                line.copy(debtId = context.deductionDebtId(line))
-            } else line
-        })
+        entry.copy(
+            fee = entry.fee?.takeUnless { it.isZero },
+            feeCategoryId = context.feeCategory(entry.fee, entry.feeCategoryId),
+            deductions = entry.deductions.map { line ->
+                // Clearing a rounded-zero obligation keeps the snapshot; SaveEntry checks its old debt legs.
+                if (line.amount.isZero) line.copy(debtId = null)
+                else if (line.timing == DeductionTiming.LATER) {
+                    line.copy(debtId = context.deductionDebtId(line))
+                } else line
+            },
+        )
 
     private val shape = LegShape(
         required = setOf(LegRole.ACCOUNT, LegRole.MAIN),
+        optional = setOf(LegRole.FEE),
         repeated = setOf(LegRole.DEDUCTION),
         perLine = setOf(LegRole.DEDUCTION_DEBT),
     )
     override val trackingRuleByRole: Map<LegRole, TrackingRule> = mapOf(
         LegRole.MAIN to TrackingRule.INCOME,
         LegRole.DEDUCTION to TrackingRule.EXPENSE,
+        LegRole.FEE to TrackingRule.EXPENSE,
     )
 
     override fun toLegs(entry: Transaction.Income): EntryParts = EntryParts(
@@ -64,17 +70,32 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
                     LegTarget.Debt(requireNotNull(line.debtId), DebtSide.I_OWE), line.amount,
                 ))
             } else emptyList()
-        },
+        } + entry.fee?.let { fee ->
+            listOf(Leg(
+                LegRole.FEE, 0, LegTarget.Category(requireNotNull(entry.feeCategoryId), null),
+                fee, entry.rateToBase,
+            ))
+        }.orEmpty(),
         deductionLines = entry.deductions,
     )
 
     private fun Transaction.Income.accountReceipt(): Money = deductions
         .filter { it.timing == DeductionTiming.NOW }
-        .fold(amount) { remaining, line -> remaining - line.amount }
+        .fold(amount - (fee ?: Money.zero(amount.currencyCode))) { remaining, line -> remaining - line.amount }
 
     override fun fromLegs(parts: EntryParts): Transaction.Income = readParts(parts, kind, shape) { legs ->
         val account = legs.getValue(LegRole.ACCOUNT).single()
         val main = legs.getValue(LegRole.MAIN).single()
+        val fee = legs[LegRole.FEE]?.singleOrNull()
+        require(fee == null || (fee.amount.isPositive && fee.amount < main.amount)) {
+            "income fee must be positive and below gross"
+        }
+        require(fee == null || when (val mainRate = main.rateToBase) {
+            null -> fee.rateToBase == null
+            else -> fee.rateToBase?.compareTo(mainRate) == 0
+        }) { "income fee rate differs from gross rate" }
+        val feeCategory = fee?.categoryTarget()
+        require(feeCategory?.subId == null) { "income fee cannot have a sub-category" }
         require(parts.header.pairRate == null) { "an income has no pair rate" }
         val category = main.categoryTarget()
         val lines = parts.deductionLines
@@ -86,7 +107,7 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
             requireLineMatches(line, categoryLines[index], debtLegs[line.position], main)
         }
         requireDebtLegsHaveLines(debtLegs.keys, lines)
-        requireReceipt(account, main, lines)
+        requireReceipt(account, main, lines, fee?.amount)
         Transaction.Income(
             id = parts.header.id,
             accountId = account.accountId(),
@@ -97,6 +118,8 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
             note = parts.header.note,
             rateToBase = main.rateToBase,
             deductions = lines,
+            fee = fee?.amount,
+            feeCategoryId = feeCategory?.id,
         )
     }
 
@@ -140,14 +163,14 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
         require(debtPositions == laterPositions) { "income has debt legs without deduction snapshots" }
     }
 
-    /** The deductions stay within the income, and the account got exactly the income less paid-now lines. */
-    private fun requireReceipt(account: Leg, main: Leg, lines: List<DeductionLine>) {
+    /** All deductions and the fee stay within gross; only paid-now lines and the fee reduce receipt. */
+    private fun requireReceipt(account: Leg, main: Leg, lines: List<DeductionLine>, fee: Money?) {
         val zero = Money.zero(main.amount.currencyCode)
-        val totalDeducted = lines.fold(zero) { total, line -> total + line.amount }
+        val totalDeducted = lines.fold(fee ?: zero) { total, line -> total + line.amount }
         require(totalDeducted <= main.amount) { "income deductions $totalDeducted exceed gross ${main.amount}" }
         val paidNow = lines.filter { it.timing == DeductionTiming.NOW }
             .fold(zero) { total, line -> total + line.amount }
-        val expectedAccount = main.amount - paidNow
+        val expectedAccount = main.amount - paidNow - (fee ?: zero)
         require(!expectedAccount.isNegative && account.amount == expectedAccount) {
             "income receipt ${account.amount} differs from gross less paid-now deductions $expectedAccount"
         }
@@ -161,6 +184,11 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
         Transaction.Income(
             id = 2, accountId = 2, amount = Money.of("120.50", "EUR"), categoryId = 2, subCategoryId = 3,
             date = EXAMPLE_DATE, rateToBase = BigDecimal("1.08370"),
+        ),
+        Transaction.Income(
+            id = 4, accountId = 1, amount = Money.of("1000", "USD"), categoryId = 1,
+            date = EXAMPLE_DATE, rateToBase = BigDecimal.ONE,
+            fee = Money.of("20", "USD"), feeCategoryId = 6,
         ),
         Transaction.Income(
             id = 3, accountId = 3, amount = Money.of("15000", "SYP"), categoryId = 1,

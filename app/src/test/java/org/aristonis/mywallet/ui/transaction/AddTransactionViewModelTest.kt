@@ -90,6 +90,7 @@ class AddTransactionViewModelTest {
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
+            debts = use.debts,
             deductionItems = FakeDeductionItemRepository(),
             categoryRoles = FakeFormRoles(),
             savedStateHandle = SavedStateHandle(initialDebtSide?.let { mapOf(ARG_DEBT_SIDE to it.name) } ?: emptyMap()),

@@ -120,6 +120,7 @@ class TransactionDetailViewModelTest {
         val errors = RecordingErrorReporter()
         val readable = UnreadableEntries(use.entries).also { it.unreadable = unreadable }
         val viewModel = TransactionDetailViewModel(
+            debts = FakeDebtRepository(),
             accounts = accountRepo,
             categories = categoryRepo,
             currencies = if (brokenCurrencies) BrokenCurrencies() else currencyRepo,

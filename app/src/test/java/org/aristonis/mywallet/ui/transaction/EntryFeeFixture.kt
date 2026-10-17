@@ -58,7 +58,7 @@ internal class EntryFeeFixture(
         roles = roles)
     val add = AddTransactionViewModel(accounts, categories, use.saveEntry, TodayProvider { date },
         MoneyParser(Locale.US), FakeFxRepository(currencies, rates, settings), settings, MoneyFormatter(Locale.US),
-        SuggestCounterparties(use.debts), use.deductions, roles)
+        SuggestCounterparties(use.debts), use.deductions, roles, debts = use.debts)
     val edit = EditTransactionViewModel(accounts, categories, use.entries, use.saveEntry, use.deleteEntry,
         use.restoreEntries, MoneyParser(Locale.US), MoneyFormatter(Locale.US),
         FakeFxRepository(currencies, rates, settings), use.debts, SuggestCounterparties(use.debts),

@@ -25,6 +25,45 @@ class BackupDecodeValidatedTest {
         assertTrue(refusedAs(BackupCodec.encode(backup)) is WalletException.BackupInvalid)
     }
 
+    @Test
+    fun aHandWrittenFormatTwoPaidLaterExpenseIsAcceptedWithExactStoredAmounts() {
+        val file = paidLaterFile(version = 2)
+
+        val restored = decodeValidated(BackupCodec.encode(file))
+
+        assertEquals(file, restored)
+        assertEquals("700.00", restored.legs.single { it.role == "PAID_LATER" }.amount)
+    }
+
+    @Test
+    fun formatThreeIncomeFeeAndPaidLaterExpensePassValidationTogether() {
+        val file = paidLaterFile(version = 3)
+
+        assertEquals(file, decodeValidated(BackupCodec.encode(file)))
+    }
+
+    @Test
+    fun paidLaterBackupWithoutItsMatchingDebtLegIsRejected() {
+        val file = paidLaterFile(version = 3)
+
+        assertInvalid(file.copy(legs = file.legs.filterNot { it.role == "DEBT" }))
+    }
+
+    private fun paidLaterFile(version: Int): WalletBackupV2 = sample.copy(
+        version = version,
+        debts = listOf(DebtDto(8, "Shop", "shop", "I_OWE", "USD", null, null)),
+        legs = sample.legs.filterNot { it.entryId == 2L } .map {
+            if (it.entryId == 1L && it.role == "ACCOUNT") it.copy(amount = "1214.00") else it
+        } + listOf(
+            LegDto(1, "FEE", 0, null, null, BackupV2Samples.FEES, null, "20.00", "USD", "1"),
+            BackupV2Samples.account(2, "ACCOUNT", BackupV2Samples.CASH, "-303.00", "USD"),
+            BackupV2Samples.main(2, BackupV2Samples.FOOD, BackupV2Samples.GROCERIES, "300.00", "USD", "1"),
+            LegDto(2, "FEE", 0, null, null, BackupV2Samples.FEES, null, "3.00", "USD", "1"),
+            LegDto(2, "PAID_LATER", 0, null, null, BackupV2Samples.FOOD, BackupV2Samples.GROCERIES, "700.00", "USD", "1"),
+            LegDto(2, "DEBT", 0, null, 8, null, null, "700.00", "USD", null),
+        ),
+    )
+
     // --- Dispatch on the version in the file ---
 
     @Test

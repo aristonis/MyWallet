@@ -63,7 +63,7 @@ private fun StandardTransactionRow(row: TransactionRow, role: AmountRole, onClic
         leadingIconTint = amountColor(role),
         trailing = { TrailingAmounts(row, role) },
         onClick = onClick,
-        supportingContent = if (row.type == TransactionRowType.INCOME) {
+        supportingContent = if (row.type == TransactionRowType.INCOME || row.owedAmount != null) {
             { AmountDetails(row, role) }
         } else {
             null
@@ -121,14 +121,14 @@ private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
             style = MaterialTheme.typography.titleMedium,
             color = roleColor,
         )
-        if (row.type != TransactionRowType.INCOME) AmountDetails(row, role)
+        if (row.type != TransactionRowType.INCOME && row.owedAmount == null) AmountDetails(row, role)
     }
 }
 
 /** Receipt, conversions and deductions retain their separate accounting meanings. */
 @Composable
 private fun AmountDetails(row: TransactionRow, role: AmountRole) {
-    Column(horizontalAlignment = if (row.type == TransactionRowType.INCOME) Alignment.Start else Alignment.End) {
+    Column(horizontalAlignment = if (row.type == TransactionRowType.INCOME || row.owedAmount != null) Alignment.Start else Alignment.End) {
         val hasDeductionDetails = row.type == TransactionRowType.INCOME && row.deductions.isNotEmpty()
         if (hasDeductionDetails) IncomeReceiptDetails(row)
         if (role != AmountRole.NEUTRAL && !hasDeductionDetails) BaseAmount(row.countedBaseAmountDisplay)
@@ -141,6 +141,7 @@ private fun AmountDetails(row: TransactionRow, role: AmountRole) {
                 BaseAmount(row.countedBaseAmountDisplay)
             }
         }
+        PaidLaterDetails(row)
         DeductionDetails(row)
         row.feeDisplay?.let { fee ->
             DetailAmount(stringResource(R.string.transaction_fee, bidiIsolate(fee)), AmountRole.EXPENSE)
@@ -324,5 +325,29 @@ private fun amountLine(row: TransactionRow): String {
     if (row.type == TransactionRowType.TRANSFER && dest != null && dest != row.amountDisplay) {
         return stringResource(R.string.transfer_amounts, bidiIsolate(row.amountDisplay), bidiIsolate(dest))
     }
-    return signedAmount(row.type.amountRole(), row.accountMovementDisplay ?: row.amountDisplay)
+    val amount = if (row.type == TransactionRowType.INCOME) row.accountMovementDisplay ?: row.amountDisplay else row.amountDisplay
+    return signedAmount(row.type.amountRole(), amount)
+}
+
+/** Full price stays in the headline; this line explains the paid and deferred portions. */
+@Composable
+private fun PaidLaterDetails(row: TransactionRow) {
+    val owed = row.owedAmountDisplay ?: return
+    val paidNow = row.paidNowDisplay ?: return
+    Text(
+        text = if (row.owedAmount == row.amount) {
+            stringResource(
+                R.string.transaction_paid_now_owed,
+                bidiIsolate(paidNow), bidiIsolate(owed),
+                bidiIsolate(row.owedTo ?: stringResource(R.string.value_missing)),
+            )
+        } else {
+            stringResource(
+                R.string.transaction_owed_to, bidiIsolate(owed),
+                bidiIsolate(row.owedTo ?: stringResource(R.string.value_missing)),
+            )
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }

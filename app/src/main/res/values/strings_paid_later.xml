@@ -6,4 +6,9 @@
     <string name="msg_paid_later_fee_without_paid_now">
         Enter an amount above zero in Paid now, or remove the fee.
     </string>
+    <string name="paid_later_title">Paid later</string>
+    <string name="paid_later_paid_now">Paid now</string>
+    <string name="paid_later_owed">Owed: %1$s</string>
+    <string name="paid_later_due_date">Due date (optional)</string>
+    <string name="paid_later_clear_date">Leave due date unchanged</string>
 </resources>

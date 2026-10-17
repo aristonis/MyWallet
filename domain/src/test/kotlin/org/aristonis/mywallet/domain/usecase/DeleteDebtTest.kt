@@ -154,4 +154,17 @@ class DeleteDebtTest {
         val rig = SaveEntryRig(atomic = true)
         DeleteDebt(rig.runner, rig.debts, rig.deletionEntries(), rig.ledger)(99)
     }
+    @Test fun clearingDebtRetainsPaidLaterExpenseAndExactLegs() = runTest {
+        val debt = deletionDebt()
+        val expense = org.aristonis.mywallet.domain.model.Transaction.Expense(10, 1,
+            Money.of("1000", "USD"), 7, date = deletionDay,
+            owed = Money.of("700", "USD"), owedDebtId = debt.id)
+        val rig = SaveEntryRig(initialEntries = listOf(deletionOpening(debt), expense),
+            initialDebts = listOf(debt), atomic = true)
+        val before = rig.entries.rows.value.single { it.header.id == expense.id }
+        val undo = DeleteDebt(rig.runner, rig.debts, rig.deletionEntries(), rig.ledger)(debt.id)
+        assertEquals(listOf(before), rig.entries.rows.value)
+        assertEquals(listOf(1L), undo.entries.map { it.id })
+        assertEquals(debt.copy(dueDate = null, note = null), rig.debts.stored.single())
+    }
 }

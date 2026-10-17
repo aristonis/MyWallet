@@ -73,13 +73,14 @@ class SaveEntry(
         entry: Transaction,
         typedRates: Map<String, BigDecimal>,
         debt: DebtRef? = null,
+        dueDate: LocalDate? = null,
     ): SavedEntry =
         runner.inTransaction {
             val old = if (entry.id == 0L) null else {
                 entries.findById(entry.id) ?: throw WalletException.TransactionNotFound(entry.id)
             }
             val snapshot = fx.currentFx()
-            requireSaveValues(entry, snapshot, deductions)
+            requireSaveValues(entry, snapshot, deductions, debt)
             val categorized = withDeductionCategoryParents(entry)
             requireIncomeDebtReferences(categorized)
             val book = rateBookFor(snapshot, typedRates)
@@ -107,10 +108,19 @@ class SaveEntry(
 
             val after = debtGuard.check(touched, before)
             clearReopenedDetails(reopenCandidates, before, after)
+            applyPaidLaterDueDate(stamped, dueDate)
 
             if (settings.get().saveTransactionRates) keepTypedRates(typedRates, snapshot.baseCurrencyCode)
             SavedEntry(id = id, date = stamped.date)
         }
+
+    /** A supplied paid-later date follows reopening, which clears the previous obligation's details. */
+    private suspend fun applyPaidLaterDueDate(entry: Transaction, dueDate: LocalDate?) {
+        if (dueDate == null || entry !is Transaction.Expense) return
+        val debtId = entry.owedDebtId ?: return
+        val current = debtGuard.requireDebt(debtId)
+        debts.updateDetails(debtId, dueDate, current.note)
+    }
 
     /** Older deduction drafts carry the selected child id in the category field. */
     private suspend fun withDeductionCategoryParents(entry: Transaction): Transaction {

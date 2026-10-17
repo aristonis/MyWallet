@@ -77,6 +77,7 @@ class AddTransactionPreselectionTest {
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
             suggestCounterparties = SuggestCounterparties(use.debts),
+            debts = use.debts,
             deductionItems = FakeDeductionItemRepository(),
             categoryRoles = FakeFormRoles(),
             savedStateHandle = SavedStateHandle(args),

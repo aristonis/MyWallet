@@ -69,3 +69,9 @@ sealed interface DeductionEdit {
 /** The currency of the account with [id]; null before an account is picked. */
 internal fun List<Account>.currencyOf(id: Long?): String? =
     firstOrNull { it.id == id }?.currencyCode
+
+/** Keep the income summary and fee receipt on the same priced snapshot. */
+internal fun IncomeDeductionFormState.withFee(fee: FeeFormState): IncomeDeductionFormState =
+    copy(summary = if (fee.error != null) null else summary?.let { total ->
+        fee.accountMovement?.let { total.copy(accountReceives = it) } ?: total
+    })

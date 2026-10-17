@@ -2,6 +2,7 @@ package org.aristonis.mywallet.domain.usecase
 
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.LegTarget
+import org.aristonis.mywallet.domain.ledger.recipe.ExpenseRecipe
 import org.aristonis.mywallet.domain.ledger.recipe.IncomeRecipe
 import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.DebtDeletionPreview
@@ -34,8 +35,8 @@ class PreviewDebtDeletion(
     }
 }
 
-/** Income exclusions happen in storage before any entry is decoded; callers hold the runner. */
+/** Mixed-purpose entries are excluded in storage before decoding; callers hold the runner. */
 internal suspend fun EntryRepository.deletableDebtEntries(debtId: Long): List<Transaction> =
-    entryIdsOnDebt(debtId, setOf(IncomeRecipe.kind)).map { id ->
+    entryIdsOnDebt(debtId, setOf(IncomeRecipe.kind, ExpenseRecipe.kind)).map { id ->
         findById(id) ?: throw WalletException.TransactionNotFound(id)
     }

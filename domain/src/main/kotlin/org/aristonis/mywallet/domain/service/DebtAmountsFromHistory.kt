@@ -27,13 +27,16 @@ object DebtAmountsFromHistory {
                 is Transaction.Income -> amounts.copy(original = entry.deductions
                     .filter { it.timing == DeductionTiming.LATER && it.debtId == debtId && it.amount.isPositive }
                     .fold(amounts.original) { total, line -> total + line.amount })
+                is Transaction.Expense -> if (entry.owedDebtId == debtId && entry.owed != null) {
+                    amounts.copy(original = amounts.original + entry.owed)
+                } else amounts
                 is Transaction.Repayment -> if (entry.debtId == debtId) {
                     amounts.copy(repaid = amounts.repaid + entry.principal)
                 } else amounts
                 is Transaction.WriteOff -> if (entry.debtId == debtId) {
                     amounts.copy(writtenOff = amounts.writtenOff + entry.amount)
                 } else amounts
-                is Transaction.Expense, is Transaction.Refund, is Transaction.Transfer -> amounts
+                is Transaction.Refund, is Transaction.Transfer -> amounts
             }
         }
 }

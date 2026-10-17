@@ -80,6 +80,7 @@ class EntryFormsSameQuoteTest {
             settings = settingsRepo,
             moneyFormatter = MoneyFormatter(Locale.US),
             suggestCounterparties = org.aristonis.mywallet.domain.usecase.SuggestCounterparties(use.debts),
+            debts = use.debts,
             deductionItems = FakeDeductionItemRepository(),
             categoryRoles = FakeFormRoles(),
         )

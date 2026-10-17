@@ -49,6 +49,7 @@ class TransactionsListDebtKindsTest {
 
     private fun rowsOf(transactions: List<Transaction>, block: suspend (Map<Long, TransactionRow>) -> Unit) = runTest {
         val viewModel = TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = FakeEntryRepository(transactions),
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(salary, food, interest, lost)),

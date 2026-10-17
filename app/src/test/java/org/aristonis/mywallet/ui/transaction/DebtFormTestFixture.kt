@@ -34,6 +34,7 @@ internal class DebtFormTestFixture(
     private val fx = FakeFxRepository(currencyRepo, rateRepo, settingsRepo)
     val add = AddTransactionViewModel(accountRepo, categoryRepo, use.saveEntry, TodayProvider { day },
         MoneyParser(Locale.US), fx, settingsRepo, MoneyFormatter(Locale.US), SuggestCounterparties(debts),
+        debts = debts,
         deductionItems = FakeDeductionItemRepository(),
             categoryRoles = FakeFormRoles(),
     )

@@ -66,6 +66,7 @@ class TransactionsListAppendTest {
 
     private fun TestScope.listOver(entries: FakeEntryRepository): TransactionsListViewModel =
         TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = entries,
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),

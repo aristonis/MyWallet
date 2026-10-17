@@ -62,6 +62,7 @@ class TransactionsListWindowTest {
         repo: FakeEntryRepository = FakeEntryRepository(transactions),
     ) =
         TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = repo,
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),

@@ -91,4 +91,68 @@ class SaveEntryFeeTest {
             assertEquals(before, rig.categoryRepository.stored)
         }
     }
+    @Test fun incomeFeeIsAnExpenseAndOnlyNetIncomeReachesTheAccount() = runTest {
+        val rig = SaveEntryRig(atomic = true)
+        val saved = rig.saveEntry(EntryWorld.income(amount = "1000").copy(fee = usd("20")), emptyMap())
+        val stored = rig.entries.findById(saved.id) as Transaction.Income
+        assertEquals(usd("20"), stored.fee)
+        val parts = rig.entries.rows.value.single()
+        assertEquals(usd("980"), parts.legs.single { it.role == LegRole.ACCOUNT }.amount)
+        assertEquals(usd("1000"), parts.legs.single { it.role == LegRole.MAIN }.amount)
+        assertEquals(usd("20"), parts.legs.single { it.role == LegRole.FEE }.amount)
+        assertEquals(CategoryKind.EXPENSE, rig.categoryRepository.stored.single { it.id == stored.feeCategoryId }.kind)
+    }
+
+    @Test fun feeAndNowDeductionsReduceReceiptWhileLaterDeductionsCreateDebt() = runTest {
+        val rig = salaryRig()
+        val lines = listOf(
+            salaryLine(10, 0, "Tax", 20, "100"),
+            salaryLine(12, 1, "Bills", 22, "20", timing = org.aristonis.mywallet.domain.model.DeductionTiming.NOW),
+        )
+        rig.saveEntry(EntryWorld.income(amount = "1000").copy(deductions = lines, fee = usd("5")), emptyMap())
+        val parts = rig.entries.rows.value.single()
+        assertEquals(usd("975"), parts.legs.single { it.role == LegRole.ACCOUNT }.amount)
+        assertEquals(usd("100"), parts.legs.single { it.role == LegRole.DEDUCTION_DEBT }.amount)
+        assertEquals(listOf(usd("100"), usd("20")), parts.legs.filter { it.role == LegRole.DEDUCTION }.map { it.amount })
+        assertEquals(usd("5"), parts.legs.single { it.role == LegRole.FEE }.amount)
+    }
+
+    @Test fun invalidIncomeFeesAreTypedRefusalsBeforeAnyFallbackOrDebtWrites() = runTest {
+        for (fee in listOf("-1", "1000", "1001")) {
+            val rig = salaryRig()
+            val before = rig.categoryRepository.stored
+            val failure = runCatching {
+                rig.saveEntry(EntryWorld.income(amount = "1000").copy(fee = usd(fee)), emptyMap())
+            }.exceptionOrNull()
+            assertTrue("was $failure", if (fee == "-1") failure is WalletException.FeeValueNegative
+                else failure is WalletException.FeeNotBelowAmount)
+            assertEquals(before, rig.categoryRepository.stored)
+            assertTrue(rig.entries.rows.value.isEmpty())
+            assertTrue(rig.debts.stored.isEmpty())
+        }
+    }
+
+    @Test fun combinedFeeAndDeductionsAboveGrossFailBeforeCreatingFallbacks() = runTest {
+        val rig = salaryRig()
+        val before = rig.categoryRepository.stored
+        val line = salaryLine(10, 0, "Tax", 20, "995")
+        val failure = runCatching {
+            rig.saveEntry(EntryWorld.income(amount = "1000").copy(deductions = listOf(line), fee = usd("10")), emptyMap())
+        }.exceptionOrNull()
+        assertTrue("was $failure", failure is WalletException.FeeAndDeductionsExceedIncome)
+        assertEquals(before, rig.categoryRepository.stored)
+        assertTrue(rig.entries.rows.value.isEmpty())
+        assertTrue(rig.debts.stored.isEmpty())
+    }
+
+    @Test fun zeroIncomeFeeClearsUnusedCategoryWithoutCreatingFallback() = runTest {
+        val rig = SaveEntryRig(atomic = true)
+        val before = rig.categoryRepository.stored
+        val saved = rig.saveEntry(EntryWorld.income().copy(fee = usd("0"), feeCategoryId = 6), emptyMap())
+        val stored = rig.entries.findById(saved.id) as Transaction.Income
+        assertNull(stored.fee)
+        assertNull(stored.feeCategoryId)
+        assertEquals(before, rig.categoryRepository.stored)
+    }
+
 }

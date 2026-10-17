@@ -32,6 +32,29 @@ class EntryMapperRoundTripTest {
     private val examples: List<Transaction> = EntryRecipes.all.flatMap { it.examples() }
 
     @Test
+    fun incomeFeeAndPartialAndFullyDeferredExpensesKeepExactValuesInRows() {
+        val date = LocalDate.of(2026, 10, 17)
+        val entries = listOf(
+            Transaction.Income(id = 501, accountId = 2, amount = Money.of("1000.00", "USD"),
+                categoryId = 3, date = date, fee = Money.of("20.00", "USD"), feeCategoryId = 8),
+            Transaction.Expense(id = 502, accountId = 2, amount = Money.of("1000.00", "USD"),
+                categoryId = 4, subCategoryId = 5, date = date, fee = Money.of("3.00", "USD"),
+                feeCategoryId = 8, owed = Money.of("700.00", "USD"), owedDebtId = 22),
+            Transaction.Expense(id = 503, accountId = 2, amount = Money.of("1000.00", "USD"),
+                categoryId = 4, date = date, owed = Money.of("1000.00", "USD"), owedDebtId = 22),
+        )
+
+        entries.forEach { entry ->
+            val parts = entry.toParts()
+            val rows = parts.toRows()
+            val restored = rows.toTransaction(mapOf(22L to DebtSide.I_OWE))
+
+            assertEquals(entry, restored)
+            assertEquals(parts.legs.map { it.amount.amount.toPlainString() }, rows.legs.map { it.amount })
+        }
+    }
+
+    @Test
     fun everyRecipeExampleMapsToRowsAndBackUnchanged() {
         examples.forEach { entry ->
             val parts = entry.toParts()

@@ -432,4 +432,76 @@ class EntryFeeViewModelTest {
         assertFalse(saved.toParts().legs.any { it.role == LegRole.FEE })
     }
 
+    @Test fun `income offers a fee without applying the account default`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.add.selectType(TransactionType.INCOME)
+        assertTrue(TransactionType.INCOME.hasFeeField())
+        assertEquals("", f.add.state.value.fee.valueInput)
+        f.add.selectCategory(3); f.add.setAmount("1000")
+        f.add.selectFeeMode(FeeMode.PERCENT); f.add.setFeeValue("2")
+        assertEquals(Money.of("980", "USD"), f.add.state.value.fee.accountMovement)
+        assertEquals(Money.of("980", "USD"), f.add.state.value.deductions.summary!!.accountReceives)
+        f.add.submit(); runCurrent()
+        assertNull(f.add.state.value.error)
+        assertEquals(Money.of("20", "USD"), (f.use.entries.stored.single() as Transaction.Income).fee)
+    }
+
+    @Test fun `income percentage preview and saved fee round identically`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.add.selectType(TransactionType.INCOME)
+        f.add.selectCategory(3); f.add.setAmount("333.33")
+        f.add.selectFeeMode(FeeMode.PERCENT); f.add.setFeeValue("2.5")
+        assertEquals(Money.of("8.33", "USD"), f.add.state.value.fee.amount)
+        f.add.submit(); runCurrent()
+        assertNull(f.add.state.value.error)
+        assertEquals(Money.of("8.33", "USD"), (f.use.entries.stored.single() as Transaction.Income).fee)
+    }
+
+    @Test fun `moving income currency removes a recorded fee before saving`() = runTest(dispatcher) {
+        val original = Transaction.Income(7, 1, Money.of("50", "USD"), 3, date = date,
+            fee = Money.of("7", "USD"), feeCategoryId = 5)
+        val f = fixture(listOf(original))
+        f.rates.upsert(org.aristonis.mywallet.domain.model.ExchangeRate("EUR", BigDecimal("2")))
+        f.edit.load(7); runCurrent()
+        assertEquals("7", f.edit.state.value.fee.valueInput)
+        f.edit.selectAccount(3); f.edit.submit(); runCurrent()
+        assertNull(f.edit.state.value.error)
+        val saved = f.use.entries.stored.single() as Transaction.Income
+        assertEquals("EUR", saved.amount.currencyCode)
+        assertNull(saved.fee)
+        assertNull(saved.feeCategoryId)
+    }
+
+    @Test fun `income row and detail receipt include its stored fee`() {
+        val entry = Transaction.Income(7, 1, Money.of("1000", "USD"), 3, date = date,
+            fee = Money.of("20", "USD"), feeCategoryId = 5)
+        val row = entry.toRow(RowLookups(emptyMap(), emptyMap(), emptyList(), "USD"),
+            org.aristonis.mywallet.data.format.MoneyFormatter(java.util.Locale.US))
+        assertEquals(Money.of("980", "USD"), row.accountMovement)
+        assertTrue(row.feeDisplay != null)
+        assertEquals(row, TransactionDetailUiState(isLoading = false, row = row).row)
+    }
+
+    @Test fun `income receipt subtracts both fee and deductions paid now`() = runTest(dispatcher) {
+        val later = org.aristonis.mywallet.domain.model.DeductionLine(1, 0, "Tax",
+            org.aristonis.mywallet.domain.model.DeductionMode.PERCENT, BigDecimal("10"), null,
+            org.aristonis.mywallet.domain.model.DeductionTiming.LATER, 4, Money.of("100", "USD"), 7)
+        val now = later.copy(itemId = 2, position = 1, name = "Bills",
+            mode = org.aristonis.mywallet.domain.model.DeductionMode.FIXED, value = BigDecimal("20"),
+            valueCurrencyCode = "USD", timing = org.aristonis.mywallet.domain.model.DeductionTiming.NOW,
+            amount = Money.of("20", "USD"), debtId = null)
+        val original = Transaction.Income(7, 1, Money.of("1000", "USD"), 3, date = date,
+            deductions = listOf(later, now))
+        val f = fixture(listOf(original)); f.edit.load(7); runCurrent(); f.edit.setFeeValue("5")
+        assertEquals(Money.of("975", "USD"), f.edit.state.value.deductions.summary!!.accountReceives)
+        assertEquals(Money.of("975", "USD"), f.edit.state.value.fee.accountMovement)
+    }
+
+    @Test fun `income refuses a fee equal to gross before direct save`() = runTest(dispatcher) {
+        val f = fixture(); runCurrent(); f.add.selectType(TransactionType.INCOME)
+        f.add.selectCategory(3); f.add.setAmount("1000"); f.add.setFeeValue("1000")
+        assertEquals(UiMessage.FeeNotBelowAmount, f.add.state.value.fee.error)
+        assertFalse(f.add.state.value.canSubmit)
+        f.add.submit(); runCurrent()
+        assertTrue(f.use.entries.stored.isEmpty())
+    }
+
 }

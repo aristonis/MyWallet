@@ -3,6 +3,7 @@ package org.aristonis.mywallet.data.usecase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -267,6 +268,31 @@ class SaveEntryOnRoomTest {
         assertTrue(fees.all { it.feeCategoryId == buckets.single().id && it.fee == Money.of("1", "USD") })
         assertEquals(2, db.entryDao().getAll().size)
         assertEquals(2, db.entryDao().getAllLegs().count { it.role == "FEE" })
+    }
+
+    @Test
+    fun paidLaterExpenseIsReadableAndIncludedInHomeIOweOnRoom() = runBlocking {
+        val draft = Transaction.Expense(accountId = 1, amount = Money.of("1000.00", "USD"),
+            categoryId = 6, date = day, fee = Money.of("3.00", "USD"),
+            owed = Money.of("700.00", "USD"))
+
+        val saved = withTimeout(RETURN_WITHIN_MS) {
+            saveEntry(draft, emptyMap(), DebtRef("Shop", DebtSide.I_OWE, "USD"))
+        }
+        val stored = entries.findById(saved.id) as Transaction.Expense
+        val ledger = RoomLedgerQueries(db.ledgerQueryDao())
+        val balances = org.aristonis.mywallet.domain.usecase.GetAccountBalances(
+            RoomAccountRepository(db.accountDao()), ledger,
+        )()
+        val home = withTimeout(RETURN_WITHIN_MS) {
+            org.aristonis.mywallet.domain.usecase.ComputeHomeSummary(ledger, RoomFxRepository(db))(balances).first()
+        } as org.aristonis.mywallet.domain.model.HomeSummary.Amounts
+
+        assertEquals(Money.of("700.00", "USD"), stored.owed)
+        assertNotNull(stored.owedDebtId)
+        assertEquals(Money.of("700.00", "USD"), home.iOwe)
+        assertEquals(Money.of("-303.00", "USD"), home.pocket)
+        assertEquals(Money.of("-1003.00", "USD"), home.balance)
     }
 
     private companion object {

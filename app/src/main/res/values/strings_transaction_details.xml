@@ -9,4 +9,8 @@
         <item quantity="one">%d saved deduction</item>
         <item quantity="other">%d saved deductions</item>
     </plurals>
+    <string name="transaction_paid_now_owed">Paid now %1$s · Owed %2$s to %3$s</string>
+    <string name="transaction_owed_to">Owed: %1$s to %2$s</string>
+    <string name="transaction_paid_now">Paid now</string>
+    <string name="transaction_movement_from">From %1$s</string>
 </resources>

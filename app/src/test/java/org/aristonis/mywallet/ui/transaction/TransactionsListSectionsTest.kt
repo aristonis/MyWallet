@@ -49,6 +49,7 @@ class TransactionsListSectionsTest {
     )
 
     private fun TestScope.viewModelFor(transactions: List<Transaction>) = TransactionsListViewModel(
+        debts = FakeDebtRepository(),
         entries = FakeEntryRepository(transactions),
         accounts = FakeAccountRepository(listOf(cash)),
         categories = FakeCategoryRepository(listOf(food)),

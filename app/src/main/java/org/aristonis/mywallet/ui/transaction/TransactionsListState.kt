@@ -57,7 +57,7 @@ data class TransactionDeductionSummary(
  * values and the screen keeps applying its own +/−/→ sign prefixes. Transfer rows carry BOTH legs.
  *
  * [amount] is the saved gross for income, the principal for expense, the account side of a repayment,
- * and the debt amount of debt kinds. [accountMovement] is the income receipt after NOW deductions.
+ * and the debt amount of debt kinds. [accountMovement] is the income receipt after NOW deductions and fees, or the deferred expense outflow including its fee.
  * [countedAmount] is the part that counts in Tracking, in the entry's own currency (a
  * repayment's interest, a write-off's amount); null when nothing on the row counts, so the screen
  * shows no Tracking line for it.
@@ -88,6 +88,10 @@ data class TransactionRow(
     val deductionSummaries: List<TransactionDeductionSummary> = emptyList(),
     val feeDisplay: String? = null,
     val feeBaseAmountDisplay: String? = null,
+    val owedAmount: Money? = null,
+    val owedAmountDisplay: String? = null,
+    val owedTo: String? = null,
+    val paidNowDisplay: String? = null,
 )
 
 /** How a day reads against the device's current date. */

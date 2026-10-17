@@ -190,4 +190,43 @@ class ExportTrackingCsvTest {
         assertEquals("", rows.single { it.line == "MAIN" }.counterparty)
     }
 
+    @Test fun paidLaterExpenseNamesThePersonOnlyOnTheOwedRow() = runTest {
+        val entry = expense(1, "1000").copy(owed = Money.of("700", "USD"), owedDebtId = 1,
+            fee = Money.of("3", "USD"), feeCategoryId = 8)
+        val rows = exportWithPerson(entry)
+        assertEquals("", rows.single { it.line == "MAIN" }.counterparty)
+        assertEquals("", rows.single { it.line == "FEE" }.counterparty)
+        assertEquals("Ali", rows.single { it.line == "PAID_LATER" }.counterparty)
+        assertEquals(0, rows.sumOf { it.amount }.compareTo(BigDecimal("1003")))
+    }
+
+    @Test fun fullyOwedExpenseOmitsZeroPaidNowRow() = runTest {
+        val rows = exportWithPerson(expense(1, "1000").copy(
+            owed = Money.of("1000", "USD"), owedDebtId = 1))
+        assertEquals(listOf("PAID_LATER"), rows.map { it.line })
+        assertEquals("Ali", rows.single().counterparty)
+    }
+
+    @Test fun incomeFeeExportsAsExpenseWithoutAPerson() = runTest {
+        val rows = exportWithPerson(Transaction.Income(1, 1, Money.of("1000", "USD"), 1,
+            date = day, fee = Money.of("20", "USD"), feeCategoryId = 8))
+        val fee = rows.single { it.line == "FEE" }
+        assertEquals(CategoryKind.EXPENSE, fee.side)
+        assertEquals("", fee.counterparty)
+        assertEquals(0, fee.amount.compareTo(BigDecimal("20")))
+    }
+
+    private suspend fun exportWithPerson(entry: Transaction): List<CsvRow> {
+        val entries = FakeEntryRepository(listOf(entry))
+        val snapshot = CsvExportSnapshot(
+            FakeLedgerQueries(entries).observeCategoryLegs(range).first().map { CsvCategoryLeg(it, 0) },
+            listOf(entry), fx.currentFx(), emptyList(), emptyList(),
+            listOf(Debt(1, "Ali", DebtSide.I_OWE, "USD")),
+        )
+        val encoder = RecordingEncoder()
+        ExportTrackingCsv(object : CsvExportSource {
+            override suspend fun read(range: DateRange) = snapshot
+        }, encoder)(range)
+        return requireNotNull(encoder.rows)
+    }
 }

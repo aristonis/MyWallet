@@ -229,4 +229,16 @@ class ObserveDebtTest {
         assertEquals("rent", seen.last()!!.summary.debt.note)
     }
 
+    @Test fun paidLaterExpenseCountsOnlyTheOwedPortionAsOriginalDebt() = runTest {
+        val debt = queryDebt(1)
+        val expense = Transaction.Expense(1, 8, Money.of("1000", "USD"), 1,
+            date = queryDay, owed = Money.of("700", "USD"), owedDebtId = debt.id)
+        val entries = FakeEntryRepository(listOf(expense,
+            expense.copy(id = 2, owedDebtId = 2)))
+        val detail = ObserveDebt(FakeDebtRepository(listOf(debt)), FakeLedgerQueries(entries), entries,
+            MutableStateFlow(queryDay))(debt.id).first()!!
+        assertEquals(Money.of("700", "USD"), detail.amounts.original)
+        assertEquals(Money.of("700", "USD"), detail.summary.remaining)
+        assertTrue(detail.isAmountBreakdownConsistent)
+    }
 }

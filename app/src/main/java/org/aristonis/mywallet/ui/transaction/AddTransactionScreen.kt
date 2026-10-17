@@ -115,6 +115,11 @@ fun AddTransactionScreen(
         onNoteChanged = viewModel::setNote,
         onDeductionEdited = viewModel::editDeduction,
         onRetryDeductions = viewModel::retryDeductions,
+        onPaidLaterEnabled = viewModel::setPaidLaterEnabled,
+        onPaidNowChanged = viewModel::setPaidNow,
+        onPaidLaterNameChanged = viewModel::setPaidLaterCounterparty,
+        onPaidLaterDebtSelected = viewModel::selectPaidLaterDebt,
+        onPaidLaterDateSelected = viewModel::setPaidLaterDueDate,
         onFeeValueChanged = viewModel::setFeeValue,
         onFeeModeChanged = viewModel::selectFeeMode,
         onFeeCategorySelected = viewModel::selectFeeCategory,
@@ -148,6 +153,11 @@ internal fun AddTransactionContent(
     onDebtSideSelected: (DebtSide) -> Unit = {},
     onDeductionEdited: (Long, DeductionEdit) -> Unit = { _, _ -> },
     onRetryDeductions: () -> Unit = {},
+    onPaidLaterEnabled: (Boolean) -> Unit = {},
+    onPaidNowChanged: (String) -> Unit = {},
+    onPaidLaterNameChanged: (String) -> Unit = {},
+    onPaidLaterDebtSelected: (Long) -> Unit = {},
+    onPaidLaterDateSelected: (LocalDate?) -> Unit = {},
 ) {
     var showingMore by remember { mutableStateOf(false) }
     Scaffold(
@@ -267,9 +277,21 @@ internal fun AddTransactionContent(
                     }
                 }
 
-                FeeField(state.fee, state.type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
-                    selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
-                    onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
+                if (state.type == TransactionType.EXPENSE) {
+                    TransactionFieldSurface {
+                        PaidLaterFields(state.paidLater, state.paidLaterDebts, selectedAccount?.currencyCode,
+                            state.fx?.currencies.orEmpty(), onPaidLaterEnabled, onPaidNowChanged,
+                            onPaidLaterNameChanged, onPaidLaterDebtSelected, onPaidLaterDateSelected)
+                        state.paidLaterDebtError?.takeIf { state.paidLater.enabled }?.let {
+                            Text(it.text(), color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+                if (state.type != TransactionType.EXPENSE || state.paidLater.feeEnabled) {
+                    FeeField(state.fee, state.type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
+                        selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
+                        onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
+                }
                 RateSection(state = state, onRateChanged = onRateChanged)
                 FeeQuoteError(state.fee, rateAlreadyExplained = state.rateRequired)
 

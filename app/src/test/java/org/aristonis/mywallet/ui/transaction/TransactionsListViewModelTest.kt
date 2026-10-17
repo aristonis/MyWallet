@@ -68,6 +68,7 @@ class TransactionsListViewModelTest {
         categories: List<Category>,
     ) {
         val viewModel = TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = FakeEntryRepository(transactions),
             accounts = FakeAccountRepository(accounts),
             categories = FakeCategoryRepository(categories),
@@ -231,6 +232,7 @@ class TransactionsListViewModelTest {
             listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
         )
         val viewModel = TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = repo,
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),
@@ -268,6 +270,7 @@ class TransactionsListViewModelTest {
         // Every amount is formatted against this list, so whoever walks it is building the rows.
         val formattingData = ThreadRecordingList(currencies)
         val viewModel = TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = FakeEntryRepository(
                 listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
             ),
@@ -300,6 +303,7 @@ class TransactionsListViewModelTest {
             listOf(Transaction.Expense(id = 1, accountId = 1, amount = Money.of("5", "USD"), categoryId = 20, date = LocalDate.of(2026, 8, 1))),
         )
         val viewModel = TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = repo,
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),
@@ -331,6 +335,7 @@ class TransactionsListViewModelTest {
         errors: RecordingErrorReporter = RecordingErrorReporter(),
         categories: FakeCategoryRepository = FakeCategoryRepository(listOf(food)),
     ) = TransactionsListViewModel(
+        debts = FakeDebtRepository(),
         entries = repo,
         accounts = FakeAccountRepository(listOf(cash)),
         categories = categories,

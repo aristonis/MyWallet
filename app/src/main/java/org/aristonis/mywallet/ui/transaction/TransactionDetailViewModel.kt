@@ -24,6 +24,7 @@ import org.aristonis.mywallet.di.ErrorReporter
 import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
+import org.aristonis.mywallet.domain.port.DebtRepository
 import org.aristonis.mywallet.domain.port.CurrencyRepository
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.SettingsRepository
@@ -63,6 +64,7 @@ internal class TransactionDetailViewModel @Inject constructor(
     categories: CategoryRepository,
     currencies: CurrencyRepository,
     settings: SettingsRepository,
+    debts: DebtRepository,
     private val entries: EntryRepository,
     private val deleteEntry: DeleteEntry,
     private val restoreEntries: RestoreEntries,
@@ -93,12 +95,14 @@ internal class TransactionDetailViewModel @Inject constructor(
             categories.observeAll(),
             currencies.observeAll(),
             settings.observeOrNull(),
-        ) { accountList, categoryList, currencyList, currentSettings ->
+            debts.observeAll(),
+        ) { accountList, categoryList, currencyList, currentSettings, debtList ->
             RowLookups(
                 accountsById = accountList.associateBy { it.id },
                 categoriesById = categoryList.associateBy { it.id },
                 currencies = currencyList,
                 baseCurrencyCode = currentSettings?.baseCurrencyCode,
+                debtNamesById = debtList.associate { it.id to it.counterparty },
             )
         }
 

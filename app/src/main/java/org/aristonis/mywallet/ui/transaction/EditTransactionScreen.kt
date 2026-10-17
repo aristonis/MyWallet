@@ -124,6 +124,11 @@ fun EditTransactionScreen(
         onNoteChanged = viewModel::setNote,
         onDeductionEdited = viewModel::editDeduction,
         onRetryDeductions = viewModel::retryDeductions,
+        onPaidLaterEnabled = viewModel::setPaidLaterEnabled,
+        onPaidNowChanged = viewModel::setPaidNow,
+        onPaidLaterNameChanged = viewModel::setPaidLaterCounterparty,
+        onPaidLaterDebtSelected = viewModel::selectPaidLaterDebt,
+        onPaidLaterDateSelected = viewModel::setPaidLaterDueDate,
         onFeeValueChanged = viewModel::setFeeValue,
         onFeeModeChanged = viewModel::selectFeeMode,
         onFeeCategorySelected = viewModel::selectFeeCategory,
@@ -158,6 +163,11 @@ private fun EditTransactionContent(
     onDebtSideSelected: (DebtSide) -> Unit = {},
     onDeductionEdited: (Long, DeductionEdit) -> Unit = { _, _ -> },
     onRetryDeductions: () -> Unit = {},
+    onPaidLaterEnabled: (Boolean) -> Unit = {},
+    onPaidNowChanged: (String) -> Unit = {},
+    onPaidLaterNameChanged: (String) -> Unit = {},
+    onPaidLaterDebtSelected: (Long) -> Unit = {},
+    onPaidLaterDateSelected: (LocalDate?) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -190,6 +200,11 @@ private fun EditTransactionContent(
                     onNoteChanged = onNoteChanged,
                     onDeductionEdited = onDeductionEdited,
                     onRetryDeductions = onRetryDeductions,
+                    onPaidLaterEnabled = onPaidLaterEnabled,
+                    onPaidNowChanged = onPaidNowChanged,
+                    onPaidLaterNameChanged = onPaidLaterNameChanged,
+                    onPaidLaterDebtSelected = onPaidLaterDebtSelected,
+                    onPaidLaterDateSelected = onPaidLaterDateSelected,
                     onFeeValueChanged = onFeeValueChanged,
                     onFeeModeChanged = onFeeModeChanged,
                     onFeeCategorySelected = onFeeCategorySelected,
@@ -228,6 +243,11 @@ private fun EditTransactionForm(
     onDebtSideSelected: (DebtSide) -> Unit = {},
     onDeductionEdited: (Long, DeductionEdit) -> Unit = { _, _ -> },
     onRetryDeductions: () -> Unit = {},
+    onPaidLaterEnabled: (Boolean) -> Unit = {},
+    onPaidNowChanged: (String) -> Unit = {},
+    onPaidLaterNameChanged: (String) -> Unit = {},
+    onPaidLaterDebtSelected: (Long) -> Unit = {},
+    onPaidLaterDateSelected: (LocalDate?) -> Unit = {},
 ) {
     var confirmingDelete by remember { mutableStateOf(false) }
 
@@ -297,9 +317,21 @@ private fun EditTransactionForm(
                 }
             }
 
-            FeeField(state.fee, type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
-                selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
-                onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
+            if (type == TransactionType.EXPENSE) {
+                TransactionFieldSurface {
+                    PaidLaterFields(state.paidLater, state.paidLaterDebts, state.accounts.firstOrNull { it.id == state.selectedAccountId }?.currencyCode,
+                        state.fx?.currencies.orEmpty(), onPaidLaterEnabled, onPaidNowChanged,
+                        onPaidLaterNameChanged, onPaidLaterDebtSelected, onPaidLaterDateSelected)
+                    state.paidLaterDebtError?.takeIf { state.paidLater.enabled }?.let {
+                        Text(it.text(), color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+            if (type != TransactionType.EXPENSE || state.paidLater.feeEnabled) {
+                FeeField(state.fee, type, state.accounts.firstOrNull { it.id == state.destAccountId }?.name,
+                    selectedAccount?.currencyCode, state.fx?.currencies.orEmpty(), state.allCategories,
+                    onFeeValueChanged, onFeeModeChanged, onFeeCategorySelected, onRetryFeeCategory)
+            }
             RateSection(
                 baseCode = state.fx?.baseCurrencyCode,
                 rateFields = state.rateFields,

@@ -47,6 +47,7 @@ class TransactionsListSavedOutsideTest {
     private val food = Category(id = 20, name = "Food", kind = CategoryKind.EXPENSE)
 
     private fun TestScope.viewModel() = TransactionsListViewModel(
+        debts = FakeDebtRepository(),
         entries = FakeEntryRepository(),
         accounts = FakeAccountRepository(listOf(cash)),
         categories = FakeCategoryRepository(listOf(food)),

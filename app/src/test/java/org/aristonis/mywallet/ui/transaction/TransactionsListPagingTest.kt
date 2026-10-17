@@ -74,6 +74,7 @@ class TransactionsListPagingTest {
     private fun TestScope.listOver(entries: FakeEntryRepository): TransactionsListViewModel {
         val ledger = HealthLedger()
         return TransactionsListViewModel(
+            debts = FakeDebtRepository(),
             entries = entries,
             accounts = FakeAccountRepository(listOf(cash)),
             categories = FakeCategoryRepository(listOf(food)),

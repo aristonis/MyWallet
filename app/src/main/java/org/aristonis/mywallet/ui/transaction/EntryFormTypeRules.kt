@@ -97,6 +97,8 @@ internal object IncomeFormRule : CategoryFormRule(TransactionType.INCOME, Catego
         return loaded.copy(
             accountId = fields.accountId, amount = fields.amount, categoryId = fields.categoryId,
             subCategoryId = fields.subCategoryId, date = fields.date, note = fields.note,
+            fee = loaded.fee?.takeIf { it.currencyCode == fields.amount.currencyCode },
+            feeCategoryId = loaded.feeCategoryId.takeIf { loaded.fee?.currencyCode == fields.amount.currencyCode },
         )
     }
 
@@ -125,6 +127,7 @@ internal object ExpenseFormRule : CategoryFormRule(TransactionType.EXPENSE, Cate
             subCategoryId = fields.subCategoryId, date = fields.date, note = fields.note,
             // The fee form attaches the new fee next; this draft cannot carry an old currency's money.
             fee = loaded.fee?.takeIf { it.currencyCode == fields.amount.currencyCode },
+            owed = null, owedDebtId = null,
         )
     }
 

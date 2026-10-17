@@ -9,6 +9,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -73,6 +74,7 @@ class EditTransactionViewModel @Inject constructor(
     private val quoter = RateQuoter(moneyParser, moneyFormatter)
     private val deductionForm = IncomeDeductionForm(moneyParser, errors)
     private val feeForm = EntryFeeForm(moneyParser, moneyFormatter, errors)
+    private val paidLaterForm = PaidLaterForm(moneyParser)
     private val loader = EditFormLoader(moneyParser, feeForm, deductionForm)
     private val _state = MutableStateFlow(EditTransactionUiState())
     val state: StateFlow<EditTransactionUiState> = _state.asStateFlow()
@@ -112,6 +114,12 @@ class EditTransactionViewModel @Inject constructor(
     }
 
     init {
+        debts.observeAll().onEach { list -> mutate { it.copy(paidLaterDebts = list, paidLaterDebtError = null) } }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                errors.report("Paid-later debts could not be read", e)
+                mutate { it.copy(paidLaterDebts = emptyList(), paidLaterDebtError = UiMessage.Unexpected) }
+            }.launchIn(viewModelScope)
         catalog.start()
         // Feed the pickers only; the selection comes from the loaded row, never an auto pre-select.
         // Archived accounts are not transactable, so they stay out of every picker (mirrors add).
@@ -129,15 +137,18 @@ class EditTransactionViewModel @Inject constructor(
 
     /** Every change that moves a price goes through here, so the rate previews never lag the inputs. */
     private fun mutate(change: (EditTransactionUiState) -> EditTransactionUiState) = _state.update { current ->
-        val next = change(current)
+        val changed = change(current)
+        val paidLater = paidLaterForm.recalculated(changed.paidLater, changed.amountInput,
+            changed.accounts.currencyOf(changed.selectedAccountId))
+        val next = changed.copy(paidLater = paidLater)
         val quote = quoter.quote(next.quoteInput())
         val deductions = deductionForm.recalculated(next.deductions, next.type == TransactionType.INCOME,
             next.amountInput, next.accounts.currencyOf(next.selectedAccountId), next.quoteInput())
         val fee = feeForm.recalculated(next.fee, next.type, next.amountInput,
             next.accounts.currencyOf(next.selectedAccountId), next.accounts.currencyOf(next.destAccountId),
-            next.quoteInput(), next.loaded)
+            next.quoteInput(), next.loaded, deductions.lines, paidLater)
         next.copy(fee = fee, rateFields = (quote.rateFields + deductions.rateFields).distinctBy { it.currencyCode },
-            deductions = deductions, baseEquivalent = quote.baseEquivalent)
+            deductions = deductions.withFee(fee), baseEquivalent = quote.baseEquivalent)
     }
 
     /**
@@ -152,7 +163,7 @@ class EditTransactionViewModel @Inject constructor(
         // never renders — or lets a Save/Delete hit — the previously loaded entry while findById runs.
         mutate {
             it.copy(
-                loaded = null, type = null, isSubmitting = false, error = null,
+                paidLater = PaidLaterFormState(), loaded = null, type = null, isSubmitting = false, error = null,
                 savedOn = null, deleted = false, undoableDelete = null, rateInputs = emptyMap(), readOnly = false,
                 counterparty = "", currencyCode = null, debtId = null, counterpartySuggestions = emptyList(),
                 deductions = it.deductions.copy(drafts = emptyList()),
@@ -173,11 +184,13 @@ class EditTransactionViewModel @Inject constructor(
                 return@launch
             }
             try {
-                val debtId = EntryFormRules.forEntry(existing)?.load(existing, moneyParser)?.debtId
+                val debtId = (existing as? org.aristonis.mywallet.domain.model.Transaction.Expense)?.owedDebtId
+                    ?: EntryFormRules.forEntry(existing)?.load(existing, moneyParser)?.debtId
                 val debt = debtId?.let { debts.findById(it) ?: throw WalletException.DebtNotFound(it) }
                 ensureActive()
                 mutate { current ->
-                    loader.populated(current, existing).copy(counterparty = debt?.counterparty.orEmpty(),
+                    loader.populated(current, existing).copy(paidLater = paidLaterForm.fromEntry(existing, debt),
+                        counterparty = debt?.counterparty.orEmpty(),
                         debtSide = debt?.side ?: current.debtSide)
                 }
             } catch (e: CancellationException) { throw e
@@ -195,6 +208,22 @@ class EditTransactionViewModel @Inject constructor(
                 it.accounts.currencyOf(it.selectedAccountId))))
     }
 
+    fun setPaidLaterEnabled(enabled: Boolean) = mutate {
+        if (it.type != TransactionType.EXPENSE) it
+        else it.copy(paidLater = if (enabled) it.paidLater.copy(enabled = true) else PaidLaterFormState(), error = null)
+    }
+    fun setPaidNow(value: String) = mutate { it.copy(paidLater = it.paidLater.copy(paidNowInput = value), error = null) }
+    fun setPaidLaterCounterparty(value: String) = mutate {
+        it.copy(paidLater = it.paidLater.copy(counterparty = value, debtId = null, dueDate = null), error = null)
+    }
+    fun selectPaidLaterDebt(id: Long) = mutate {
+        val debt = it.paidLater.offeredDebts(it.paidLaterDebts, it.accounts.currencyOf(it.selectedAccountId))
+            .firstOrNull { debt -> debt.id == id } ?: return@mutate it
+        it.copy(paidLater = it.paidLater.copy(counterparty = debt.counterparty, debtId = debt.id,
+            dueDate = debt.dueDate), error = null)
+    }
+    fun setPaidLaterDueDate(date: LocalDate?) = mutate { it.copy(paidLater = it.paidLater.copy(dueDate = date)) }
+
     fun setCounterparty(value: String) {
         mutate { it.copy(counterparty = value, counterpartySuggestions = emptyList(), error = null) }
         suggestions.request(value)
@@ -208,6 +237,8 @@ class EditTransactionViewModel @Inject constructor(
     fun selectAccount(id: Long) = mutate {
         if (it.accountPickersLocked) return@mutate it
         it.copy(selectedAccountId = id,
+            paidLater = paidLaterForm.onCurrencyChanged(it.paidLater,
+                it.accounts.currencyOf(it.selectedAccountId), it.accounts.currencyOf(id)),
             fee = it.fee.onCurrencyChanged(it.accounts.currencyOf(it.selectedAccountId), it.accounts.currencyOf(id)),
             deductions = it.deductions.copy(drafts = deductionForm.onCurrencyChanged(
             it.deductions.drafts, it.accounts.currencyOf(it.selectedAccountId), it.accounts.currencyOf(id))))
@@ -299,10 +330,15 @@ class EditTransactionViewModel @Inject constructor(
                         _state.update { it.copy(isSubmitting = false, error = e.toUiMessage(), errorIsAmountInput = true) }
                         return@launch
                     }
+                if (snapshot.type == TransactionType.EXPENSE && snapshot.paidLater.enabled) {
+                    snapshot.paidLaterDebtError?.let { throw org.aristonis.mywallet.ui.message.RefusedInputException(it) }
+                }
+                val paid = paidLaterForm.forSave(built.entry, snapshot.paidLater)
                 val saved = saveEntry(
-                    entry = feeForm.forSave(deductionForm.forSave(built.entry, snapshot.deductions,
+                    entry = feeForm.forSave(deductionForm.forSave(paid.entry, snapshot.deductions,
                         snapshot.amountInput, snapshot.quoteInput()), snapshot.fee),
-                    debt = built.debt,
+                    debt = paid.debt ?: built.debt,
+                    dueDate = snapshot.paidLater.dueDate.takeIf { snapshot.type == TransactionType.EXPENSE && snapshot.paidLater.enabled },
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )
                 _state.update { it.copy(isSubmitting = false, savedOn = saved.date) }

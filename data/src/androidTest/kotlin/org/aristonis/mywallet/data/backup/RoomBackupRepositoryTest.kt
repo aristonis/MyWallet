@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.first
 import org.aristonis.mywallet.data.db.AccountEntity
 import org.aristonis.mywallet.data.db.CategoryEntity
 import org.aristonis.mywallet.data.db.CurrencyEntity
@@ -138,7 +139,7 @@ class RoomBackupRepositoryTest {
     @Test
     fun restore_ofUnsupportedVersion_throwsAndLeavesTheDatabaseUntouched() = runTest {
         seed()
-        val newerFormat = BackupCodec.encode(BackupCodec.decodeV2(repository.exportBackup()).copy(version = 3))
+        val newerFormat = BackupCodec.encode(BackupCodec.decodeV2(repository.exportBackup()).copy(version = 4))
 
         var thrown: Throwable? = null
         try {
@@ -249,7 +250,7 @@ class RoomBackupRepositoryTest {
     }
 
     private fun assertSameContent(expected: WalletBackupV2, actual: WalletBackupV2) {
-        assertEquals(expected.version, actual.version)
+        assertEquals(CURRENT_BACKUP_VERSION, actual.version)
         assertEquals(expected.settings, actual.settings)
         assertEquals(expected.accounts.toSet(), actual.accounts.toSet())
         assertEquals(expected.categories.toSet(), actual.categories.toSet())
@@ -266,13 +267,13 @@ class RoomBackupRepositoryTest {
     }
 
     @Test
-    fun export_writesFormatVersionTwo() = runTest {
+    fun export_writesFormatVersionThree() = runTest {
         restore(BackupV2Samples.wallet())
 
         val json = newRepository(db).exportBackup()
 
-        assertEquals(2, CURRENT_BACKUP_VERSION)
-        assertEquals(2, BackupCodec.decodeV2(json).version)
+        assertEquals(3, CURRENT_BACKUP_VERSION)
+        assertEquals(3, BackupCodec.decodeV2(json).version)
     }
 
     @Test
@@ -467,13 +468,13 @@ class RoomBackupRepositoryTest {
 
         var thrown: Throwable? = null
         try {
-            newRepository(db).restoreBackup(BackupCodec.encode(BackupV2Samples.wallet().copy(version = 3)))
+            newRepository(db).restoreBackup(BackupCodec.encode(BackupV2Samples.wallet().copy(version = 4)))
         } catch (e: WalletException.BackupVersionUnsupported) {
             thrown = e
         }
 
-        assertTrue("a version 3 file must be refused", thrown is WalletException.BackupVersionUnsupported)
-        assertEquals(3, (thrown as WalletException.BackupVersionUnsupported).version)
+        assertTrue("a version 4 file must be refused", thrown is WalletException.BackupVersionUnsupported)
+        assertEquals(4, (thrown as WalletException.BackupVersionUnsupported).version)
         assertEquals(before, snapshot())
     }
 
@@ -669,6 +670,38 @@ class RoomBackupRepositoryTest {
             thrown = error
         }
         assertTrue(thrown is WalletException.BackupInvalid)
+    }
+
+    @Test
+    fun formatThreeIncomeFeeAndPaidLaterExpenseRestoreIdenticalBalancesDebtsAndTracking() = runTest {
+        val base = BackupV2Samples.versionThreeWallet()
+        val rich = base.copy(
+            debts = listOf(DebtDto(8, "Shop", "shop", "I_OWE", "USD", null, null)),
+            legs = base.legs.filterNot { it.entryId == 2L }.map {
+                if (it.entryId == 1L && it.role == "ACCOUNT") it.copy(amount = "1214.00") else it
+            } + listOf(
+                LegDto(1, "FEE", 0, null, null, BackupV2Samples.FEES, null, "20.00", "USD", "1"),
+                BackupV2Samples.account(2, "ACCOUNT", BackupV2Samples.CASH, "-303.00", "USD"),
+                BackupV2Samples.main(2, BackupV2Samples.FOOD, BackupV2Samples.GROCERIES, "300.00", "USD", "1"),
+                LegDto(2, "FEE", 0, null, null, BackupV2Samples.FEES, null, "3.00", "USD", "1"),
+                LegDto(2, "PAID_LATER", 0, null, null, BackupV2Samples.FOOD, BackupV2Samples.GROCERIES, "700.00", "USD", "1"),
+                LegDto(2, "DEBT", 0, null, 8, null, null, "700.00", "USD", null),
+            ),
+        )
+        restore(rich)
+        val original = org.aristonis.mywallet.data.repo.RoomLedgerQueries(db.ledgerQueryDao())
+        val fresh = anotherDatabase()
+
+        newRepository(fresh).restoreBackup(repository.exportBackup())
+        val restored = org.aristonis.mywallet.data.repo.RoomLedgerQueries(fresh.ledgerQueryDao())
+
+        assertSameContent(rich, BackupCodec.decodeV2(newRepository(fresh).exportBackup()))
+        assertEquals(snapshot(), snapshot(fresh))
+        assertEquals(original.observeAccountLegs().first(), restored.observeAccountLegs().first())
+        assertEquals(original.observeDebtLegs().first(), restored.observeDebtLegs().first())
+        assertEquals(original.observeCategoryLegs(org.aristonis.mywallet.domain.model.DateRange.ALL_TIME).first(),
+            restored.observeCategoryLegs(org.aristonis.mywallet.domain.model.DateRange.ALL_TIME).first())
+        assertEquals("700.00", fresh.entryDao().getAllLegs().single { it.role == "PAID_LATER" }.amount)
     }
 
     private companion object {

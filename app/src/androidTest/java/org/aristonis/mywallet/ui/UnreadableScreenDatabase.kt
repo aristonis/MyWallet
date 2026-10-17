@@ -109,7 +109,7 @@ internal class UnreadableScreenDatabase(kind: String) : AutoCloseable {
         ComputeHomeSummary(ledger, fx), health, currencies, settings, formatter, Dispatchers.Default, errors)
 
     fun transactions() = TransactionsListViewModel(RoomEntryRepository(db, db.entryDao()), accounts, categories,
-        currencies, settings, health, formatter, TodayProvider { date }, SavedStateHandle(),
+        currencies, settings, RoomDebtRepository(db), health, formatter, TodayProvider { date }, SavedStateHandle(),
         Dispatchers.Default, errors)
 
     fun tracking() = ReportsViewModel(ComputeCategoryBreakdown(ledger, fx), health, categories, currencies, formatter,
