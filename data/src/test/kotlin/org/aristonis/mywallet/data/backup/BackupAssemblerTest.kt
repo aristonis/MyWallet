@@ -90,6 +90,7 @@ class BackupAssemblerTest {
     @Test
     fun buildBackup_roundTripsThroughEncodeAndValidatedDecode() {
         val built = build()
+        assertEquals(3, built.version)
         assertEquals(built, decodeValidated(BackupCodec.encode(built)))
     }
 
@@ -136,7 +137,7 @@ class BackupAssemblerTest {
 
     @Test(expected = WalletException.BackupVersionUnsupported::class)
     fun decodeValidated_rejectsUnsupportedVersion() {
-        val newerFormat = BackupCodec.encode(build().copy(version = 3))
+        val newerFormat = BackupCodec.encode(build().copy(version = 4))
         decodeValidated(newerFormat)
     }
 
@@ -200,14 +201,13 @@ class BackupAssemblerTest {
 
     @Test
     fun aBackupFromANewerBuildSaysSoEvenWithFieldsThisBuildDoesNotKnow() {
-        val newer = BackupCodec.encode(build())
-            .replaceFirst(Regex("\"version\"\\s*:\\s*2"), "\"version\": 3")
+        val newer = BackupCodec.encode(build().copy(version = 4))
             .replaceFirst("{", "{\n    \"loans\": [],")
 
         val error = runCatching { decodeValidated(newer) }.exceptionOrNull()
 
         assertTrue("was: $error", error is WalletException.BackupVersionUnsupported)
-        assertEquals(3, (error as WalletException.BackupVersionUnsupported).version)
+        assertEquals(4, (error as WalletException.BackupVersionUnsupported).version)
     }
 
     // Every row must be one the app can read back. A row it cannot read gets through the JSON decode

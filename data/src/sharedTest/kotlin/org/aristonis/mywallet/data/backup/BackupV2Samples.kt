@@ -33,6 +33,9 @@ object BackupV2Samples {
     private val JAN_6 = LocalDate.of(2026, 1, 6)
     private val JAN_7 = LocalDate.of(2026, 1, 7)
 
+    /** The current export format uses the same DTO fields as format 2. */
+    fun versionThreeWallet(): WalletBackupV2 = wallet().copy(version = 3)
+
     fun wallet(): WalletBackupV2 = WalletBackupV2(
         version = BACKUP_FORMAT_V2,
         settings = SettingsDto(baseCurrencyCode = "USD", theme = "SYSTEM", schemaVersion = 4),

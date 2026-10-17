@@ -18,6 +18,9 @@ import java.time.LocalDate
 /** The `version` a format-2 file carries. */
 const val BACKUP_FORMAT_V2 = 2
 
+/** Format 3 keeps the format-2 DTO fields and permits the current ledger receipts. */
+const val BACKUP_FORMAT_V3 = 3
+
 /** An `accounts` row: the format-1 fields plus the three columns schema 3 adds, all nullable. */
 @Serializable
 data class AccountDtoV2(

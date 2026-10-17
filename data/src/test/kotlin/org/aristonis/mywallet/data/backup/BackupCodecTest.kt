@@ -3,6 +3,8 @@ package org.aristonis.mywallet.data.backup
 import kotlinx.serialization.SerializationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.aristonis.mywallet.domain.error.WalletException
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -13,6 +15,56 @@ import java.time.LocalDate
  * defaulting — restore validation depends on that rejection.
  */
 class BackupCodecTest {
+
+    @Test
+    fun writesVersionThreeWithoutChangingStoredValues() {
+        val sample = BackupV2Samples.versionThreeWallet()
+
+        val text = BackupCodec.encode(sample)
+
+        assertTrue(text.contains("\"version\":3"))
+        assertEquals(sample, BackupCodec.decodeV2(text))
+    }
+
+    @Test
+    fun textReaderAcceptsFormatsTwoAndThree() {
+        listOf(BackupV2Samples.wallet(), BackupV2Samples.versionThreeWallet()).forEach { sample ->
+            val decoded = BackupCodec.decodeV2(BackupCodec.encode(sample))
+
+            assertEquals(sample, decoded)
+        }
+    }
+
+    @Test
+    fun streamReaderAcceptsFormatsTwoAndThree() {
+        listOf(BackupV2Samples.wallet(), BackupV2Samples.versionThreeWallet()).forEach { sample ->
+            val decoded = BackupCodec.encode(sample).byteInputStream().use { BackupCodec.decodeV2(it) }
+
+            assertEquals(sample, decoded)
+        }
+    }
+
+    @Test
+    fun textReaderRefusesFormatFourWithItsVersion() {
+        val text = BackupCodec.encode(BackupV2Samples.wallet().copy(version = 4))
+
+        val error = assertThrows(WalletException.BackupVersionUnsupported::class.java) {
+            BackupCodec.decodeV2(text)
+        }
+
+        assertEquals(4, error.version)
+    }
+
+    @Test
+    fun streamReaderRefusesFormatFourWithItsVersion() {
+        val text = BackupCodec.encode(BackupV2Samples.wallet().copy(version = 4))
+
+        val error = assertThrows(WalletException.BackupVersionUnsupported::class.java) {
+            text.byteInputStream().use { BackupCodec.decodeV2(it) }
+        }
+
+        assertEquals(4, error.version)
+    }
 
     private fun sampleBackup(): WalletBackup = WalletBackup(
         version = 1,

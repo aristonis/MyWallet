@@ -8,8 +8,8 @@ import org.junit.Test
 
 /**
  * What a restore accepts, before it touches a single row. A file is read by its own format version:
- * a format-1 file goes through the converter to format 2, a format-2 file decodes directly, and
- * anything else is refused. Only then do the format-2 checks run, so an old file is held to the same
+ * a format-1 file goes through the converter to format 2, format-2 and format-3 files decode directly, and
+ * newer formats are refused. Only then do the format-2 checks run, so an old file is held to the same
  * rules as a new one and a bad file never reaches the database.
  *
  * Assumed signature, which the implementation must provide: `decodeValidated(text: String):
@@ -28,11 +28,38 @@ class BackupDecodeValidatedTest {
     // --- Dispatch on the version in the file ---
 
     @Test
-    fun theCurrentFormatIsVersionTwo() = assertEquals(2, CURRENT_BACKUP_VERSION)
+    fun theCurrentFormatIsVersionThree() = assertEquals(3, CURRENT_BACKUP_VERSION)
 
     @Test
     fun aFormatTwoFileDecodesDirectlyToWhatWasWritten() {
         assertEquals(sample, decodeValidated(BackupCodec.encode(sample)))
+    }
+
+    @Test
+    fun aFormatTwoFileStillPassesRestoreValidation() {
+        val decoded = decodeValidated(BackupCodec.encode(sample))
+
+        assertEquals(sample, requireRestorable(decoded))
+    }
+
+    @Test
+    fun aFormatThreeFilePassesRestoreValidationWithoutChangingStoredValues() {
+        val file = BackupV2Samples.versionThreeWallet()
+
+        val decoded = decodeValidated(BackupCodec.encode(file))
+
+        assertEquals(file, requireRestorable(decoded))
+    }
+
+    @Test
+    fun aFormatThreeFileWithABrokenLegIsInvalid() {
+        val file = BackupV2Samples.versionThreeWallet().let { backup ->
+            backup.copy(legs = backup.legs.filterNot {
+                it.entryId == BackupV2Samples.TRANSFER_ENTRY && it.role == "DEST"
+            })
+        }
+
+        assertInvalid(file)
     }
 
     @Test
@@ -101,12 +128,12 @@ class BackupDecodeValidatedTest {
 
     @Test
     fun aFileFromANewerFormatIsRefusedWithItsVersionEvenWhenItHoldsKeysThisBuildDoesNotKnow() {
-        val text = BackupCodec.encode(sample.copy(version = 3)).replaceFirst("\"entries\"", "\"fromTheFuture\": [], \"entries\"")
+        val text = BackupCodec.encode(sample.copy(version = 4)).replaceFirst("\"entries\"", "\"fromTheFuture\": [], \"entries\"")
 
         val thrown = refusedAs(text)
 
         assertTrue(thrown is WalletException.BackupVersionUnsupported)
-        assertEquals(3, (thrown as WalletException.BackupVersionUnsupported).version)
+        assertEquals(4, (thrown as WalletException.BackupVersionUnsupported).version)
     }
 
     @Test

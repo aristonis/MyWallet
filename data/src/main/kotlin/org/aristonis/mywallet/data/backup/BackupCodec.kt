@@ -6,6 +6,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
+import org.aristonis.mywallet.domain.error.WalletException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -24,7 +25,7 @@ object BackupCodec {
     }
 
     /**
-     * Writes format 1. The app only writes format 2 now; this stays so a format-1 file can be built
+     * Writes format 1. The app only writes format 3 now; this stays so a format-1 file can be built
      * and read back, which is how the frozen format-1 reader is kept honest.
      */
     fun encode(backup: WalletBackup): String = json.encodeToString(backup)
@@ -50,27 +51,28 @@ object BackupCodec {
     @OptIn(ExperimentalSerializationApi::class)
     fun decode(input: InputStream): WalletBackup = json.decodeFromStream(input)
 
-    /** Reads frozen format 2 directly from a caller-owned stream. */
+    /** Reads format 2 or 3 directly from a caller-owned stream, which stays open. */
     @OptIn(ExperimentalSerializationApi::class)
-    fun decodeV2(input: InputStream): WalletBackupV2 = json.decodeFromStream<WalletBackupV2>(input).also {
-        require(it.version == BACKUP_FORMAT_V2) { "expected backup version $BACKUP_FORMAT_V2" }
-    }
+    fun decodeV2(input: InputStream): WalletBackupV2 =
+        requireReadableVersion(json.decodeFromStream<WalletBackupV2>(input))
 
     /**
-     * Reads a format-2 file with the same strict settings as [decode]. A file whose `version` is
-     * not 2 is refused with IllegalArgumentException even when its keys happen to fit.
+     * Reads format 2 or 3 with the same strict settings as [decode]. Other versions are refused with
+     * [WalletException.BackupVersionUnsupported], even when their keys happen to fit.
      */
-    fun decodeV2(text: String): WalletBackupV2 {
-        val backup: WalletBackupV2 = json.decodeFromString(text)
-        require(backup.version == BACKUP_FORMAT_V2) {
-            "expected backup version $BACKUP_FORMAT_V2, found ${backup.version}"
+    fun decodeV2(text: String): WalletBackupV2 = requireReadableVersion(json.decodeFromString(text))
+
+    private fun requireReadableVersion(backup: WalletBackupV2): WalletBackupV2 {
+        if (backup.version != BACKUP_FORMAT_V2 && backup.version != BACKUP_FORMAT_V3) {
+            throw WalletException.BackupVersionUnsupported(backup.version)
         }
         return backup
     }
+
 }
 
 /**
- * A format-2 backup that has passed the restore checks. Only [BackupCodec.validate] makes one, so the
+ * A format-2 or format-3 backup that has passed the restore checks. Only [BackupCodec.validate] makes one, so the
  * streaming [BackupCodec.encode] cannot be handed a wallet that restore would refuse.
  */
 class RestorableBackup internal constructor(internal val backup: WalletBackupV2)

@@ -15,6 +15,33 @@ class BackupStreamTest {
     @get:Rule val folder = TemporaryFolder()
     private val sample = BackupV2Samples.wallet()
 
+    @Test fun formatThreeExportRestoresEveryStoredValueThroughStreamsAndRemovesScratch() {
+        val backup = BackupV2Samples.versionThreeWallet()
+        val output = ByteArrayOutputStream()
+        BackupCodec.encode(BackupCodec.validate(backup), output)
+
+        val restored = output.toByteArray().inputStream().use { decodeValidated(it, folder.root) }
+
+        assertEquals(3, restored.version)
+        assertEquals(backup, restored)
+        assertEquals(emptyList<String>(), folder.root.list()!!.toList())
+    }
+
+    @Test fun formatThreeWithABrokenLegIsInvalidAndRemovesScratch() {
+        val backup = BackupV2Samples.versionThreeWallet().let { original ->
+            original.copy(legs = original.legs.filterNot {
+                it.entryId == BackupV2Samples.TRANSFER_ENTRY && it.role == "DEST"
+            })
+        }
+        val text = BackupCodec.encode(backup)
+
+        assertThrows(WalletException.BackupInvalid::class.java) {
+            text.byteInputStream().use { decodeValidated(it, folder.root) }
+        }
+
+        assertEquals(emptyList<String>(), folder.root.list()!!.toList())
+    }
+
     @Test fun compactStreamRoundTripPreservesEveryValue() {
         val output = ByteArrayOutputStream()
         BackupCodec.encode(BackupCodec.validate(sample), output)

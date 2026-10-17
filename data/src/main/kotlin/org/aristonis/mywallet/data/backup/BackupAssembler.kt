@@ -23,14 +23,15 @@ import java.io.InputStream
 
 /**
  * The backup format this build writes. It reads this one and every older one, each converted up to
- * this one; a newer version is refused.
+ * a readable shape; a newer version is refused.
  *
  * Readers reject keys they do not know, so any change a released build could not read needs a new
- * number, a frozen DTO set for it, and a converter from the format before. The version is read on
+ * number. Formats 2 and 3 share DTO fields; format 3 marks the expanded ledger receipts. A changed
+ * DTO shape needs frozen DTOs and a converter from the format before. The version is read on
  * its own before the strict decode, so a backup from a newer build is reported as such even when it
  * carries fields this build has never heard of.
  */
-const val CURRENT_BACKUP_VERSION = BACKUP_FORMAT_V2
+const val CURRENT_BACKUP_VERSION = BACKUP_FORMAT_V3
 
 /** Every table as one consistent read, the way an export takes it. A missing settings row is null. */
 data class TableSnapshot(
@@ -154,18 +155,18 @@ private const val SCRATCH_SUFFIX = ".json"
 private val SCRATCH_LOCK = Any()
 
 /**
- * How each format this build reads becomes the current one: decoded with its own frozen DTOs, then
- * passed up the chain of one-step converters from its version. A new format adds its reader here,
- * its converter from the format before, and that converter as the next step of the chain.
+ * Each supported format is decoded into the shared restore shape. Format 1 needs a converter;
+ * formats 2 and 3 share DTO fields and retain their original version and stored values.
  */
 private val FORMAT_READERS: Map<Int, (InputStream) -> WalletBackupV2> = mapOf(
     BACKUP_FORMAT_V1 to { input -> upgradeFromV1(BackupCodec.decode(input)) },
     BACKUP_FORMAT_V2 to { input -> upgradeFromV2(BackupCodec.decodeV2(input)) },
+    BACKUP_FORMAT_V3 to { input -> BackupCodec.decodeV2(input) },
 )
 
 private fun upgradeFromV1(backup: WalletBackup): WalletBackupV2 = upgradeFromV2(BackupUpgrade.v1ToV2(backup))
 
-/** Format 2 is the current format, so the chain ends here. */
+/** Formats 2 and 3 share DTO fields; keep the source version and all stored values unchanged. */
 private fun upgradeFromV2(backup: WalletBackupV2): WalletBackupV2 = backup
 
 @kotlinx.serialization.Serializable
