@@ -1,12 +1,9 @@
 package org.aristonis.mywallet.ui
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.ui.navigation.WalletNavHost
 import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
 
@@ -27,7 +24,8 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 @Composable
 internal fun AppRootContent(destination: StartDestination) {
     when (destination) {
-        StartDestination.LOADING -> AristonisLoader(Modifier.fillMaxSize())
+        // The starting window stays visible until the settings choose a destination.
+        StartDestination.LOADING -> Unit
         StartDestination.ONBOARDING -> OnboardingScreen()
         StartDestination.HOME -> WalletNavHost()
     }

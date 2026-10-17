@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.MyWallet.Starting" parent="Base.Theme.MyWallet.Starting">
+        <item name="android:windowSplashScreenBrandingImage">@drawable/splash_copyright</item>
+    </style>
+</resources>

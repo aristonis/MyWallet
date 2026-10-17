@@ -15,8 +15,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.aristonis.mywallet.ui.AppRootContent
-import org.aristonis.mywallet.ui.StartDestination
 import org.aristonis.mywallet.ui.account.AccountDetailContent
 import org.aristonis.mywallet.ui.account.AccountDetailUiState
 import org.aristonis.mywallet.ui.account.ManageAccountsContent
@@ -50,12 +48,6 @@ class FormBrandLoadingIntegrationTest {
     private fun assertBodyLoader() {
         compose.onNode(loading).assertIsDisplayed()
             .assertWidthIsAtLeast(240.dp).assertHeightIsAtLeast(300.dp)
-    }
-
-    @Test fun startupLoadingHasAnAccessibleBoundedBrandSurfaceImmediately() {
-        show { AppRootContent(StartDestination.LOADING) }
-
-        assertBodyLoader()
     }
 
     @Test fun accountManagementLoadingFillsTheBodyBelowItsControls() {

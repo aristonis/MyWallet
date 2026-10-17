@@ -25,7 +25,7 @@ class SplashColorParityTest {
         val themes = builder.parse(File("src/main/res/values/themes.xml"))
         val styles = themes.getElementsByTagName("style")
         val starting = (0 until styles.length).map { styles.item(it) as Element }
-            .single { it.getAttribute("name") == "Theme.MyWallet.Starting" }
+            .single { it.getAttribute("name") == "Base.Theme.MyWallet.Starting" }
         assertEquals("Theme.SplashScreen.IconBackground", starting.getAttribute("parent"))
         val items = starting.getElementsByTagName("item")
         val iconBackground = (0 until items.length).map { items.item(it) as Element }

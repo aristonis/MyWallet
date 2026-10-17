@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.ui.AppRoot
 import org.aristonis.mywallet.ui.AppViewModel
+import org.aristonis.mywallet.ui.StartDestination
 import org.aristonis.mywallet.ui.format.AppLocale
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import java.util.Locale
@@ -56,8 +57,11 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splash.setKeepOnScreenCondition {
+            appViewModel.startDestination.value == StartDestination.LOADING
+        }
         observeSplashNightMode()
         enableEdgeToEdge()
         setContent {

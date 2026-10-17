@@ -1,0 +1,5 @@
+<resources>
+    <dimen name="splash_starting_icon_size">240dp</dimen>
+    <dimen name="splash_starting_icon_mask_size">342dp</dimen>
+    <dimen name="splash_starting_icon_mask_stroke">92dp</dimen>
+</resources>
