@@ -10,5 +10,6 @@
     <string name="paid_later_paid_now">Paid now</string>
     <string name="paid_later_owed">Owed: %1$s</string>
     <string name="paid_later_due_date">Due date (optional)</string>
+    <string name="paid_later_due_date_value">" · %1$s"</string>
     <string name="paid_later_clear_date">Leave due date unchanged</string>
 </resources>

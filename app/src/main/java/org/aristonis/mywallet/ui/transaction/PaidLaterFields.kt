@@ -76,7 +76,7 @@ private fun PaidLaterDueDate(date: LocalDate?, onDate: (LocalDate?) -> Unit) {
     val formatDate = rememberDateFormatter()
     TextButton(onClick = { showPicker = true }) {
         Text(stringResource(R.string.paid_later_due_date))
-        if (date != null) Text(" · ${formatDate(date)}")
+        if (date != null) Text(stringResource(R.string.paid_later_due_date_value, formatDate(date)))
     }
     if (date != null) TextButton(onClick = { onDate(null) }) { Text(stringResource(R.string.paid_later_clear_date)) }
     if (!showPicker) return
