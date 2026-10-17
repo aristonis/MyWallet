@@ -64,6 +64,8 @@ sealed interface UiMessage {
     data object DeductionOutOfRange : UiMessage
     data object DeductionValueNotPositive : UiMessage
     data object DeductionsExceedIncome : UiMessage
+    /** The combined fee and deductions must not exceed the gross income. */
+    data object FeeAndDeductionsExceedIncome : UiMessage
     data object DeductionOverrideCurrencyMismatch : UiMessage
     data object DeductionItemInUse : UiMessage
     data object DeductionItemNotFound : UiMessage
@@ -95,6 +97,12 @@ sealed interface UiMessage {
     data object EntryAlreadyRestored : UiMessage
     data object TransferCurrencyPairChanged : UiMessage
     data object TransactionRestoreFailed : UiMessage
+
+    /** Paid later requires a paid-now amount below the full expense amount. */
+    data object PaidNowNotBelowAmount : UiMessage
+
+    /** A fee on a paid-later expense requires a positive amount paid now. */
+    data object PaidLaterFeeWithoutPaidNow : UiMessage
 
     /** A stored entry this build cannot read; its id and kind stay in the log, never on screen. */
     data object DataUnreadable : UiMessage

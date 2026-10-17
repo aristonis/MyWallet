@@ -9,6 +9,9 @@
     <string name="account_default_fee_hint">Used for transfers from this account. Leave blank for no default.</string>
     <string name="msg_fee_value_negative">Enter a fee of zero or more.</string>
     <string name="msg_fee_percent_above_hundred">Enter a fee percentage of 100 or less.</string>
+    <string name="msg_fee_and_deductions_exceed_income">
+        The fee and deductions together exceed the income. Reduce the fee or deductions.
+    </string>
     <string name="fee_mode">Fee type</string>
     <string name="fee_transfer_hint">Taken from the amount sent. Leave blank or enter zero for no fee.</string>
     <string name="fee_expense_hint">Added to the payment. Leave blank or enter zero for no fee.</string>

@@ -119,6 +119,10 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     class DeductionsExceedIncome(val gross: Money, val total: Money) :
         WalletException("Deductions $total exceed income $gross")
 
+    /** The fee and all deductions together cannot take more than the income that contains them. */
+    class FeeAndDeductionsExceedIncome(val gross: Money, val total: Money) :
+        WalletException("Fee and deductions $total exceed income $gross")
+
     /** A hand-edited deduction amount must use the income's currency. */
     class DeductionOverrideCurrencyMismatch(val overrideCurrency: String, val incomeCurrency: String) :
         WalletException("Deduction override currency $overrideCurrency differs from income currency $incomeCurrency")
@@ -148,6 +152,13 @@ sealed class WalletException(message: String, cause: Throwable? = null) : Except
     /** The rounded fee would consume the amount being sent. */
     class FeeNotBelowAmount(val sent: Money, val fee: Money) :
         WalletException("Fee $fee must be less than amount sent $sent")
+
+    /** Paid later requires some of the expense to remain owed; otherwise use a plain expense. */
+    class PaidNowNotBelowAmount(val amount: Money, val paidNow: Money) :
+        WalletException("Paid now $paidNow must be less than expense amount $amount; turn Paid later off")
+
+    /** A paid-later expense can carry a fee only when some of its amount is paid now. */
+    class PaidLaterFeeWithoutPaidNow : WalletException("A fee requires an amount paid now")
 
     /** A name that is empty once trimmed. A debt is found by its person's name, so it can't be blank. */
     class NameBlank :

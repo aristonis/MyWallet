@@ -28,8 +28,17 @@ sealed interface Transaction {
         val rateToBase: BigDecimal? = null,
         /** The immutable deduction snapshots recorded with this income. */
         val deductions: List<DeductionLine> = emptyList(),
+        /** Draft fee removed from the account receipt; save validates it and resolves its category. */
+        val fee: Money? = null,
+        val feeCategoryId: Long? = null,
     ) : Transaction {
-        init { require(amount.isPositive) { "income amount must be > 0" } }
+        init {
+            require(amount.isPositive) { "income amount must be > 0" }
+            // As on expenses, save resolves the category and validates a draft fee's sign.
+            require(fee == null || fee.currencyCode == amount.currencyCode) {
+                "fee currency must match ${amount.currencyCode}"
+            }
+        }
     }
 
     data class Expense(
@@ -45,6 +54,10 @@ sealed interface Transaction {
         /** Draft fee included in the account outflow; save validates it and resolves its category. */
         val fee: Money? = null,
         val feeCategoryId: Long? = null,
+        /** The part of the full [amount] owed rather than paid now, in the expense currency. */
+        val owed: Money? = null,
+        /** The debt resolved on save; null while a draft's counterparty is still unresolved. */
+        val owedDebtId: Long? = null,
     ) : Transaction {
         init {
             require(amount.isPositive) { "expense amount must be > 0" }
@@ -53,6 +66,11 @@ sealed interface Transaction {
             require(fee == null || fee.currencyCode == amount.currencyCode) {
                 "fee currency must match ${amount.currencyCode}"
             }
+            require(owed == null || owed.currencyCode == amount.currencyCode) {
+                "owed currency must match ${amount.currencyCode}"
+            }
+            require(owed == null || owed.isPositive) { "expense owed must be > 0" }
+            require(owed == null || owed <= amount) { "expense owed must not exceed amount" }
         }
     }
 

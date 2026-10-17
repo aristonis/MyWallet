@@ -36,6 +36,7 @@ fun WalletException.toUiMessage(): UiMessage = when (this) {
     is WalletException.DeductionOutOfRange -> UiMessage.DeductionOutOfRange
     is WalletException.DeductionValueNotPositive -> UiMessage.DeductionValueNotPositive
     is WalletException.DeductionsExceedIncome -> UiMessage.DeductionsExceedIncome
+    is WalletException.FeeAndDeductionsExceedIncome -> UiMessage.FeeAndDeductionsExceedIncome
     is WalletException.DeductionOverrideCurrencyMismatch -> UiMessage.DeductionOverrideCurrencyMismatch
     is WalletException.DeductionItemInUse -> UiMessage.DeductionItemInUse
     is WalletException.DeductionItemNotFound -> UiMessage.DeductionItemNotFound
@@ -44,6 +45,8 @@ fun WalletException.toUiMessage(): UiMessage = when (this) {
     is WalletException.FeeNotBelowAmount -> UiMessage.FeeNotBelowAmount
     is WalletException.FeeValueNegative -> UiMessage.FeeValueNegative
     is WalletException.FeePercentAboveHundred -> UiMessage.FeePercentAboveHundred
+    is WalletException.PaidNowNotBelowAmount -> UiMessage.PaidNowNotBelowAmount
+    is WalletException.PaidLaterFeeWithoutPaidNow -> UiMessage.PaidLaterFeeWithoutPaidNow
     is WalletException.NameBlank -> UiMessage.NameBlank
     is WalletException.DebtNotFound -> UiMessage.DebtNotFound
     is WalletException.DebtSideMismatch -> UiMessage.DebtSideMismatch

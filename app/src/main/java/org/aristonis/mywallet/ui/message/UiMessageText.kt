@@ -53,6 +53,7 @@ fun UiMessage.text(): String = when (this) {
     UiMessage.DeductionOutOfRange -> stringResource(R.string.msg_deduction_out_of_range)
     UiMessage.DeductionValueNotPositive -> stringResource(R.string.msg_deduction_value_not_positive)
     UiMessage.DeductionsExceedIncome -> stringResource(R.string.msg_deductions_exceed_income)
+    UiMessage.FeeAndDeductionsExceedIncome -> stringResource(R.string.msg_fee_and_deductions_exceed_income)
     UiMessage.DeductionOverrideCurrencyMismatch -> stringResource(R.string.msg_deduction_override_currency_mismatch)
     UiMessage.DeductionItemInUse -> stringResource(R.string.msg_deduction_item_in_use)
     UiMessage.DeductionItemNotFound -> stringResource(R.string.msg_deduction_item_not_found)
@@ -86,6 +87,8 @@ fun UiMessage.text(): String = when (this) {
     UiMessage.DataUnreadable -> stringResource(R.string.msg_data_unreadable)
     UiMessage.TransferCurrencyPairChanged -> stringResource(R.string.msg_transfer_currency_pair_changed)
     UiMessage.TransactionRestoreFailed -> stringResource(R.string.msg_transaction_restore_failed)
+    UiMessage.PaidNowNotBelowAmount -> stringResource(R.string.msg_paid_now_not_below_amount)
+    UiMessage.PaidLaterFeeWithoutPaidNow -> stringResource(R.string.msg_paid_later_fee_without_paid_now)
 
     UiMessage.BackupSaved -> stringResource(R.string.msg_backup_saved)
     UiMessage.BackupSaveFailed -> stringResource(R.string.msg_backup_save_failed)

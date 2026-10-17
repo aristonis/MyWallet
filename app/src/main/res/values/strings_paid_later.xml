@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="msg_paid_now_not_below_amount">
+        Paid now must be less than the expense amount. Turn Paid later off to pay in full.
+    </string>
+    <string name="msg_paid_later_fee_without_paid_now">
+        Enter an amount above zero in Paid now, or remove the fee.
+    </string>
+</resources>

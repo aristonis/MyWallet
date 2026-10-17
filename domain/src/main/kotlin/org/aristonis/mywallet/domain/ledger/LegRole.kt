@@ -25,4 +25,7 @@ enum class LegRole {
 
     LOSS,
     FORGIVEN,
+
+    /** The part of an expense owed rather than paid now; counts as expense. */
+    PAID_LATER,
 }
