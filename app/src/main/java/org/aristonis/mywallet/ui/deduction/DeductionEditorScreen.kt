@@ -70,6 +70,7 @@ fun DeductionEditorScreen(
             onCurrencySelect = viewModel::selectCurrency,
             onTimingSelect = viewModel::selectTiming,
             onExpenseCategorySelect = viewModel::selectExpenseCategory,
+            onExpenseSubCategorySelect = viewModel::selectExpenseSubCategory,
             onAutoAddToggle = viewModel::toggleAutoAdd,
             onEnabledChange = viewModel::setEnabled,
             onSubmit = viewModel::submit,
@@ -89,6 +90,7 @@ internal fun DeductionEditorContent(
     onCurrencySelect: (String) -> Unit,
     onTimingSelect: (DeductionTiming) -> Unit,
     onExpenseCategorySelect: (Long?) -> Unit,
+    onExpenseSubCategorySelect: (Long?) -> Unit,
     onAutoAddToggle: (Long) -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onSubmit: () -> Unit,
@@ -108,7 +110,7 @@ internal fun DeductionEditorContent(
                         onTimingSelect)
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
-                    DeductionCategoryFields(state, onExpenseCategorySelect, onAutoAddToggle)
+                    DeductionCategoryFields(state, onExpenseCategorySelect, onExpenseSubCategorySelect, onAutoAddToggle)
                 }
                 EnabledField(state, onEnabledChange)
                 state.error?.let { StatusCard(StatusTone.ERROR, it.text()) }
@@ -162,6 +164,7 @@ private fun DeductionValueFields(
 private fun DeductionCategoryFields(
     state: DeductionEditorUiState,
     onExpenseCategorySelect: (Long?) -> Unit,
+    onExpenseSubCategorySelect: (Long?) -> Unit,
     onAutoAddToggle: (Long) -> Unit,
 ) {
     val selected = state.expenseCategories.find { it.id == state.expenseCategoryId }
@@ -175,6 +178,16 @@ private fun DeductionCategoryFields(
         itemLabel = { it?.let { category -> bidiIsolate(category.label().text()) }
             ?: stringResource(R.string.deduction_category_automatic) },
         onSelect = { onExpenseCategorySelect(it?.id) })
+    if (state.expenseCategoryId != null && state.expenseSubCategories.isNotEmpty()) {
+        val subCategory = state.expenseSubCategories.find { it.id == state.expenseSubCategoryId }
+        LabeledDropdown(label = stringResource(R.string.deduction_expense_subcategory),
+            selectedText = subCategory?.let { bidiIsolate(it.label().text()) }
+                ?: stringResource(R.string.deduction_subcategory_none),
+            items = listOf(null) + state.expenseSubCategories,
+            itemLabel = { it?.let { category -> bidiIsolate(category.label().text()) }
+                ?: stringResource(R.string.deduction_subcategory_none) },
+            onSelect = { onExpenseSubCategorySelect(it?.id) })
+    }
     if (state.expenseCategoryMissing) {
         StatusCard(StatusTone.WARNING, stringResource(R.string.deduction_category_missing))
     }
@@ -219,7 +232,7 @@ private fun DeductionEditorPreview() {
             state = DeductionEditorUiState(name = "Tax", value = "10", currencyCode = "USD",
                 isLoading = false),
             onNameChange = {}, onValueChange = {}, onModeSelect = {}, onCurrencySelect = {},
-            onTimingSelect = {}, onExpenseCategorySelect = {}, onAutoAddToggle = {},
+            onTimingSelect = {}, onExpenseCategorySelect = {}, onExpenseSubCategorySelect = {}, onAutoAddToggle = {},
             onEnabledChange = {}, onSubmit = {}, onRetry = {},
         )
     }

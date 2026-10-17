@@ -14,6 +14,8 @@
     <string name="deduction_now">Paid now</string>
     <string name="deduction_later">Owed later</string>
     <string name="deduction_expense_category">Expense category</string>
+    <string name="deduction_expense_subcategory">Sub-category (optional)</string>
+    <string name="deduction_subcategory_none">No sub-category</string>
     <string name="deduction_category_automatic">Use the deduction name</string>
     <string name="deduction_category_choose">Choose a category</string>
     <string name="deduction_category_missing">The expense category this deduction used was deleted. Choose a category, or choose \"Use the deduction name\" to create one, before saving.</string>

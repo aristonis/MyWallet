@@ -103,6 +103,29 @@ class SaveDeductionDefinitionTest {
     }
 
     @Test
+    fun subCategoryOfAnExpenseParentIsAccepted() = runTest {
+        val rig = Rig(categories = FakeCategoryRepository(listOf(
+            expense(1, "Bills"), expense(2, "Internet", parentId = 1))))
+
+        val id = rig.save(deductionItem(name = "Internet"), categoryId = 2)
+
+        assertEquals(2L, rig.items.findById(id)?.expenseCategoryId)
+    }
+
+    @Test
+    fun expenseSubCategoryUnderAnIncomeParentIsRefusedWithoutWrite() = runTest {
+        val rig = Rig(categories = FakeCategoryRepository(listOf(
+            Category(1, "Salary", CategoryKind.INCOME), expense(2, "Internet", parentId = 1))))
+
+        val failure = failureOf<WalletException.CategoryWrongKind> {
+            rig.save(deductionItem(name = "Internet"), categoryId = 2)
+        }
+
+        assertEquals(1L, failure.categoryId)
+        assertTrue(rig.items.observeAll().first().isEmpty())
+    }
+
+    @Test
     fun aRuleNameThatFoldsToAnotherRulesKeyIsRefusedBeforeAnyWrite() = runTest {
         val rig = Rig(items = FakeDeductionItemRepository(listOf(deductionItem(id = 1, name = "Tax"))))
 

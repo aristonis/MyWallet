@@ -51,6 +51,88 @@ class DeductionEditorViewModelTest {
         )
     }
 
+    private fun categoryHierarchy() = DeductionCategories(listOf(
+        Category(1, "Bills", CategoryKind.EXPENSE),
+        Category(3, "Internet", CategoryKind.EXPENSE, parentId = 1),
+        Category(4, "Phone", CategoryKind.EXPENSE, parentId = 1),
+        Category(5, "Other", CategoryKind.EXPENSE),
+        Category(2, "Salary", CategoryKind.INCOME)))
+
+    @Test fun pickingParentOffersOnlyItsChildrenAndChangingParentClearsChild() = runTest {
+        val vm = editor(DeductionSettingsFake(), categories = categoryHierarchy())
+        advanceUntilIdle()
+
+        vm.selectExpenseCategory(1)
+        assertEquals(listOf(3L, 4L), vm.state.value.expenseSubCategories.map { it.id })
+        vm.selectExpenseSubCategory(3)
+        vm.selectExpenseCategory(5)
+
+        assertNull(vm.state.value.expenseSubCategoryId)
+        assertTrue(vm.state.value.expenseSubCategories.isEmpty())
+    }
+
+    @Test fun legacyChildSelectionLoadsAsParentAndChildWithoutMissingNotice() = runTest {
+        val vm = editor(DeductionSettingsFake(listOf(rule().copy(expenseCategoryId = 3))),
+            id = 1, categories = categoryHierarchy())
+
+        advanceUntilIdle()
+
+        assertEquals(1L, vm.state.value.expenseCategoryId)
+        assertEquals(3L, vm.state.value.expenseSubCategoryId)
+        assertEquals(listOf(3L, 4L), vm.state.value.expenseSubCategories.map { it.id })
+        assertFalse(vm.state.value.expenseCategoryMissing)
+        assertTrue(vm.state.value.canSubmit)
+    }
+
+    @Test fun savingChildStoresChildIdAndClearingItStoresParentId() = runTest {
+        val items = DeductionSettingsFake(listOf(rule()))
+        val categories = categoryHierarchy()
+        val vm = editor(items, id = 1, categories = categories)
+        advanceUntilIdle()
+        vm.selectExpenseSubCategory(3)
+
+        vm.submit()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.saved)
+        assertEquals(3L, items.rows.value.single().expenseCategoryId)
+        val edit = editor(items, id = 1, categories = categories)
+        advanceUntilIdle()
+        edit.selectExpenseSubCategory(null)
+        edit.submit()
+        advanceUntilIdle()
+        assertTrue(edit.state.value.saved)
+        assertEquals(1L, items.rows.value.single().expenseCategoryId)
+    }
+
+    @Test fun deletedSelectedChildRequiresAnExplicitChoice() = runTest {
+        val categories = categoryHierarchy()
+        val vm = editor(DeductionSettingsFake(listOf(rule().copy(expenseCategoryId = 3))),
+            id = 1, categories = categories)
+        advanceUntilIdle()
+
+        categories.rows.value = categories.rows.value.filter { it.id != 3L }
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.expenseCategoryMissing)
+        assertFalse(vm.state.value.canSubmit)
+        vm.selectExpenseCategory(1)
+        assertTrue(vm.state.value.canSubmit)
+        assertNull(vm.state.value.expenseSubCategoryId)
+    }
+
+    @Test fun firstExpenseListContainsOnlyTopLevelCategories() = runTest {
+        val categories = DeductionCategories(listOf(
+            Category(1, "Bills", CategoryKind.EXPENSE),
+            Category(3, "Internet", CategoryKind.EXPENSE, parentId = 1),
+            Category(2, "Salary", CategoryKind.INCOME)))
+        val vm = editor(DeductionSettingsFake(), categories = categories)
+
+        advanceUntilIdle()
+
+        assertEquals(listOf(1L), vm.state.value.expenseCategories.map { it.id })
+    }
+
     @Test fun categoryEmissionPrunesDeletedAndInvalidAutoAddSelections() = runTest {
         val items = DeductionSettingsFake(listOf(rule().copy(autoAddCategoryIds = setOf(2, 3, 4, 5))))
         val categories = DeductionCategories(listOf(

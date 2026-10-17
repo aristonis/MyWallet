@@ -35,6 +35,11 @@ class SaveDeductionDefinition(
     private suspend fun chosenCategory(id: Long): Long {
         val category = categories.findById(id) ?: throw WalletException.CategoryNotFound(id)
         if (category.kind != CategoryKind.EXPENSE) throw WalletException.CategoryWrongKind(id)
+        category.parentId?.let { parentId ->
+            val parent = categories.findById(parentId) ?: throw WalletException.CategoryNotFound(parentId)
+            if (parent.kind != CategoryKind.EXPENSE) throw WalletException.CategoryWrongKind(parentId)
+            if (parent.isSubCategory) throw WalletException.CategoryNotTopLevel(parentId)
+        }
         return id
     }
 

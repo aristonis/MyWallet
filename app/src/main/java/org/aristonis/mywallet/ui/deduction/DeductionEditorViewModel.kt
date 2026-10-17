@@ -45,11 +45,13 @@ data class DeductionEditorUiState(
     val timing: DeductionTiming = DeductionTiming.NOW,
     val currencyCode: String? = null,
     val expenseCategoryId: Long? = null,
+    val expenseSubCategoryId: Long? = null,
     val autoAddCategoryIds: Set<Long> = emptySet(),
     val enabled: Boolean = true,
     val currencies: List<Currency> = emptyList(),
     val expenseCategories: List<Category> = emptyList(),
     val incomeCategories: List<Category> = emptyList(),
+    val expenseSubCategories: List<Category> = emptyList(),
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
     val notFound: Boolean = false,
@@ -82,6 +84,7 @@ class DeductionEditorViewModel @Inject constructor(
     val state = mutableState.asStateFlow()
     private var sortOrder = 0
     private var initialized = false
+    private var expenseChoices: List<Category> = emptyList()
     private var readJob: Job? = null
 
     init { retry() }
@@ -109,18 +112,25 @@ class DeductionEditorViewModel @Inject constructor(
     }
 
     private fun applyChoices(categoryList: List<Category>, currencyList: List<Currency>) {
-        val expenseCategories = categoryList.filter { it.kind == CategoryKind.EXPENSE }
+        expenseChoices = categoryList
+        val expenseCategories = categoryList.filter { it.kind == CategoryKind.EXPENSE && !it.isSubCategory }
         val incomeCategories = categoryList.filter { it.kind == CategoryKind.INCOME && !it.isSubCategory }
         val expenseIds = expenseCategories.map(Category::id).toSet()
         val incomeIds = incomeCategories.map(Category::id).toSet()
         mutableState.update { current ->
+            val subCategories = categoryList.filter {
+                it.kind == CategoryKind.EXPENSE && it.parentId == current.expenseCategoryId && it.isSubCategory
+            }
             // A vanished category is not silently swapped for automatic creation, which would book the
             // rule to a different category; the owner must pick one or choose automatic again.
-            val lost = current.expenseCategoryId?.let { it !in expenseIds } == true
+            val lost = current.expenseCategoryId?.let { it !in expenseIds } == true ||
+                current.expenseSubCategoryId?.let { id -> subCategories.none { it.id == id } } == true
             current.copy(
                 expenseCategories = expenseCategories,
+                expenseSubCategories = if (lost) emptyList() else subCategories,
                 incomeCategories = incomeCategories,
                 expenseCategoryId = current.expenseCategoryId.takeUnless { lost },
+                expenseSubCategoryId = current.expenseSubCategoryId.takeUnless { lost },
                 expenseCategoryMissing = current.expenseCategoryMissing || lost,
                 autoAddCategoryIds = current.autoAddCategoryIds.intersect(incomeIds),
                 currencies = currencyList,
@@ -133,11 +143,14 @@ class DeductionEditorViewModel @Inject constructor(
     private suspend fun initialize() {
         val base = settings.observe().first().baseCurrencyCode
         val item = if (id > 0) items.findById(id) ?: throw WalletException.DeductionItemNotFound(id) else null
+        val category = item?.let { categories.findById(it.expenseCategoryId) }
         sortOrder = item?.sortOrder ?: 0
         mutableState.update { current ->
             current.copy(name = item?.name.orEmpty(), value = item?.value?.let(parser::toInputString).orEmpty(),
                 mode = item?.mode ?: DeductionMode.PERCENT, timing = item?.timing ?: DeductionTiming.NOW,
-                currencyCode = item?.valueCurrencyCode ?: base, expenseCategoryId = item?.expenseCategoryId,
+                currencyCode = item?.valueCurrencyCode ?: base,
+                expenseCategoryId = category?.parentId ?: item?.expenseCategoryId,
+                expenseSubCategoryId = category?.takeIf { it.isSubCategory }?.id,
                 autoAddCategoryIds = item?.autoAddCategoryIds ?: emptySet(), enabled = item?.enabled ?: true)
         }
         initialized = true
@@ -155,7 +168,14 @@ class DeductionEditorViewModel @Inject constructor(
     fun selectTiming(timing: DeductionTiming) = mutableState.update { it.copy(timing = timing) }
     /** Selects an expense category, or automatic creation when null; either answers a missing-category notice. */
     fun selectExpenseCategory(id: Long?) = mutableState.update {
-        it.copy(expenseCategoryId = id, expenseCategoryMissing = false, error = null)
+        it.copy(expenseCategoryId = id, expenseSubCategoryId = null,
+            expenseSubCategories = expenseChoices.filter { category ->
+                category.kind == CategoryKind.EXPENSE && category.isSubCategory && category.parentId == id
+            }, expenseCategoryMissing = false, error = null)
+    }
+    /** Selects an optional child of the current expense category. */
+    fun selectExpenseSubCategory(id: Long?) = mutableState.update {
+        it.copy(expenseSubCategoryId = id, error = null)
     }
     /** Selects whether future incomes offer the rule. */
     fun setEnabled(enabled: Boolean) = mutableState.update { it.copy(enabled = enabled) }
@@ -174,7 +194,7 @@ class DeductionEditorViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 validateSelections(draft)
-                saveDefinition(item, draft.expenseCategoryId)
+                saveDefinition(item, draft.expenseSubCategoryId ?: draft.expenseCategoryId)
                 mutableState.update { it.copy(saved = true) }
             } catch (error: CancellationException) {
                 throw error
@@ -199,6 +219,10 @@ class DeductionEditorViewModel @Inject constructor(
     private suspend fun validateSelections(draft: DeductionEditorUiState) {
         if (draft.showsCurrency && currencies.findByCode(draft.currencyCode.orEmpty()) == null) {
             throw MissingSelectionException(UiMessage.CurrencyRequired)
+        }
+        draft.expenseSubCategoryId?.let { id ->
+            val category = categories.findById(id) ?: throw WalletException.CategoryNotFound(id)
+            if (category.parentId != draft.expenseCategoryId) throw WalletException.CategoryWrongKind(id)
         }
         for (categoryId in draft.autoAddCategoryIds) {
             val category = categories.findById(categoryId) ?: throw WalletException.CategoryNotFound(categoryId)

@@ -12,6 +12,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.DeductionMode
 import org.aristonis.mywallet.ui.message.UiMessage
@@ -49,6 +51,7 @@ class DeductionEditorTest {
                     onCurrencySelect = {},
                     onTimingSelect = {},
                     onExpenseCategorySelect = {},
+                    onExpenseSubCategorySelect = {},
                     onAutoAddToggle = {},
                     onEnabledChange = {},
                     onSubmit = {},
@@ -59,6 +62,30 @@ class DeductionEditorTest {
     }
 
     private val hasError = SemanticsMatcher.keyIsDefined(SemanticsProperties.Error)
+
+    @Test
+    fun subCategoryPickerAppearsForASelectedParentWithChildren() {
+        show(loaded.copy(expenseCategoryId = 1,
+            expenseCategories = listOf(Category(1, "Bills", CategoryKind.EXPENSE)),
+            expenseSubCategories = listOf(Category(3, "Internet", CategoryKind.EXPENSE, parentId = 1))))
+
+        compose.onNodeWithText(text(R.string.deduction_expense_subcategory)).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun subCategoryPickerIsAbsentWithoutASelectedParent() {
+        show(loaded)
+
+        compose.onNodeWithText(text(R.string.deduction_expense_subcategory)).assertDoesNotExist()
+    }
+
+    @Test
+    fun subCategoryPickerIsAbsentForAParentWithoutChildren() {
+        show(loaded.copy(expenseCategoryId = 1,
+            expenseCategories = listOf(Category(1, "Bills", CategoryKind.EXPENSE))))
+
+        compose.onNodeWithText(text(R.string.deduction_expense_subcategory)).assertDoesNotExist()
+    }
 
     @Test
     fun nameErrorFromStateShowsAtTheNameField() {
