@@ -79,11 +79,24 @@ private const val ENTRY_ROWS_SQL =
 /** The debt index finds matching entry ids before any headers or sibling legs are read. */
 private const val DEBT_ENTRY_IDS_SQL = "SELECT entryId FROM entry_legs WHERE debtId = :debtId"
 
-/**
- * The ids of the entries with a leg on the account, read off the account index. `IN` keeps each
- * entry once, however many of its legs are on the account.
- */
-private const val ACCOUNT_ENTRY_IDS_SQL = "SELECT entryId FROM entry_legs WHERE accountId = :accountId"
+/** Optional terms leave the date index in charge of the ordered keyset walk. */
+private const val FILTER_TERMS_SQL =
+    "AND (:allTypes " +
+        "OR ('INCOME' IN (:typeGroups) AND (+e.kind IN ('INCOME','EARNED_UNPAID') " +
+        "OR (+e.kind = 'WRITE_OFF' AND EXISTS (SELECT 1 FROM entry_legs t WHERE t.entryId=e.id AND t.role='FORGIVEN' AND t.categoryId IS NOT NULL)))) " +
+        "OR ('EXPENSE' IN (:typeGroups) AND (+e.kind IN ('EXPENSE','REFUND','CREDIT_PURCHASE') " +
+        "OR (+e.kind = 'WRITE_OFF' AND EXISTS (SELECT 1 FROM entry_legs t WHERE t.entryId=e.id AND t.role='LOSS' AND t.categoryId IS NOT NULL)))) " +
+        "OR ('TRANSFER' IN (:typeGroups) AND +e.kind='TRANSFER') " +
+        "OR ('DEBTS' IN (:typeGroups) AND +e.kind IN ('BORROW','LEND','OWED_BEFORE','REPAYMENT'))) " +
+        "AND (:allAccounts OR +e.id IN (SELECT entryId FROM entry_legs WHERE accountId IN (:accountIds))) " +
+        "AND (:allCategories OR EXISTS (SELECT 1 FROM entry_legs c WHERE c.entryId=e.id " +
+        "AND (c.categoryId IN (:categoryIds) OR c.subCategoryId IN (:categoryIds)) AND (" +
+        "(e.kind='INCOME' AND c.role IN ('MAIN','DEDUCTION','FEE')) " +
+        "OR (e.kind='EXPENSE' AND c.role IN ('MAIN','PAID_LATER','FEE')) " +
+        "OR (e.kind IN ('REFUND','CREDIT_PURCHASE','EARNED_UNPAID') AND c.role='MAIN') " +
+        "OR (e.kind='TRANSFER' AND c.role='FEE') " +
+        "OR (e.kind='REPAYMENT' AND c.role IN ('INTEREST_PAID','INTEREST_RECEIVED')) " +
+        "OR (e.kind='WRITE_OFF' AND c.role IN ('LOSS','FORGIVEN'))))) "
 
 /**
  * How many entry ids one `IN (...)` list binds. Older Android ships SQLite builds that refuse more
@@ -200,98 +213,29 @@ interface EntryDao {
             deductionLines = deductionLinesBetween(start, end),
         )
 
-    /**
-     * At most [limit] headers dated [start]..[upper], newest first, that come strictly after the key
-     * ([upper], [beforeId]) in that order. The first page passes the range's end as [upper] and
-     * [Long.MAX_VALUE] as [beforeId], so the key excludes nothing.
-     *
-     * Since every row is dated at most [upper], "after the key" is `date < upper OR id < beforeId`.
-     * Both terms carry a unary `+` so SQLite cannot answer the OR from two indexes and sort the union:
-     * the date index walks backwards from [upper], which is already the order asked for, and the id
-     * rides in that index, so a page costs its own rows however deep it starts. No OFFSET, which
-     * would walk every row it skips.
-     */
+    /** All terms run before LIMIT; each returned header is one matching entry. */
     @Query(
-        "SELECT id, kind, date, note, pairRate FROM entries " +
-            "WHERE date BETWEEN :start AND :upper AND (+date < :upper OR +id < :beforeId) " +
-            "ORDER BY date DESC, id DESC LIMIT :limit",
+        "SELECT e.id,e.kind,e.date,e.note,e.pairRate FROM entries e " +
+            "WHERE e.date BETWEEN :start AND :upper AND (+e.date < :upper OR +e.id < :beforeId) " +
+            FILTER_TERMS_SQL + "ORDER BY e.date DESC,e.id DESC LIMIT :limit",
     )
-    suspend fun headersPage(start: LocalDate, upper: LocalDate, beforeId: Long, limit: Int): List<EntryEntity>
-
-    /**
-     * The legs of the entries from the key ([upper], [beforeId]), exclusive, down to the entry
-     * ([lowest], [lowestId]), inclusive: the entries one [headersPage] returned, when read in the
-     * same transaction. Same order and same plan as [legsBetween].
-     */
-    @Query(
-        "SELECT l.entryId AS entryId, l.id AS legId, l.role AS role, l.position AS position, " +
-            "l.accountId AS accountId, l.debtId AS debtId, l.categoryId AS categoryId, " +
-            "l.subCategoryId AS subCategoryId, l.amount AS amount, l.currencyCode AS currencyCode, " +
-            "l.rateToBase AS rateToBase, d.side AS debtSide " +
-            "FROM entries AS e CROSS JOIN entry_legs AS l ON l.entryId = e.id " +
-            "LEFT JOIN debts AS d ON d.id = l.debtId " +
-            "WHERE e.date BETWEEN :lowest AND :upper AND (+e.date < :upper OR +e.id < :beforeId) " +
-            "AND (+e.date > :lowest OR +e.id >= :lowestId) " +
-            "ORDER BY e.date DESC, e.id DESC, l.position, l.id",
-    )
-    suspend fun legsOfPage(
-        upper: LocalDate,
-        beforeId: Long,
-        lowest: LocalDate,
-        lowestId: Long,
-    ): List<LegRow>
-
-    @Query("SELECT l.* FROM income_deduction_lines l JOIN entries e ON e.id = l.entryId " +
-        "WHERE e.date BETWEEN :lowest AND :upper AND (+e.date < :upper OR +e.id < :beforeId) " +
-        "AND (+e.date > :lowest OR +e.id >= :lowestId) ORDER BY e.date DESC, e.id DESC, l.position")
-    suspend fun deductionLinesOfPage(
-        upper: LocalDate,
-        beforeId: Long,
-        lowest: LocalDate,
-        lowestId: Long,
-    ): List<IncomeDeductionLineEntity>
-
-    /**
-     * [headersPage] and the legs of exactly those entries as one snapshot, so a write between the two
-     * statements cannot hand a header someone else's legs.
-     */
-    @Transaction
-    suspend fun readPage(start: LocalDate, upper: LocalDate, beforeId: Long, limit: Int): EntryRangeRows {
-        val headers = headersPage(start, upper, beforeId, limit)
-        val last = headers.lastOrNull() ?: return EntryRangeRows(headers = emptyList(), legs = emptyList())
-        return EntryRangeRows(
-            headers = headers,
-            legs = legsOfPage(upper, beforeId, last.date, last.id),
-            deductionLines = deductionLinesOfPage(upper, beforeId, last.date, last.id),
-        )
-    }
-
-    /**
-     * [headersPage] for the entries with a leg on [accountId]: same key, same order, same limit.
-     *
-     * The account index builds the list of matching ids once, and the date index then walks the
-     * entries newest first, keeping those on the list, so the limit counts matches only and no
-     * sort is needed. The `+` on `id IN` keeps SQLite from looking the entries up by id from that
-     * list instead, which would lose the date order and sort every match before the limit.
-     */
-    @Query(
-        "SELECT id, kind, date, note, pairRate FROM entries " +
-            "WHERE +id IN ($ACCOUNT_ENTRY_IDS_SQL) " +
-            "AND date BETWEEN :start AND :upper AND (+date < :upper OR +id < :beforeId) " +
-            "ORDER BY date DESC, id DESC LIMIT :limit",
-    )
-    suspend fun accountHeadersPage(
-        accountId: Long,
+    suspend fun filteredHeadersPage(
         start: LocalDate,
         upper: LocalDate,
         beforeId: Long,
         limit: Int,
+        typeGroups: List<String>,
+        allTypes: Boolean,
+        accountIds: List<Long>,
+        allAccounts: Boolean,
+        categoryIds: List<Long>,
+        allCategories: Boolean,
     ): List<EntryEntity>
 
     /**
      * Every leg, not only the account's, of the entries with these ids, with the side of any debt
      * they point at. Each id is a lookup on the `(entryId, position)` index, so the read costs the
-     * listed entries' own legs. No order: [readAccountPage] puts the rows in page order itself.
+     * listed entries' own legs. No order: [readFilteredPage] puts the rows in page order itself.
      */
     @Query(
         "SELECT l.entryId AS entryId, l.id AS legId, l.role AS role, l.position AS position, " +
@@ -307,24 +251,27 @@ interface EntryDao {
     @Query("SELECT * FROM income_deduction_lines WHERE entryId IN (:entryIds)")
     suspend fun deductionLinesOfEntries(entryIds: List<Long>): List<IncomeDeductionLineEntity>
 
-    /**
-     * [accountHeadersPage] and the complete legs and deduction lines of exactly those entries as one
-     * snapshot, like [readPage].
-     *
-     * The header read builds the account's id list once per page, so that statement grows with the
-     * number of legs on the account. The legs and lines are then read by the page's own entry ids
-     * and cost those entries only, then sorted here into the order [EntryRangeRows] promises: by
-     * entry in header order, legs by position then id, lines by position.
-     */
+    /** Complete receipts for exactly the filtered headers, sharing one database snapshot. */
     @Transaction
-    suspend fun readAccountPage(
-        accountId: Long,
+    suspend fun readFilteredPage(
         start: LocalDate,
         upper: LocalDate,
         beforeId: Long,
         limit: Int,
+        typeGroups: List<String>,
+        allTypes: Boolean,
+        accountIds: List<Long>,
+        allAccounts: Boolean,
+        categoryIds: List<Long>,
+        allCategories: Boolean,
     ): EntryRangeRows {
-        val headers = accountHeadersPage(accountId, start, upper, beforeId, limit)
+        val batches = filterQueryBatches(typeGroups, accountIds, categoryIds)
+        val headers = mergeFilteredHeaders(batches.flatMap { batch ->
+            filteredHeadersPage(
+                start, upper, beforeId, limit, batch.typeGroups, allTypes,
+                batch.accountIds, allAccounts, batch.categoryIds, allCategories,
+            )
+        }, limit)
         if (headers.isEmpty()) return EntryRangeRows(headers = emptyList(), legs = emptyList())
         val chunks = headers.map { it.id }.chunked(ENTRY_ID_CHUNK)
         val rankById = headers.withIndex().associate { (index, header) -> header.id to index }

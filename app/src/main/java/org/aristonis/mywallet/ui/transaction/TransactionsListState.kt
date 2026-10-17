@@ -1,5 +1,8 @@
 package org.aristonis.mywallet.ui.transaction
 
+import org.aristonis.mywallet.domain.model.Account
+import org.aristonis.mywallet.domain.model.Category
+import org.aristonis.mywallet.domain.model.TransactionFilter
 import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
@@ -92,7 +95,10 @@ data class TransactionRow(
     val owedAmountDisplay: String? = null,
     val owedTo: String? = null,
     val paidNowDisplay: String? = null,
+    val matchedParts: List<TransactionMatchedPart> = emptyList(),
 )
+
+data class TransactionMatchedPart(val category: CategoryLabel, val amount: Money, val amountDisplay: String)
 
 /** How a day reads against the device's current date. */
 enum class DayRelation { TODAY, YESTERDAY, EARLIER }
@@ -116,6 +122,9 @@ private val EVERYTHING: TrackingWindow = TrackingWindow.Period(TrackingPeriod.AL
 /** Immutable snapshot the transactions list renders from. */
 data class TransactionsUiState(
     val sections: List<TransactionSection> = emptyList(),
+    val filter: TransactionFilter = TransactionFilter(),
+    val filterAccounts: List<Account> = emptyList(),
+    val filterCategories: List<Category> = emptyList(),
     val isLoading: Boolean = true,
     /** The dates the list is narrowed to; the [sections] always belong to this window. */
     val window: TrackingWindow = EVERYTHING,
@@ -124,6 +133,7 @@ data class TransactionsUiState(
      * would simply be missing from the list the user returns to, so the screen offers to show it.
      */
     val savedOutsideWindow: LocalDate? = null,
+    val savedEntryFailure: UiMessage? = null,
     /**
      * The window's transactions could not be read. The screen says so instead of listing nothing:
      * an empty list would read as "nothing in these dates", which is a different, wrong statement.
@@ -153,5 +163,5 @@ data class TransactionsUiState(
      * narrower window it means "nothing in these dates", and the screen must not confuse the two.
      */
     val showsEverything: Boolean
-        get() = (window as? TrackingWindow.Period)?.period == TrackingPeriod.ALL_TIME
+        get() = filter == TransactionFilter() && (window as? TrackingWindow.Period)?.period == TrackingPeriod.ALL_TIME
 }

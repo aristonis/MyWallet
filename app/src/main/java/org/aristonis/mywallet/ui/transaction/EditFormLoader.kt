@@ -51,7 +51,7 @@ internal class EditFormLoader(
         note = tx.note ?: "",
         isSubmitting = false,
         error = null,
-        savedOn = null,
+        savedOn = null, savedId = null,
         deleted = false,
         undoableDelete = null,
         rateInputs = emptyMap(),

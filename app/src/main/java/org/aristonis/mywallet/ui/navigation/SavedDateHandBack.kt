@@ -56,3 +56,24 @@ internal fun SavedDateEffect(entry: NavBackStackEntry, onSaved: (LocalDate) -> U
         }
     }
 }
+
+
+private const val SAVED_ENTRY_KEY = "savedEntry"
+
+internal fun NavHostController.returnSavedEntry(id: Long, date: LocalDate) {
+    runCatching { getBackStackEntry(WalletTab.TRANSACTIONS.rootRoute) }.getOrNull()
+        ?.savedStateHandle?.set(SAVED_ENTRY_KEY, longArrayOf(id, date.toEpochDay()))
+    popBackStack()
+}
+
+@Composable
+internal fun SavedEntryEffect(entry: NavBackStackEntry, onSaved: (Long, LocalDate) -> Unit) {
+    val currentOnSaved by rememberUpdatedState(onSaved)
+    LaunchedEffect(entry) {
+        val handle = entry.savedStateHandle
+        handle.getStateFlow<LongArray?>(SAVED_ENTRY_KEY, null).filterNotNull().collect { saved ->
+            handle[SAVED_ENTRY_KEY] = null
+            if (saved.size == 2) currentOnSaved(saved[0], LocalDate.ofEpochDay(saved[1]))
+        }
+    }
+}

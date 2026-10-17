@@ -14,6 +14,8 @@ import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.model.TransactionFilter
+import org.aristonis.mywallet.domain.service.TransactionFilterMatch
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.CategoryLeg
 import org.aristonis.mywallet.domain.port.DebtLeg
@@ -65,8 +67,13 @@ class FakeEntryRepository(initial: List<Transaction> = emptyList()) : EntryRepos
     }
 
     override fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>> =
+        observePage(range, after, limit, TransactionFilter())
+
+    override fun observePage(
+        range: DateRange, after: EntryKey?, limit: Int, filter: TransactionFilter,
+    ): Flow<List<Transaction>> =
         store.map { rows ->
-            rows.filter { it.header.date in range }
+            rows.filter { it.header.date in range && TransactionFilterMatch.matches(it, filter) }
                 .sortedWith(NEWEST_FIRST)
                 .filter { after == null || it.header.isBefore(after) }
                 .take(limit)

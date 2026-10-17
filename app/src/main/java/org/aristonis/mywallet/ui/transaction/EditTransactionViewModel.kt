@@ -164,7 +164,7 @@ class EditTransactionViewModel @Inject constructor(
         mutate {
             it.copy(
                 paidLater = PaidLaterFormState(), loaded = null, type = null, isSubmitting = false, error = null,
-                savedOn = null, deleted = false, undoableDelete = null, rateInputs = emptyMap(), readOnly = false,
+                savedOn = null, savedId = null, deleted = false, undoableDelete = null, rateInputs = emptyMap(), readOnly = false,
                 counterparty = "", currencyCode = null, debtId = null, counterpartySuggestions = emptyList(),
                 deductions = it.deductions.copy(drafts = emptyList()),
             )
@@ -266,7 +266,7 @@ class EditTransactionViewModel @Inject constructor(
     fun setNote(text: String) = _state.update { it.copy(note = text) }
 
     /** Clear the one-shot `savedOn` signal after the screen has navigated away, so a re-open won't bounce. */
-    fun acknowledgeSaved() = _state.update { it.copy(savedOn = null, error = null) }
+    fun acknowledgeSaved() = _state.update { it.copy(savedOn = null, savedId = null, error = null) }
 
     /** Clear the one-shot `deleted` signal after the screen has navigated away. */
     fun acknowledgeDeleted() = _state.update { it.copy(deleted = false, error = null) }
@@ -341,7 +341,7 @@ class EditTransactionViewModel @Inject constructor(
                     dueDate = snapshot.paidLater.dueDate.takeIf { snapshot.type == TransactionType.EXPENSE && snapshot.paidLater.enabled },
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )
-                _state.update { it.copy(isSubmitting = false, savedOn = saved.date) }
+                _state.update { it.copy(isSubmitting = false, savedOn = saved.date, savedId = saved.id) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

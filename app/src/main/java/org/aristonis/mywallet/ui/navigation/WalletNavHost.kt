@@ -220,7 +220,8 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
             route = tab.addTransactionPattern(),
             arguments = addTransactionArguments(),
         ) {
-            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) })
+            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) },
+                onSavedEntry = { id, date -> nav.returnSavedEntry(id, date) })
         }
         composable(tab.child(Leaf.ADD_ACCOUNT)) {
             AddAccountScreen(onDone = { nav.popBackStack() })
@@ -281,6 +282,7 @@ private fun NavGraphBuilder.homeGraph(nav: NavHostController) {
                 transactionId = id,
                 onDone = { nav.popBackStack() },
                 onSaved = { date -> nav.returnSavedDate(date) },
+                onSavedEntry = { id, date -> nav.returnSavedEntry(id, date) },
             )
         }
     }
@@ -294,6 +296,7 @@ private fun NavGraphBuilder.transactionsGraph(nav: NavHostController) {
         composable(tab.rootRoute) { entry ->
             val viewModel: TransactionsListViewModel = hiltViewModel()
             SavedDateEffect(entry, viewModel::onEntrySaved)
+            SavedEntryEffect(entry, viewModel::onEntrySaved)
             TransactionsListScreen(
                 onAddTransaction = { nav.navigate(tab.child(Leaf.ADD_TRANSACTION)) },
                 onOpenTransaction = { id -> nav.navigate(tab.child(Leaf.TRANSACTION_DETAIL, id)) },
@@ -301,13 +304,15 @@ private fun NavGraphBuilder.transactionsGraph(nav: NavHostController) {
             )
         }
         composable(tab.child(Leaf.ADD_TRANSACTION)) {
-            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) })
+            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) },
+                onSavedEntry = { id, date -> nav.returnSavedEntry(id, date) })
         }
         editorRoute(tab, Leaf.EDIT_TRANSACTION) { id ->
             EditTransactionScreen(
                 transactionId = id,
                 onDone = { nav.popBackStack() },
                 onSaved = { date -> nav.returnSavedDate(date) },
+                onSavedEntry = { id, date -> nav.returnSavedEntry(id, date) },
             )
         }
         transactionDetailRoute(tab, nav)
@@ -375,13 +380,15 @@ private fun NavGraphBuilder.settingsGraph(nav: NavHostController) {
         transactionDetailRoute(tab, nav)
         // Reached from an account's page, which can start an entry for that account.
         composable(route = tab.addTransactionPattern(), arguments = addTransactionArguments()) {
-            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) })
+            AddTransactionScreen(onDone = { nav.popBackStack() }, onSaved = { date -> nav.returnSavedDate(date) },
+                onSavedEntry = { id, date -> nav.returnSavedEntry(id, date) })
         }
         editorRoute(tab, Leaf.EDIT_TRANSACTION) { id ->
             EditTransactionScreen(
                 transactionId = id,
                 onDone = { nav.popBackStack() },
                 onSaved = { date -> nav.returnSavedDate(date) },
+                onSavedEntry = { id, date -> nav.returnSavedEntry(id, date) },
             )
         }
         composable(tab.child(Leaf.ADD_ACCOUNT)) {

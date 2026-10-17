@@ -37,6 +37,7 @@ data class EditTransactionUiState(
     val errorIsAmountInput: Boolean = false,
     /** The date the save stored the entry under; set once by a save, cleared by acknowledging it. */
     val savedOn: LocalDate? = null,
+    val savedId: Long? = null,
     val deleted: Boolean = false,
     // What [EditTransactionViewModel.delete] removed, held while the Undo affordance is up so it can be
     // put back. Non-null means "deleted, but still undoable"; navigation waits until the user undoes or

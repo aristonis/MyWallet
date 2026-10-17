@@ -30,6 +30,8 @@ import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.NameKey
 import org.aristonis.mywallet.domain.model.Settings
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.model.TransactionFilter
+import org.aristonis.mywallet.domain.service.TransactionFilterMatch
 import org.aristonis.mywallet.domain.port.AccountLeg
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryLeg
@@ -216,6 +218,11 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
 
     /** Newest first, strictly after [after], like the real keyset read; re-emits on every write. */
     override fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>> =
+        observePage(range, after, limit, TransactionFilter())
+
+    override fun observePage(
+        range: DateRange, after: EntryKey?, limit: Int, filter: TransactionFilter,
+    ): Flow<List<Transaction>> =
         flow<List<Transaction>> {
             if (range == unreadableRange) throw IllegalStateException("a stored row could not be read")
             if (failedReadsLeft > 0) {
@@ -225,7 +232,7 @@ internal class FakeEntryRepository(initial: List<Transaction> = emptyList()) : E
             if (hangsAfterFailures) awaitCancellation()
             emitAll(items)
         }.map { all ->
-            all.filter { it.date in range }
+            all.filter { it.date in range && TransactionFilterMatch.matches(it, filter) }
                 .sortedWith(compareByDescending<Transaction> { it.date }.thenByDescending { it.id })
                 .filter { after == null || it.date < after.date || (it.date == after.date && it.id < after.id) }
                 .take(limit)

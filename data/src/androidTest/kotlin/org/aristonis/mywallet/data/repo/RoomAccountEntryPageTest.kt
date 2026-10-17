@@ -213,7 +213,7 @@ class RoomAccountEntryPageTest {
                 "VALUES ($id, 'FEE', 9, $mine, '-1.00', 'USD')",
         )
 
-        val headers = db.entryDao().accountHeadersPage(mine, day, day, Long.MAX_VALUE, 10)
+        val headers = db.entryDao().filteredHeadersPage(day, day, Long.MAX_VALUE, 10, emptyList(), true, listOf(mine), false, emptyList(), true)
 
         assertEquals(listOf(id), headers.map { it.id })
     }

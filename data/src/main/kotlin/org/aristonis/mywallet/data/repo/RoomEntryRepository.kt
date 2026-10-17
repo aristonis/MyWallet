@@ -14,6 +14,7 @@ import org.aristonis.mywallet.domain.error.WalletException
 import org.aristonis.mywallet.domain.ledger.toParts
 import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.model.TransactionFilter
 import org.aristonis.mywallet.domain.port.AccountEntryReader
 import org.aristonis.mywallet.domain.port.EntryKey
 import org.aristonis.mywallet.domain.port.EntryRepository
@@ -31,21 +32,13 @@ class RoomEntryRepository(
     private val dao: EntryDao,
 ) : EntryRepository, AccountEntryReader {
 
-    /**
-     * [observePage] narrowed to the entries with a leg on [accountId]. The filter runs in
-     * [EntryDao.readAccountPage], so the limit counts the account's entries only.
-     */
+    /** Account detail shares the filtered query and reads every leg of its matching entries. */
     override fun observeAccountPage(
         accountId: Long,
         range: DateRange,
         after: EntryKey?,
         limit: Int,
-    ): Flow<List<Transaction>> {
-        val (upper, beforeId) = pageBounds(range, after, limit)
-        return database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {
-            dao.readAccountPage(accountId, range.start, upper, beforeId, limit).toTransactions()
-        }
-    }
+    ): Flow<List<Transaction>> = observePage(range, after, limit, TransactionFilter(accountIds = setOf(accountId)))
 
     override fun observeAll(): Flow<List<Transaction>> = observeBetween(DateRange.ALL_TIME)
 
@@ -69,11 +62,24 @@ class RoomEntryRepository(
             dao.readBetween(range.start, range.endInclusive).toTransactions()
         }
 
-    /** One keyset page, re-read on the same tables as [observeBetween]. */
-    override fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>> {
+    override fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>> =
+        observePage(range, after, limit, TransactionFilter())
+
+    /** Filters the headers before LIMIT, then reconstructs only those entries in one snapshot. */
+    override fun observePage(
+        range: DateRange,
+        after: EntryKey?,
+        limit: Int,
+        filter: TransactionFilter,
+    ): Flow<List<Transaction>> {
         val (upper, beforeId) = pageBounds(range, after, limit)
         return database.invalidationTracker.createFlow(*ENTRY_READ_TABLES).conflate().map {
-            dao.readPage(range.start, upper, beforeId, limit).toTransactions()
+            dao.readFilteredPage(
+                range.start, upper, beforeId, limit,
+                filter.types.map { it.name }, filter.types.isEmpty(),
+                filter.accountIds.toList(), filter.accountIds.isEmpty(),
+                filter.categoryIds.toList(), filter.categoryIds.isEmpty(),
+            ).toTransactions()
         }
     }
 

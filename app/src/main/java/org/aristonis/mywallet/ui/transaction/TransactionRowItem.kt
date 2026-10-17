@@ -55,15 +55,16 @@ internal fun TransactionRowItem(row: TransactionRow, onClick: () -> Unit) {
 
 @Composable
 private fun StandardTransactionRow(row: TransactionRow, role: AmountRole, onClick: () -> Unit) {
+    val hasSupportingDetails = row.type == TransactionRowType.INCOME || row.owedAmount != null || row.matchedParts.isNotEmpty()
     WalletListRow(
         headline = headline(row),
         supporting = supporting(row),
         leadingIcon = row.type.icon(),
         leadingIconDescription = kindLabel(row.type),
         leadingIconTint = amountColor(role),
-        trailing = { TrailingAmounts(row, role) },
+        trailing = { TrailingAmounts(row, role, showDetails = !hasSupportingDetails) },
         onClick = onClick,
-        supportingContent = if (row.type == TransactionRowType.INCOME || row.owedAmount != null) {
+        supportingContent = if (hasSupportingDetails) {
             { AmountDetails(row, role) }
         } else {
             null
@@ -107,7 +108,7 @@ private fun CompactTransferRow(row: TransactionRow, onClick: () -> Unit) {
 
 /** Income keeps only its movement here so receipt details cannot squeeze the title. */
 @Composable
-private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
+private fun TrailingAmounts(row: TransactionRow, role: AmountRole, showDetails: Boolean = true) {
     Column(horizontalAlignment = Alignment.End) {
         val roleColor = amountColor(role)
         MoneyText(
@@ -121,7 +122,7 @@ private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
             style = MaterialTheme.typography.titleMedium,
             color = roleColor,
         )
-        if (row.type != TransactionRowType.INCOME && row.owedAmount == null) AmountDetails(row, role)
+        if (showDetails) AmountDetails(row, role)
     }
 }
 
@@ -129,6 +130,9 @@ private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
 @Composable
 private fun AmountDetails(row: TransactionRow, role: AmountRole) {
     Column(horizontalAlignment = if (row.type == TransactionRowType.INCOME || row.owedAmount != null) Alignment.Start else Alignment.End) {
+        row.matchedParts.forEach { part ->
+            Text(stringResource(R.string.transaction_filter_matched_part, part.category.text(), bidiIsolate(part.amountDisplay)))
+        }
         val hasDeductionDetails = row.type == TransactionRowType.INCOME && row.deductions.isNotEmpty()
         if (hasDeductionDetails) IncomeReceiptDetails(row)
         if (role != AmountRole.NEUTRAL && !hasDeductionDetails) BaseAmount(row.countedBaseAmountDisplay)

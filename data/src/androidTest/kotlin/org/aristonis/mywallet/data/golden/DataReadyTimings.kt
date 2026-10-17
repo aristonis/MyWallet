@@ -85,3 +85,35 @@ private const val NANOS_PER_MILLI = 1_000_000L
 
 /** What the transactions list asks for when it opens: one page of 100 plus one to tell if more exist. */
 private const val LIST_FIRST_READ = 101
+
+/** Nanoseconds retain useful precision when a cached page takes less than a millisecond. */
+internal suspend fun captureFilteredTimings(db: WalletDatabase, runs: Int = 7): Map<String, Long> {
+    require(runs > 0 && runs % 2 == 1)
+    val repository = RoomEntryRepository(db, db.entryDao())
+    val dates = repository.observeAll().first().map { it.date }
+    check(dates.isNotEmpty()) { "timing seed holds no entries" }
+    val month = YearMonth.from(dates.max())
+    val ranges = linkedMapOf("month" to DateRange(month.atDay(1), month.atEndOfMonth()),
+        "all-time" to DateRange.ALL_TIME)
+    val result = linkedMapOf<String, Long>()
+    for ((label, range) in ranges) {
+        suspend fun read(type: org.aristonis.mywallet.domain.model.TypeGroup) {
+            repository.observePage(range, null, LIST_FIRST_READ,
+                org.aristonis.mywallet.domain.model.TransactionFilter(types = if (type == org.aristonis.mywallet.domain.model.TypeGroup.ALL) emptySet() else setOf(type))).first()
+        }
+        for (type in org.aristonis.mywallet.domain.model.TypeGroup.entries) read(type)
+        val samples = org.aristonis.mywallet.domain.model.TypeGroup.entries.associateWith { mutableListOf<Long>() }
+        // Rotate order so the same chip does not always pay the first-read/cache cost.
+        repeat(runs) { run ->
+            val types = org.aristonis.mywallet.domain.model.TypeGroup.entries
+            for (offset in types.indices) {
+                val type = types[(run + offset) % types.size]
+                val start = System.nanoTime()
+                read(type)
+                samples.getValue(type) += System.nanoTime() - start
+            }
+        }
+        for ((type, values) in samples) result["$label/${type.name}"] = values.sorted()[runs / 2]
+    }
+    return result
+}

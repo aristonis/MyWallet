@@ -323,7 +323,7 @@ class AddTransactionViewModel @Inject constructor(
      */
     fun acknowledgeSaved() = mutate {
         it.copy(
-            savedOn = null,
+            savedOn = null, savedId = null,
             amountInput = "",
             paidLater = PaidLaterFormState(),
             note = "",
@@ -375,7 +375,7 @@ class AddTransactionViewModel @Inject constructor(
                     dueDate = snapshot.paidLater.dueDate.takeIf { snapshot.type == TransactionType.EXPENSE && snapshot.paidLater.enabled },
                     typedRates = quoter.typedRates(snapshot.quoteInput(), snapshot.rateFields),
                 )
-                _state.update { it.copy(isSubmitting = false, savedOn = saved.date) }
+                _state.update { it.copy(isSubmitting = false, savedOn = saved.date, savedId = saved.id) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

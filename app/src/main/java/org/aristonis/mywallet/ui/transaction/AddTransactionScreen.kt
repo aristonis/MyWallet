@@ -87,13 +87,15 @@ import java.time.ZoneOffset
 fun AddTransactionScreen(
     onDone: () -> Unit,
     onSaved: (LocalDate) -> Unit,
+    onSavedEntry: ((Long, LocalDate) -> Unit)? = null,
     viewModel: AddTransactionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.savedOn) {
         // The date the save stored, not the form's: acknowledging resets the form for the next entry.
         state.savedOn?.let { savedOn ->
-            onSaved(savedOn)
+            val id = state.savedId
+            if (id != null && onSavedEntry != null) onSavedEntry(id, savedOn) else onSaved(savedOn)
             viewModel.acknowledgeSaved() // reset the retained flag so a re-open doesn't bounce back
         }
     }

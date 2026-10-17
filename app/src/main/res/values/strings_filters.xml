@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="transaction_filter_all">All</string>
+    <string name="transaction_filter_income">Income</string>
+    <string name="transaction_filter_expense">Expense</string>
+    <string name="transaction_filter_transfer">Transfer</string>
+    <string name="transaction_filter_debts">Debts</string>
+    <string name="transaction_filter_button">Filter</string>
+    <string name="transaction_filter_account">Account</string>
+    <string name="transaction_filter_category">Category</string>
+    <string name="transaction_filter_clear">Clear all</string>
+    <string name="transaction_filter_matched_part">%1$s %2$s</string>
+    <string name="transaction_filter_saved_outside">Saved outside this filter</string>
+    <string name="transaction_filter_empty_income">No income in this period</string>
+    <string name="transaction_filter_empty_expense">No expenses in this period</string>
+    <string name="transaction_filter_empty_transfer">No transfers in this period</string>
+    <string name="transaction_filter_empty_debts">No debts in this period</string>
+    <string name="transaction_filter_empty_named">Nothing in %1$s in this period</string>
+    <string name="transaction_filter_empty_combined">Nothing matching %1$s in this period</string>
+    <string name="transaction_filter_category_child">%1$s › %2$s</string>
+</resources>

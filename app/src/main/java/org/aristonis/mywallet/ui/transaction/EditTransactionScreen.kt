@@ -72,6 +72,7 @@ fun EditTransactionScreen(
     transactionId: Long,
     onDone: () -> Unit,
     onSaved: (LocalDate) -> Unit,
+    onSavedEntry: ((Long, LocalDate) -> Unit)? = null,
     viewModel: EditTransactionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -80,7 +81,8 @@ fun EditTransactionScreen(
     LaunchedEffect(transactionId) { viewModel.load(transactionId) }
     LaunchedEffect(state.savedOn) {
         state.savedOn?.let { savedOn ->
-            onSaved(savedOn)
+            val id = state.savedId
+            if (id != null && onSavedEntry != null) onSavedEntry(id, savedOn) else onSaved(savedOn)
             viewModel.acknowledgeSaved()
         }
     }

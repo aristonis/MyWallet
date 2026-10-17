@@ -36,6 +36,7 @@ data class AddTransactionUiState(
     val errorIsAmountInput: Boolean = false,
     /** The date the save stored the entry under; set once by a save, cleared by acknowledging it. */
     val savedOn: LocalDate? = null,
+    val savedId: Long? = null,
     /** Rates typed on the form, by currency code; kept across type and account changes. */
     val rateInputs: Map<String, String> = emptyMap(),
     /** An income's deductions; empty and unused for every other type. */

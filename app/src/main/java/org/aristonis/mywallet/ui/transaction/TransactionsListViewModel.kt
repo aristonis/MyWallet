@@ -16,11 +16,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import org.aristonis.mywallet.data.format.MoneyFormatter
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
+import org.aristonis.mywallet.domain.model.TransactionFilter
+import org.aristonis.mywallet.domain.model.TypeGroup
+import org.aristonis.mywallet.domain.service.TransactionFilterMatch
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.AccountRepository
 import org.aristonis.mywallet.domain.port.CategoryRepository
@@ -48,20 +54,24 @@ import kotlin.coroutines.cancellation.CancellationException
  */
 private sealed interface WindowedTransactions {
     val window: TrackingWindow
+    val filter: TransactionFilter
 
     /** [failure] is what the user is told: an unreadable row, or the generic failure. */
-    data class Failed(override val window: TrackingWindow, val failure: UiMessage) : WindowedTransactions
+    data class Loading(override val window: TrackingWindow, override val filter: TransactionFilter) : WindowedTransactions
+
+    data class Failed(override val window: TrackingWindow, override val filter: TransactionFilter, val failure: UiMessage) : WindowedTransactions
 
     /** The window's pages loaded so far. */
-    data class Read(override val window: TrackingWindow, val pages: LoadedPages) : WindowedTransactions
+    data class Read(override val window: TrackingWindow, override val filter: TransactionFilter, val pages: LoadedPages) : WindowedTransactions
 }
 
 /**
  * How many pages the user has scrolled into, and in which window. Any other window opens on one
  * page; a null [window] is the state after the dates were changed.
  */
-private data class PagesWanted(val window: TrackingWindow?, val pages: Int) {
-    fun pagesFor(current: TrackingWindow): Int = if (current == window) pages else 1
+private data class PagesWanted(val window: TrackingWindow?, val pages: Int, val filter: TransactionFilter = TransactionFilter()) {
+    fun pagesFor(current: TrackingWindow, currentFilter: TransactionFilter = TransactionFilter()): Int =
+        if (current == window && currentFilter == filter) pages else 1
 
     companion object {
         val FIRST = PagesWanted(window = null, pages = 1)
@@ -97,7 +107,7 @@ private data class PagesWanted(val window: TrackingWindow?, val pages: Int) {
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class TransactionsListViewModel @Inject constructor(
-    entries: EntryRepository,
+    private val entries: EntryRepository,
     accounts: AccountRepository,
     categories: CategoryRepository,
     currencies: CurrencyRepository,
@@ -123,6 +133,10 @@ class TransactionsListViewModel @Inject constructor(
      * the section building because all time never moves when the day changes: without it, a list
      * left open overnight would keep calling yesterday "Today".
      */
+    private val filterHolder = TransactionFilterHolder(savedStateHandle)
+    private var savedLookup: Job? = null
+    private var savedGeneration = 0L
+
     private val currentDay = MutableStateFlow(today.today())
 
     /** Starts the window's read and the lookups over on [retry]. */
@@ -134,7 +148,6 @@ class TransactionsListViewModel @Inject constructor(
      */
     private val pagesWanted = MutableStateFlow(PagesWanted.FIRST)
 
-    private val pages = TransactionPages(entries::observePage, PAGE_SIZE)
 
     /**
      * The window's pages. Only the page count for this window is followed, so a page asked for
@@ -147,14 +160,17 @@ class TransactionsListViewModel @Inject constructor(
      * its reads stopped reads again.
      */
     private val windowed: Flow<WindowedTransactions> =
-        holder.window.flatMapLatest { window ->
-            val wanted = pagesWanted.map { it.pagesFor(window) }.distinctUntilChanged()
+        combine(holder.window, filterHolder.filter) { window, filter -> window to filter }
+            .flatMapLatest { (window, filter) ->
+            val wanted = pagesWanted.map { it.pagesFor(window, filter) }.distinctUntilChanged()
+            val pages = TransactionPages({ range, after, limit -> entries.observePage(range, after, limit, filter) }, PAGE_SIZE)
             pages.observe(window.range, wanted)
-                .map<LoadedPages, WindowedTransactions> { loaded -> WindowedTransactions.Read(window, loaded) }
+                .map<LoadedPages, WindowedTransactions> { loaded -> WindowedTransactions.Read(window, filter, loaded) }
+                .onStart { emit(WindowedTransactions.Loading(window, filter)) }
                 .catch { error ->
                     if (error is CancellationException) throw error
                     errors.report("Transactions for ${window.range} could not be read", error)
-                    emit(WindowedTransactions.Failed(window, error.toLoadFailure()))
+                    emit(WindowedTransactions.Failed(window, filter, error.toLoadFailure()))
                 }
         }
 
@@ -193,6 +209,7 @@ class TransactionsListViewModel @Inject constructor(
 
     /** The date of an entry saved outside the window, until the user acts on it or lets it go. */
     private val savedOutside = MutableStateFlow<LocalDate?>(null)
+    private val savedEntryFailure = MutableStateFlow<UiMessage?>(null)
 
     /**
      * The sections are built inside the combine, upstream of [flowOn], so the building happens on
@@ -208,21 +225,22 @@ class TransactionsListViewModel @Inject constructor(
      * [windowed], in [lookups], in [healthFailure] and in [stateFor].
      */
     val state: StateFlow<TransactionsUiState> =
-        attempts.reading(loading = { TransactionsUiState(window = holder.window.value) }) {
+        attempts.reading(loading = { TransactionsUiState(window = holder.window.value, filter = filterHolder.filter.value) }) {
             combine(windowed, lookups, healthFailure, currentDay) { read, lookup, failure, day ->
-                if (failure == null) stateFor(read, lookup, day) else failedState(read.window, failure)
+                if (failure == null) stateFor(read, lookup, day) else failedState(read.window, failure, read.filter)
             }
         }
             .flowOn(defaultDispatcher)
             .combine(savedOutside) { built, saved -> built.copy(savedOutsideWindow = saved) }
+            .combine(savedEntryFailure) { built, failure -> built.copy(savedEntryFailure = failure) }
             .combine(pagesWanted) { built, wanted ->
                 // Rows short of the pages asked for, while more exist, are the next page on its way.
-                built.copy(isLoadingMore = built.hasMore && built.rowCount < wanted.pagesFor(built.window) * PAGE_SIZE)
+                built.copy(isLoadingMore = built.hasMore && built.rowCount < wanted.pagesFor(built.window, built.filter) * PAGE_SIZE)
             }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                TransactionsUiState(window = holder.window.value),
+                TransactionsUiState(window = holder.window.value, filter = filterHolder.filter.value),
             )
 
     /** The date bar's callbacks, already wired to this screen's window. */
@@ -244,7 +262,7 @@ class TransactionsListViewModel @Inject constructor(
      */
     private inline fun movingDates(move: () -> Unit) {
         val before = holder.window.value
-        savedOutside.value = null
+        clearSavedMessage()
         move()
         if (holder.window.value != before) pagesWanted.value = PagesWanted.FIRST
     }
@@ -263,13 +281,14 @@ class TransactionsListViewModel @Inject constructor(
     fun loadMore() {
         val shown = state.value
         val window = holder.window.value
-        if (shown.window != window) {
-            pagesWanted.update { wanted -> PagesWanted(window, maxOf(wanted.pagesFor(window), 2)) }
+        val filter = filterHolder.filter.value
+        if (shown.window != window || shown.filter != filter) {
+            pagesWanted.update { wanted -> PagesWanted(window, maxOf(wanted.pagesFor(window, filter), 2), filter) }
             return
         }
         if (!shown.hasMore || shown.isLoading || shown.loadFailed) return
         val next = shown.rowCount / PAGE_SIZE + 1
-        pagesWanted.update { wanted -> PagesWanted(window, maxOf(wanted.pagesFor(window), next)) }
+        pagesWanted.update { wanted -> PagesWanted(window, maxOf(wanted.pagesFor(window, filter), next), filter) }
     }
 
     /**
@@ -288,6 +307,7 @@ class TransactionsListViewModel @Inject constructor(
      * message, so a save inside the dates also clears one the user never answered.
      */
     fun onEntrySaved(date: LocalDate) {
+        clearSavedMessage()
         savedOutside.value = date.takeUnless { it in holder.window.value.range }
     }
 
@@ -297,6 +317,7 @@ class TransactionsListViewModel @Inject constructor(
      */
     fun showSavedEntry() {
         val date = savedOutside.value ?: return
+        clearFilters()
         movingDates { holder.jumpTo(date) }
     }
 
@@ -307,8 +328,48 @@ class TransactionsListViewModel @Inject constructor(
     fun retry() = attempts.retry()
 
     /** The user let the message go; the window stays where they put it. */
-    fun dismissSavedEntryMessage() {
+    fun dismissSavedEntryMessage() = clearSavedMessage()
+
+    private fun clearSavedMessage() {
+        savedGeneration++
+        savedLookup?.cancel()
         savedOutside.value = null
+        savedEntryFailure.value = null
+    }
+
+    fun toggleType(type: TypeGroup) = changingFilter { filterHolder.toggleType(type) }
+    fun toggleAccount(id: Long) = changingFilter { filterHolder.toggleAccount(id) }
+    fun clearAccounts() = changingFilter { filterHolder.clearAccounts() }
+    fun toggleCategory(id: Long) = changingFilter { filterHolder.toggleCategory(id) }
+    fun clearCategories() = changingFilter { filterHolder.clearCategories() }
+    fun clearFilters() = changingFilter { filterHolder.clear() }
+
+    private inline fun changingFilter(change: () -> Unit) {
+        val before = filterHolder.filter.value
+        change()
+        if (before != filterHolder.filter.value) {
+            pagesWanted.value = PagesWanted.FIRST
+            clearSavedMessage()
+        }
+    }
+
+    fun onEntrySaved(id: Long, date: LocalDate) {
+        clearSavedMessage()
+        val generation = savedGeneration
+        val window = holder.window.value
+        val filter = filterHolder.filter.value
+        savedLookup = viewModelScope.launch {
+            try {
+                val entry = entries.findById(id) ?: return@launch
+                if (generation != savedGeneration || window != holder.window.value || filter != filterHolder.filter.value) return@launch
+                savedOutside.value = date.takeUnless { entry.date in window.range && TransactionFilterMatch.matches(entry, filter) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                errors.report("Saved transaction visibility could not be checked", error)
+                if (generation == savedGeneration) savedEntryFailure.value = error.toLoadFailure()
+            }
+        }
     }
 
     /**
@@ -320,13 +381,17 @@ class TransactionsListViewModel @Inject constructor(
      */
     private fun stateFor(read: WindowedTransactions, lookups: RowLookups?, day: LocalDate): TransactionsUiState {
         val served = when (read) {
-            is WindowedTransactions.Failed -> return failedState(read.window, read.failure)
+            is WindowedTransactions.Loading -> return TransactionsUiState(window = read.window, filter = read.filter)
+            is WindowedTransactions.Failed -> return failedState(read.window, read.failure, read.filter)
             is WindowedTransactions.Read -> read.pages
         }
-        if (lookups == null) return failedState(read.window, UiMessage.Unexpected)
+        if (lookups == null) return failedState(read.window, UiMessage.Unexpected, read.filter)
         return try {
             TransactionsUiState(
-                sections = buildSections(served.transactions, lookups, day),
+                sections = buildSections(served.transactions, lookups, day, read.filter),
+                filter = read.filter,
+                filterAccounts = lookups.accountsById.values.toList(),
+                filterCategories = lookups.categoriesById.values.toList(),
                 isLoading = false,
                 window = read.window,
                 hasMore = served.hasMore,
@@ -335,12 +400,12 @@ class TransactionsListViewModel @Inject constructor(
             throw e
         } catch (e: Exception) {
             errors.report("Transactions for ${read.window.range} could not be listed", e)
-            failedState(read.window, UiMessage.Unexpected)
+            failedState(read.window, UiMessage.Unexpected, read.filter)
         }
     }
 
-    private fun failedState(window: TrackingWindow, failure: UiMessage) =
-        TransactionsUiState(isLoading = false, window = window, loadFailed = true, loadFailure = failure)
+    private fun failedState(window: TrackingWindow, failure: UiMessage, filter: TransactionFilter = TransactionFilter()) =
+        TransactionsUiState(isLoading = false, window = window, filter = filter, loadFailed = true, loadFailure = failure)
 
     /**
      * Newest first, then grouped by day. The sort happens before the grouping so a section's rows
@@ -350,10 +415,11 @@ class TransactionsListViewModel @Inject constructor(
         transactions: List<Transaction>,
         lookups: RowLookups,
         day: LocalDate,
+        filter: TransactionFilter,
     ): List<TransactionSection> =
         transactions
             .sortedWith(compareByDescending<Transaction> { it.date }.thenByDescending { it.id })
-            .map { it.toRow(lookups, moneyFormatter) }
+            .map { it.toRow(lookups, moneyFormatter).withMatchedParts(it, filter.categoryIds, lookups, moneyFormatter) }
             .groupBy { it.date }
             .map { (date, rows) -> TransactionSection(date, date.relationTo(day), rows) }
 

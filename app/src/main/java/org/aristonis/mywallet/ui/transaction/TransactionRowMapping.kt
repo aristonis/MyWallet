@@ -189,3 +189,24 @@ private fun Transaction.feeRate(): BigDecimal? = when (this) {
     is Transaction.Transfer -> feeRateToBase
     else -> null
 }
+
+/** Explain the counted part when a category filter matched a fee or deduction. */
+internal fun TransactionRow.withMatchedParts(
+    entry: Transaction,
+    categoryIds: Set<Long>,
+    lookups: RowLookups,
+    formatter: MoneyFormatter,
+): TransactionRow {
+    if (categoryIds.isEmpty()) return this
+    val legs = org.aristonis.mywallet.domain.service.TransactionFilterMatch.matchedCategoryLegs(entry, categoryIds)
+    if (legs.any { it.role == org.aristonis.mywallet.domain.ledger.LegRole.MAIN }) return this
+    val parts = legs.filter {
+        it.role == org.aristonis.mywallet.domain.ledger.LegRole.FEE ||
+            it.role == org.aristonis.mywallet.domain.ledger.LegRole.DEDUCTION
+    }.map { leg ->
+        val category = leg.target as org.aristonis.mywallet.domain.ledger.LegTarget.Category
+        TransactionMatchedPart(lookups.categoryLabel(category.subId ?: category.id), leg.amount,
+            formatter.display(leg.amount, lookups.currencies))
+    }
+    return copy(matchedParts = parts)
+}

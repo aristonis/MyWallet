@@ -6,6 +6,7 @@ import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.Transaction
+import org.aristonis.mywallet.domain.model.TransactionFilter
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -42,6 +43,20 @@ interface EntryRepository {
      * [org.aristonis.mywallet.domain.error.WalletException.UnreadableRow].
      */
     fun observePage(range: DateRange, after: EntryKey?, limit: Int): Flow<List<Transaction>>
+
+    /**
+     * Applies every filter term before the keyset limit. Storage implementations override this
+     * overload; the default only supports an unrestricted read and refuses to silently ignore terms.
+     */
+    fun observePage(
+        range: DateRange,
+        after: EntryKey?,
+        limit: Int,
+        filter: TransactionFilter,
+    ): Flow<List<Transaction>> {
+        require(filter == TransactionFilter()) { "filtered paging is not implemented" }
+        return observePage(range, after, limit)
+    }
 
     /** The entry with [id], or null when there is none. */
     suspend fun findById(id: Long): Transaction?

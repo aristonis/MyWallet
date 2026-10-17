@@ -33,6 +33,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.domain.model.TypeGroup
+import org.aristonis.mywallet.ui.label
+import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.domain.model.Money
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
@@ -90,6 +94,12 @@ fun TransactionsListScreen(
         onSavedEntryMessageDone = viewModel::dismissSavedEntryMessage,
         onRetry = viewModel::retry,
         onLoadMore = viewModel::loadMore,
+        onType = viewModel::toggleType,
+        onAccount = viewModel::toggleAccount,
+        onClearAccounts = viewModel::clearAccounts,
+        onCategory = viewModel::toggleCategory,
+        onClearCategories = viewModel::clearCategories,
+        onClearFilters = viewModel::clearFilters,
     )
 }
 
@@ -112,15 +122,34 @@ internal fun TransactionsListContent(
     onSavedEntryMessageDone: () -> Unit,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit = {},
+    onType: (TypeGroup) -> Unit = {},
+    onAccount: (Long) -> Unit = {},
+    onClearAccounts: () -> Unit = {},
+    onCategory: (Long) -> Unit = {},
+    onClearCategories: () -> Unit = {},
+    onClearFilters: () -> Unit = {},
 ) {
     val dimensions = WalletTheme.dimensions
     val snackbarHostState = remember { SnackbarHostState() }
+    var showFilters by remember { mutableStateOf(false) }
+    val savedFailure = state.savedEntryFailure?.text()
+    LaunchedEffect(savedFailure) {
+        if (savedFailure != null) {
+            snackbarHostState.showSnackbar(savedFailure)
+            onSavedEntryMessageDone()
+        }
+    }
     SavedOutsideSnackbar(
         savedOn = state.savedOutsideWindow,
+        filtered = state.filter != org.aristonis.mywallet.domain.model.TransactionFilter(),
         snackbarHostState = snackbarHostState,
         onShow = onShowSavedEntry,
         onDone = onSavedEntryMessageDone,
     )
+    if (showFilters) {
+        TransactionFilterSheet(state.filter, state.filterAccounts, state.filterCategories, onAccount, onClearAccounts, onCategory, onClearCategories,
+            onClearFilters, { showFilters = false })
+    }
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -157,6 +186,8 @@ internal fun TransactionsListContent(
                 actions = windowActions,
                 modifier = Modifier.padding(horizontal = dimensions.screenPadding),
             )
+            TransactionFilterBar(state.filter, onType, { showFilters = true },
+                Modifier.padding(horizontal = dimensions.screenPadding))
             TransactionsBody(
                 state = state,
                 listBottomPadding = dimensions.screenPadding,
@@ -175,12 +206,16 @@ internal fun TransactionsListContent(
 @Composable
 private fun SavedOutsideSnackbar(
     savedOn: LocalDate?,
+    filtered: Boolean,
     snackbarHostState: SnackbarHostState,
     onShow: () -> Unit,
     onDone: () -> Unit,
 ) {
     val formatDay = rememberDayFormatter(currentYear = LocalDate.now().year)
-    val message = savedOn?.let { stringResource(R.string.transactions_saved_outside, bidiIsolate(formatDay(it))) }
+    val message = savedOn?.let {
+        if (filtered) stringResource(R.string.transaction_filter_saved_outside)
+        else stringResource(R.string.transactions_saved_outside, bidiIsolate(formatDay(it)))
+    }
     val actionLabel = stringResource(R.string.action_show)
     val currentOnShow by rememberUpdatedState(onShow)
     val currentOnDone by rememberUpdatedState(onDone)
@@ -230,8 +265,7 @@ private fun TransactionsBody(
         // An empty filter is not an empty wallet: inviting a first transaction while the user's
         // history sits just outside the chosen dates would read as lost data.
         state.sections.isEmpty() -> Column(modifier = Modifier.fillMaxSize().padding(dimensions.screenPadding)) {
-            val message = if (state.showsEverything) R.string.transactions_empty else R.string.transactions_empty_range
-            EmptyState(message = stringResource(message))
+            EmptyState(message = state.emptyFilterText())
         }
 
         else -> TransactionDays(
@@ -412,4 +446,22 @@ private fun TransactionsListPreview(
             onRetry = {},
         )
     }
+}
+
+
+@Composable
+private fun TransactionsUiState.emptyFilterText(): String {
+    val categories = filterCategories.filter { it.id in filter.categoryIds }.map { it.label().text() }
+    val accounts = filterAccounts.filter { it.id in filter.accountIds }.map { it.name }
+    val types = TypeGroup.entries.filter { it in filter.types }.map { it.filterLabel() }
+    val names = categories + accounts + types
+    if (names.size > 1) return stringResource(R.string.transaction_filter_empty_combined, names.joinToString(" · "))
+    if (categories.isNotEmpty() || accounts.isNotEmpty()) return stringResource(R.string.transaction_filter_empty_named, names.single())
+    return stringResource(when (filter.types.singleOrNull()) {
+        TypeGroup.INCOME -> R.string.transaction_filter_empty_income
+        TypeGroup.EXPENSE -> R.string.transaction_filter_empty_expense
+        TypeGroup.TRANSFER -> R.string.transaction_filter_empty_transfer
+        TypeGroup.DEBTS -> R.string.transaction_filter_empty_debts
+        TypeGroup.ALL, null -> if (showsEverything) R.string.transactions_empty else R.string.transactions_empty_range
+    })
 }
