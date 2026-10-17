@@ -176,12 +176,12 @@ class BackupUpgradeTest {
     }
 
     @Test
-    fun aFormatTwoReaderRefusesOtherVersionsUnknownKeysMissingKeysAndAMissingVersion() {
+    fun readerRefusesUnsupportedVersionsUnknownKeysMissingKeysAndAMissingVersion() {
         val json = BackupCodec.encode(v2)
         val original = Json.parseToJsonElement(json).jsonObject
         listOf(
             JsonObject(original + ("version" to JsonPrimitive(1))),
-            JsonObject(original + ("version" to JsonPrimitive(3))),
+            JsonObject(original + ("version" to JsonPrimitive(4))),
             JsonObject(original + ("surprise" to JsonPrimitive(true))),
             JsonObject(original - "legacyRows"),
             JsonObject(original - "version"),
