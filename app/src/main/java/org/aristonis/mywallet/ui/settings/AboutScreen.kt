@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import org.aristonis.mywallet.BuildConfig
@@ -22,6 +23,10 @@ import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.icons.WalletIcons
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
 import org.aristonis.mywallet.ui.theme.WalletTheme
+
+private const val SHOW_SITE_LINK = false
+private const val GITHUB_URL = "https://github.com/aristonis/MyWallet"
+private const val SITE_URL = "https://aristonis.org"
 
 /**
  * What this app is and which build of it you are looking at.
@@ -37,6 +42,7 @@ fun AboutScreen(
     onSupport: () -> Unit,
 ) {
     val dimensions = WalletTheme.dimensions
+    val uriHandler = LocalUriHandler.current
     Scaffold(
         topBar = { WalletTopAppBar(title = stringResource(R.string.w2_about_title), onBack = onDone) },
     ) { innerPadding ->
@@ -54,6 +60,11 @@ fun AboutScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Text(
+                text = stringResource(R.string.about_copyright),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(stringResource(R.string.identity_about_body), style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.identity_about_export), style = MaterialTheme.typography.bodyMedium)
             Text(
@@ -67,6 +78,18 @@ fun AboutScreen(
                 shape = MaterialTheme.shapes.medium,
             ) {
                 Column {
+                    SettingsRow(
+                        label = stringResource(R.string.about_star_github),
+                        icon = WalletIcons.About,
+                        onClick = { uriHandler.openUri(GITHUB_URL) },
+                    )
+                    if (SHOW_SITE_LINK) {
+                        SettingsRow(
+                            label = stringResource(R.string.about_site),
+                            icon = WalletIcons.About,
+                            onClick = { uriHandler.openUri(SITE_URL) },
+                        )
+                    }
                     SettingsRow(
                         label = stringResource(R.string.identity_privacy_title),
                         supporting = stringResource(R.string.w2_about_privacy_summary),
