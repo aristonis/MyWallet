@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aristonis_loader_loading">Loading</string>
+    <string-array name="aristonis_loader_messages">
+        <item>Excellence is a habit</item>
+        <item>Built, not born</item>
+        <item>Code as craft</item>
+        <item>Excellence, engineered daily</item>
+        <item>Elite by choice</item>
+        <item>Raising the standard</item>
+        <item>Measured twice, built once</item>
+        <item>Building it right</item>
+    </string-array>
+</resources>

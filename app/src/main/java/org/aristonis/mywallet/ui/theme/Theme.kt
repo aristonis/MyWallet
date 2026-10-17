@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 
 /*
@@ -19,6 +20,8 @@ import androidx.compose.ui.platform.LocalContext
  * hides that; below it, nothing does. Filling in all of them is what makes the fallback a real
  * scheme rather than a partial override.
  */
+
+internal val LocalWalletDarkTheme = staticCompositionLocalOf { false }
 
 internal val LightColors = lightColorScheme(
     primary = PrimaryLight,
@@ -144,7 +147,10 @@ fun MyWalletTheme(
         darkTheme -> DarkColors
         else -> LightColors
     }
-    CompositionLocalProvider(LocalWalletColors provides walletColors(darkTheme)) {
+    CompositionLocalProvider(
+        LocalWalletColors provides walletColors(darkTheme),
+        LocalWalletDarkTheme provides darkTheme,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = WalletTypography,

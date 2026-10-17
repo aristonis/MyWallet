@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aristonis_loader_loading">جارٍ التحميل</string>
+    <string-array name="aristonis_loader_messages">
+        <item>التميّز عادة</item>
+        <item>التميّز يُبنى ولا يولد</item>
+        <item>البرمجة حِرفة</item>
+        <item>تميّز يُصنع كل يوم</item>
+        <item>النخبة اختيار</item>
+        <item>نرفع المعيار</item>
+        <item>نقيس مرتين ونبني مرة</item>
+        <item>نبنيه كما يجب</item>
+    </string-array>
+</resources>
