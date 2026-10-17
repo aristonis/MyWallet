@@ -16,11 +16,13 @@ import java.util.Locale
  * A fresh [DecimalFormat] is built per call: it is not thread-safe and the fraction digits vary by
  * currency, so there is no shared mutable state to synchronise.
  */
-class MoneyFormatter(private val locale: Locale) {
+class MoneyFormatter(private val localeProvider: () -> Locale) {
+
+    constructor(locale: Locale) : this({ locale })
 
     /** Format [amount] with [decimalPlaces] fraction digits, suffixed with the ISO [currencyCode]. */
     fun format(amount: BigDecimal, decimalPlaces: Int, currencyCode: String): String {
-        val formatter = NumberFormat.getNumberInstance(locale) as DecimalFormat
+        val formatter = NumberFormat.getNumberInstance(localeProvider()) as DecimalFormat
         formatter.isGroupingUsed = true
         formatter.minimumFractionDigits = decimalPlaces
         formatter.maximumFractionDigits = decimalPlaces

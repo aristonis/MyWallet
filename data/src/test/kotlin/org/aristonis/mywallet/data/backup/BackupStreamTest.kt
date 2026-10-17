@@ -1,6 +1,7 @@
 package org.aristonis.mywallet.data.backup
 
 import org.aristonis.mywallet.domain.error.WalletException
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -9,11 +10,38 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayOutputStream
 import java.io.FilterInputStream
+import java.util.Locale
 
 /** Streaming keeps both file formats readable without building a serialized wallet in memory. */
 class BackupStreamTest {
     @get:Rule val folder = TemporaryFolder()
     private val sample = BackupV2Samples.wallet()
+
+    @Test fun arabicAndArabicWithLatinDigitsProduceTheExactEnglishBackupBytes() {
+        val backup = BackupV2Samples.versionThreeWallet().let { wallet ->
+            wallet.copy(accounts = wallet.accounts.map { it.copy(name = "حساب ${it.id}") })
+        }
+        synchronized(Locale::class.java) {
+            val original = Locale.getDefault()
+            try {
+                fun encode(): ByteArray = ByteArrayOutputStream().use { output ->
+                    BackupCodec.encode(BackupCodec.validate(backup), output)
+                    output.toByteArray()
+                }
+                Locale.setDefault(Locale.ENGLISH)
+                val expected = encode()
+                for (tag in listOf("ar", "ar-u-nu-latn")) {
+                    Locale.setDefault(Locale.forLanguageTag(tag))
+                    val actual = encode()
+                    assertArrayEquals(tag, expected, actual)
+                    actual.inputStream().use { assertEquals(backup, decodeValidated(it, folder.root)) }
+                }
+            } finally {
+                Locale.setDefault(original)
+            }
+        }
+        assertEquals(emptyList<String>(), folder.root.list()!!.toList())
+    }
 
     @Test fun formatThreeExportRestoresEveryStoredValueThroughStreamsAndRemovesScratch() {
         val backup = BackupV2Samples.versionThreeWallet()

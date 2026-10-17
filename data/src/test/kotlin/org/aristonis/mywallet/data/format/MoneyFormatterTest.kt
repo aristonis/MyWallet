@@ -52,4 +52,11 @@ class MoneyFormatterTest {
         val currency = Currency(code = "KWD", symbol = "KD", decimalPlaces = 3)
         assertEquals("12.500 KWD", usFormatter.format(money, currency))
     }
+    @Test
+    fun arabicLatinNumbering_formatsLatinDigits() {
+        val formatter = MoneyFormatter(Locale.forLanguageTag("ar-u-nu-latn"))
+        assertEquals("1,000.00 USD", formatter.format("1000".toBigDecimal(), 2, "USD"))
+    }
+
+
 }

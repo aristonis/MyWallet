@@ -12,12 +12,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.input.KeyboardType
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.format.bidiIsolate
+import org.aristonis.mywallet.ui.format.AppLocale
 import org.aristonis.mywallet.ui.theme.WalletTheme
 import java.math.BigDecimal
 import java.text.NumberFormat
+import java.util.Locale
 
 /**
  * The rates a foreign-currency entry depends on, right where the entry is made. Without them the
@@ -69,11 +72,9 @@ internal fun RateSection(
     }
 }
 
-/**
- * An example in the device's own digits: a fixed "4.5" would be the very input a comma-decimal locale
- * cannot read. Read at call time from the default locale, as the parser does.
- */
-private fun exampleRateText(): String = NumberFormat.getInstance().format(BigDecimal("4.5"))
+/** The example uses the same Latin digits and decimal separator as the amount parser. */
+internal fun exampleRateText(locale: Locale): String =
+    NumberFormat.getInstance(AppLocale.from(locale)).format(BigDecimal("4.5"))
 
 /**
  * Written as the sentence it means, "1 USD = [4] SYP", so the direction of the rate is never in
@@ -85,6 +86,7 @@ private fun RateFieldRow(
     baseCode: String,
     onRateChanged: (currencyCode: String, input: String) -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -105,7 +107,7 @@ private fun RateFieldRow(
                 readOnly = !field.isEditable,
                 isError = field.isError,
                 supportingText = if (field.isError) {
-                    { Text(stringResource(R.string.add_transaction_rate_unreadable, exampleRateText())) }
+                    { Text(stringResource(R.string.add_transaction_rate_unreadable, exampleRateText(locale))) }
                 } else {
                     null
                 },

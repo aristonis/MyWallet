@@ -155,4 +155,52 @@ class MoneyParserTest {
         val ex = assertThrows(MoneyParseException::class.java) { us.parseOpeningBalance("1E40", "USD") }
         assertEquals(MoneyParseError.AMOUNT_OUT_OF_RANGE, ex.error)
     }
+    @Test
+    fun arabicGroupedAmount_parsesExactlyWithLatinNumberingLocale() {
+        listOf("ar", "ar-u-nu-latn").forEach { languageTag ->
+            val parser = MoneyParser(Locale.forLanguageTag(languageTag))
+            assertEquals(Money.of("1000.50", "USD"), parser.parseAmount("١٬٠٠٠٫٥٠", "USD"))
+        }
+    }
+
+    @Test
+    fun extendedArabicDigits_andAsciiDecimal_parseExactly() {
+        val parser = MoneyParser(Locale.forLanguageTag("ar-u-nu-latn"))
+        assertEquals(Money.of("123", "USD"), parser.parseAmount("۱۲۳", "USD"))
+        assertEquals(Money.of("1000.5", "USD"), parser.parseAmount("1000.5", "USD"))
+        assertEquals(BigDecimal("4.50"), parser.parseRate("٤٫٥٠"))
+    }
+
+    @Test
+    fun markedNegativeOpeningBalances_preserveExactSign() {
+        val parser = MoneyParser(Locale.forLanguageTag("ar-u-nu-latn"))
+        listOf("\u200f-١٢٫٥٠", "\u061c-١٢٫٥٠", "-\u200f۱۲٫۵۰").forEach { input ->
+            assertEquals(Money.of("-12.50", "USD"), parser.parseOpeningBalance(input, "USD"))
+        }
+        val error = assertThrows(MoneyParseException::class.java) { parser.parseAmount("\u061c-١", "USD") }
+        assertEquals(MoneyParseError.AMOUNT_NOT_POSITIVE, error.error)
+    }
+
+    @Test
+    fun malformedArabicInput_isRejectedRatherThanChangingValue() {
+        val parser = MoneyParser(Locale.forLanguageTag("ar-u-nu-latn"))
+        listOf("١٬٠٠", "٬١٠٠", "١٠٠٬", "١٬٬٠٠٠", "١٫٢٫٣", "1.2٫3", "١٢abc", "١-٢", "١\u200f٢").forEach { input ->
+            val error = assertThrows(input, MoneyParseException::class.java) { parser.parseAmount(input, "USD") }
+            assertEquals(input, MoneyParseError.NOT_A_NUMBER, error.error)
+        }
+    }
+
+    @Test
+    fun germanGroupingIsNeverReadAsDecimal() {
+        val error = assertThrows(MoneyParseException::class.java) { germany.parseAmount("1.000", "EUR") }
+        assertEquals(MoneyParseError.NOT_A_NUMBER, error.error)
+    }
+
+
+    @Test
+    fun plainArabicLocale_acceptsAsciiDecimalAndExactArabicRate() {
+        val parser = MoneyParser(Locale.forLanguageTag("ar"))
+        assertEquals(Money.of("1000.5", "USD"), parser.parseAmount("1000.5", "USD"))
+        assertEquals(BigDecimal("0.00000001"), parser.parseRate("٠٫٠٠٠٠٠٠٠١"))
+    }
 }

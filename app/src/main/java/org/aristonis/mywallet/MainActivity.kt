@@ -1,6 +1,8 @@
 package org.aristonis.mywallet
 
 import android.app.UiModeManager
+import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -23,7 +25,9 @@ import org.aristonis.mywallet.domain.model.ThemePreference
 import org.aristonis.mywallet.ui.AppRoot
 import org.aristonis.mywallet.ui.AppViewModel
 import org.aristonis.mywallet.ui.StartDestination
+import org.aristonis.mywallet.ui.format.AppLocale
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
+import java.util.Locale
 
 // AndroidX's default navigation scrims keep button contrast on API 28 and lower.
 private val LIGHT_NAVIGATION_BAR_SCRIM = 0xE6FFFFFF.toInt()
@@ -43,6 +47,14 @@ private val DARK_NAVIGATION_BAR_SCRIM = 0x801B1B1B.toInt()
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val appViewModel: AppViewModel by viewModels()
+
+    override fun attachBaseContext(newBase: Context) {
+        val incoming = newBase.resources.configuration
+        val locale = AppLocale.from(incoming.locales[0])
+        val configuration = Configuration(incoming).apply { setLocale(locale) }
+        Locale.setDefault(locale)
+        super.attachBaseContext(newBase.createConfigurationContext(configuration))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
