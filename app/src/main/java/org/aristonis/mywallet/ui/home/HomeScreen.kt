@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.home
 // Amounts arrive pre-formatted from the view-model (per currency + locale), so this screen never
 // formats money itself — it only decides how the finished text is drawn.
 
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -76,6 +77,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    ReportDrawnWhen { !state.isLoading }
     HomeContent(
         state = state,
         onAddTransaction = onAddTransaction,

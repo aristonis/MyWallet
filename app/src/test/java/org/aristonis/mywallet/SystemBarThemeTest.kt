@@ -17,6 +17,14 @@ class SystemBarThemeTest {
     }
 
     @Test
+    fun returningFromForcedDarkToSystem_usesCurrentPhoneAppearance() {
+        assertFalse(shouldUseDarkStatusBarIcons(ThemePreference.DARK, systemDark = false))
+
+        assertTrue(shouldUseDarkStatusBarIcons(ThemePreference.SYSTEM, systemDark = false))
+        assertFalse(shouldUseDarkStatusBarIcons(ThemePreference.SYSTEM, systemDark = true))
+    }
+
+    @Test
     fun systemThemeFollowsAndroidForStatusContent() {
         assertTrue(shouldUseDarkStatusBarIcons(ThemePreference.SYSTEM, systemDark = false))
         assertFalse(shouldUseDarkStatusBarIcons(ThemePreference.SYSTEM, systemDark = true))

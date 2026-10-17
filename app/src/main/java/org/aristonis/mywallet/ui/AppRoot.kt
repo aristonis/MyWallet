@@ -1,12 +1,7 @@
 package org.aristonis.mywallet.ui
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.ui.navigation.WalletNavHost
@@ -24,15 +19,8 @@ import org.aristonis.mywallet.ui.onboarding.OnboardingScreen
 fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
     val destination by viewModel.startDestination.collectAsStateWithLifecycle()
     when (destination) {
-        StartDestination.LOADING -> LoadingScreen()
+        StartDestination.LOADING -> Unit
         StartDestination.ONBOARDING -> OnboardingScreen()
         StartDestination.HOME -> WalletNavHost()
-    }
-}
-
-@Composable
-private fun LoadingScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
     }
 }
