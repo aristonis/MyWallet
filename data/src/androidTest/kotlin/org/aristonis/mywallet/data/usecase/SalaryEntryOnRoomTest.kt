@@ -3,6 +3,7 @@ package org.aristonis.mywallet.data.usecase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.aristonis.mywallet.data.db.AccountEntity
@@ -25,6 +26,7 @@ import org.aristonis.mywallet.data.repo.RoomSettingsRepository
 import org.aristonis.mywallet.data.repo.RoomTransactionRunner
 import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.toParts
+import org.aristonis.mywallet.domain.model.DateRange
 import org.aristonis.mywallet.domain.model.DeductionItem
 import org.aristonis.mywallet.domain.model.DeductionLine
 import org.aristonis.mywallet.domain.model.DeductionMode
@@ -34,6 +36,8 @@ import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.port.EntryRepository
 import org.aristonis.mywallet.domain.port.LedgerQueries
 import org.aristonis.mywallet.domain.service.RoleCategories
+import org.aristonis.mywallet.domain.usecase.CategoryBreakdownResult
+import org.aristonis.mywallet.domain.usecase.ComputeCategoryBreakdown
 import org.aristonis.mywallet.domain.usecase.DeleteEntry
 import org.aristonis.mywallet.domain.usecase.RestoreEntries
 import org.aristonis.mywallet.domain.usecase.SaveEntry
@@ -86,6 +90,32 @@ class SalaryEntryOnRoomTest {
     }
 
     @After fun tearDown() = db.close()
+
+    @Test fun aLegacyDeductionItemOnInternetSavesWithoutEditingTheItemAndTracksUnderBills() = runBlocking {
+        db.categoryDao().insertAll(listOf(
+            CategoryEntity(id = 8, name = "Internet", kind = "EXPENSE", parentId = 7),
+        ))
+        val legacyItem = item(11, "Bills", "2", DeductionTiming.NOW, 8)
+        deductions.upsert(legacyItem)
+        val income = salary().copy(deductions = listOf(
+            line(11, 0, "Bills", "2", "20", DeductionTiming.NOW, 8),
+        ))
+
+        val id = withTimeout(RETURN_WITHIN_MS) { save()(income, emptyMap()).id }
+
+        val stored = entries.findById(id) as Transaction.Income
+        assertEquals(legacyItem, deductions.findById(11))
+        assertEquals(7L, stored.deductions.single().categoryId)
+        assertEquals(8L, stored.deductions.single().subCategoryId)
+        assertEquals(money("980"), stored.toParts().legs.single { it.role == LegRole.ACCOUNT }.amount)
+        val fx = RoomFxRepository(db)
+        val tracking = withTimeout(RETURN_WITHIN_MS) {
+            ComputeCategoryBreakdown(ledger, fx)(DateRange(day, day)).first()
+        } as CategoryBreakdownResult.Resolved
+        val bills = tracking.breakdown.expense.single { it.categoryId == 7L }
+        assertEquals(money("20"), bills.total)
+        assertEquals(8L, bills.subCategories.single().subCategoryId)
+    }
 
     @Test fun unresolvedSalaryDeductionsSaveAndUndoThroughRoomWithExactSnapshotsAndDebts() = runBlocking {
         val id = withTimeout(RETURN_WITHIN_MS) { save()(salary(), emptyMap()).id }

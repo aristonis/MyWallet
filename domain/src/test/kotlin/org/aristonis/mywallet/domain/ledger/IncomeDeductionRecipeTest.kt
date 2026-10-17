@@ -13,6 +13,33 @@ import java.math.BigDecimal
 class IncomeDeductionRecipeTest : DebtRecipeFixtures() {
 
     @Test
+    fun aDeductionOnAParentAndSubCategoryRoundTripsWithItsCategoryLeg() {
+        val original = salaryWithDeductions()
+        val income = original.copy(deductions = original.deductions.map {
+            if (it.position == 2) it.copy(subCategoryId = 24) else it
+        })
+
+        assertEquals(
+            LegTarget.Category(23, 24),
+            income.toParts().legs.single { it.role == LegRole.DEDUCTION && it.position == 2 }.target,
+        )
+        assertRoundTrip(income)
+    }
+
+    @Test
+    fun aDeductionLegWithAnUnrecordedSubCategoryIsUnreadable() {
+        val parts = salaryWithDeductions().toParts()
+        val changed = parts.copy(legs = parts.legs.map { leg ->
+            if (leg.role == LegRole.DEDUCTION && leg.position == 2) {
+                leg.copy(target = LegTarget.Category(23, 24))
+            } else leg
+        })
+
+        assertUnreadable(changed)
+    }
+
+
+    @Test
     fun salaryStoresGrossAndEachDeductionWithDebtLegsForOwedLaterLines() {
         val income = salaryWithDeductions()
         val parts = income.toParts()

@@ -6,6 +6,7 @@ import org.aristonis.mywallet.domain.ledger.LegRole
 import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.CategoryKind
+import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.domain.model.Transaction
 import org.aristonis.mywallet.domain.model.UndoBundle
 import org.aristonis.mywallet.domain.usecase.fake.EntryWorld
@@ -21,6 +22,20 @@ import org.junit.Test
 class RestoreEntriesCategoryRemapTest {
 
     private fun bundleOf(vararg entries: Transaction) = UndoBundle(entries = entries.toList(), debts = emptyList())
+
+    @Test fun aDeductionWhoseSubCategoryWasDeletedKeepsItsParentAndAmount() = runTest {
+        val rig = salaryRig()
+        val line = salaryLine(12, 0, "Bills", 22, "20", timing = DeductionTiming.NOW)
+            .copy(subCategoryId = 77)
+        val income = salary().copy(id = 8, deductions = listOf(line))
+
+        rig.restoreEntries(bundleOf(income))
+
+        val restored = rig.entries.findById(8) as Transaction.Income
+        assertEquals(income.copy(deductions = listOf(line.copy(subCategoryId = null))), restored)
+        assertEquals(LegTarget.Category(22, null),
+            rig.entries.rows.value.single().legs.single { it.role == LegRole.DEDUCTION }.target)
+    }
 
     @Test fun aDeductionWhoseCategoryWasDeletedComesBackInTheUncategorizedExpenseBucket() = runTest {
         val rig = salaryRig()

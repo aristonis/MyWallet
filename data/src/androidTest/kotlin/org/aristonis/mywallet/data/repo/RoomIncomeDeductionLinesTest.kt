@@ -112,6 +112,22 @@ class RoomIncomeDeductionLinesTest {
     private fun legCount(entryId: Long) = sql.scalar("SELECT COUNT(*) FROM entry_legs WHERE entryId = ?", entryId)
 
     @Test
+    fun aDeductionSubCategorySurvivesTheRoomWriteAndRead() = runTest {
+        db.categoryDao().insertAll(listOf(
+            CategoryEntity(id = 23, name = "Internet", kind = "EXPENSE", parentId = TAX),
+        ))
+        val line = nowLine(amount = "20").copy(subCategoryId = 23)
+        val original = income(deductions = listOf(line))
+
+        val id = repository.insert(original)
+
+        assertEquals(original.copy(id = id), repository.findById(id))
+        val deduction = db.entryDao().getAllLegs().single { it.entryId == id && it.role == "DEDUCTION" }
+        assertEquals(TAX, deduction.categoryId)
+        assertEquals(23L, deduction.subCategoryId)
+    }
+
+    @Test
     fun replacingAnIncomeWithFewerLinesLeavesExactlyTheNewLinesAndTheirLegs() = runTest {
         val id = repository.insert(income())
         assertEquals(income(id), repository.findById(id))

@@ -55,7 +55,7 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
         ) + entry.deductions.flatMap { line ->
             listOf(
                 Leg(
-                    LegRole.DEDUCTION, line.position, LegTarget.Category(line.categoryId, null),
+                    LegRole.DEDUCTION, line.position, LegTarget.Category(line.categoryId, line.subCategoryId),
                     line.amount, entry.rateToBase,
                 ),
             ) + if (line.timing == DeductionTiming.LATER && line.amount.isPositive) {
@@ -105,7 +105,7 @@ object IncomeRecipe : EntryRecipe<Transaction.Income> {
         requireLineIsValid(line, main.amount.currencyCode)
         require(
             categoryLeg.position == line.position && categoryLeg.categoryTarget().id == line.categoryId &&
-                categoryLeg.amount == line.amount,
+                categoryLeg.categoryTarget().subId == line.subCategoryId && categoryLeg.amount == line.amount,
         ) { "deduction ${line.position} differs from its journal leg" }
         if (line.timing == DeductionTiming.LATER && line.amount.isPositive) {
             val debtId = line.debtId

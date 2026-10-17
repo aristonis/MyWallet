@@ -110,7 +110,8 @@ class RestoreEntries(
         if (legs == parts.legs) return entry
         val lines = parts.deductionLines.map { line ->
             val leg = legs.single { it.role == LegRole.DEDUCTION && it.position == line.position }
-            line.copy(categoryId = (leg.target as LegTarget.Category).id)
+            val target = leg.target as LegTarget.Category
+            line.copy(categoryId = target.id, subCategoryId = target.subId)
         }
         return recipe.fromLegs(parts.copy(legs = legs, deductionLines = lines))
     }

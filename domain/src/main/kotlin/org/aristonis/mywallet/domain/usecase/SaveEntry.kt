@@ -8,6 +8,7 @@ import org.aristonis.mywallet.domain.ledger.LegTarget
 import org.aristonis.mywallet.domain.ledger.TrackingRule
 import org.aristonis.mywallet.domain.ledger.recipe
 import org.aristonis.mywallet.domain.ledger.toParts
+import org.aristonis.mywallet.domain.model.CategoryKind
 import org.aristonis.mywallet.domain.model.DebtRef
 import org.aristonis.mywallet.domain.model.FxSnapshot
 import org.aristonis.mywallet.domain.model.Transaction
@@ -79,10 +80,11 @@ class SaveEntry(
             }
             val snapshot = fx.currentFx()
             requireSaveValues(entry, snapshot, deductions)
-            requireIncomeDebtReferences(entry)
+            val categorized = withDeductionCategoryParents(entry)
+            requireIncomeDebtReferences(categorized)
             val book = rateBookFor(snapshot, typedRates)
-            val priced = entry.recipe().prepareForSave(
-                entry, EntrySaveContext(old, snapshot, book, accounts, roleCategories, debts, debt),
+            val priced = categorized.recipe().prepareForSave(
+                categorized, EntrySaveContext(old, snapshot, book, accounts, roleCategories, debts, debt),
             )
             val recipe = priced.recipe()
             val parts = recipe.toLegs(priced)
@@ -109,6 +111,22 @@ class SaveEntry(
             if (settings.get().saveTransactionRates) keepTypedRates(typedRates, snapshot.baseCurrencyCode)
             SavedEntry(id = id, date = stamped.date)
         }
+
+    /** Older deduction drafts carry the selected child id in the category field. */
+    private suspend fun withDeductionCategoryParents(entry: Transaction): Transaction {
+        if (entry !is Transaction.Income) return entry
+        return entry.copy(deductions = entry.deductions.map { line ->
+            if (line.subCategoryId != null) return@map line
+            val category = categories.findById(line.categoryId)
+                ?: throw WalletException.CategoryNotFound(line.categoryId)
+            val parentId = category.parentId ?: return@map line
+            val parent = categories.findById(parentId) ?: throw WalletException.CategoryNotFound(parentId)
+            if (parent.kind != CategoryKind.EXPENSE ||
+                category.kind != CategoryKind.EXPENSE
+            ) throw WalletException.CategoryWrongKind(category.id)
+            line.copy(categoryId = parentId, subCategoryId = category.id)
+        })
+    }
 
     /**
      * A debt id an edit carries must still exist. Whether it still fits the line (payee, side, currency)

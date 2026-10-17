@@ -68,6 +68,7 @@ fun List<IncomeDeductionLineEntity>.toSnapshots(parts: EntryParts): List<Deducti
             valueCurrencyCode = row.valueCurrencyCode,
             timing = DeductionTiming.valueOf(row.timing),
             categoryId = target.id,
+            subCategoryId = target.subId,
             amount = category.amount,
             debtId = debt,
         )

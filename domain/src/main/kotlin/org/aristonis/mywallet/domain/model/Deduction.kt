@@ -81,6 +81,7 @@ data class DeductionLine(
     val categoryId: Long,
     val amount: Money,
     val debtId: Long? = null,
+    val subCategoryId: Long? = null,
 )
 
 /** The calculated receipt and per-input amounts for an income before it is saved. */
