@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kind_more">المزيد</string>
+    <string name="kind_more_title">أنواع معاملات أخرى</string>
+    <string name="transaction_type_refund">استرداد</string>
+    <string name="kind_counterparty">الشخص أو الجهة</string>
+    <string name="kind_debt_side">من المدين؟</string>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="transfer_add_first_account">أضف حسابًا أولًا</string>
+    <string name="transfer_add_second_account">أضف حسابًا ثانيًا أولًا</string>
+</resources>

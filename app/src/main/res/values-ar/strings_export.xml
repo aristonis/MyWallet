@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracking_more_options">خيارات إضافية</string>
+    <string name="tracking_export_csv">تصدير هذه الفترة (CSV)</string>
+    <string name="tracking_export_saved">حُفظ ملف CSV</string>
+    <string name="tracking_export_interrupted">انقطع تصدير CSV. حاول التصدير مجددًا.</string>
+</resources>

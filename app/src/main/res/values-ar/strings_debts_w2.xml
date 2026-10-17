@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="debts_add_w2">إضافة دين</string>
+    <string name="debts_active_w2">قائمة</string>
+    <string name="debts_remaining_w2">المتبقي</string>
+    <string name="debts_due_w2">الاستحقاق %1$s</string>
+    <string name="debt_remaining_w2">الدين المتبقي</string>
+    <string name="debt_original_w2">الأصلي</string>
+    <string name="debt_repaid_w2">المسدَّد</string>
+    <string name="debt_written_off_w2">المشطوب</string>
+    <string name="debt_breakdown_unavailable_w2">تفاصيل الدين غير متاحة</string>
+    <string name="repayment_context_w2">%1$s · %2$s</string>
+    <string name="repayment_preview_w2">معاينة حركة الحساب</string>
+</resources>

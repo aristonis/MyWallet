@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="management_deduction_enabled">مفعّل</string>
+    <string name="management_deduction_disabled">معطّل</string>
+    <string name="management_deduction_row_summary">%1$s · %2$s</string>
+    <string name="management_category_parent">الفئة الرئيسية</string>
+    <string name="management_category_child">الفئة الفرعية</string>
+    <string name="management_category_protected">فئة محمية</string>
+    <string name="management_deduction_saving">جارٍ حفظ الاستقطاع</string>
+    <string name="management_deduction_disable_title">تعطيل %1$s؟</string>
+</resources>

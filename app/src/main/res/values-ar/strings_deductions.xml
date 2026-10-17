@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="deductions_title">الاستقطاعات</string>
+    <string name="deduction_add">إضافة استقطاع</string>
+    <string name="deduction_edit">تعديل الاستقطاع</string>
+    <string name="deductions_empty">لا توجد استقطاعات بعد. أضف استقطاعًا لاستخدامه مع دخلك.</string>
+    <string name="deductions_load_failed">تعذرت قراءة الاستقطاعات.</string>
+    <string name="deduction_name">الاسم</string>
+    <string name="deduction_mode">نوع القيمة</string>
+    <string name="deduction_percent">نسبة مئوية</string>
+    <string name="deduction_fixed">مبلغ ثابت</string>
+    <string name="deduction_value">القيمة الافتراضية</string>
+    <string name="deduction_currency">العملة</string>
+    <string name="deduction_timing">وقت الدفع</string>
+    <string name="deduction_now">المدفوع الآن</string>
+    <string name="deduction_later">المستحق لاحقًا</string>
+    <string name="deduction_expense_category">فئة المصروف</string>
+    <string name="deduction_expense_subcategory">فئة فرعية (اختياري)</string>
+    <string name="deduction_subcategory_none">بلا فئة فرعية</string>
+    <string name="deduction_category_automatic">استخدام اسم الاستقطاع</string>
+    <string name="deduction_category_choose">اختيار فئة</string>
+    <string name="deduction_category_missing">حُذفت فئة المصروف المرتبطة بهذا الاستقطاع. اختر فئة أو اختر «استخدام اسم الاستقطاع» لإنشاء فئة قبل الحفظ.</string>
+    <string name="deduction_auto_add">إضافة تلقائية إلى فئات الدخل</string>
+    <string name="deduction_auto_add_hint">اترك جميع الخيارات غير مفعّلة لإضافة هذا الاستقطاع يدويًا.</string>
+    <string name="deduction_enabled">مفعّل</string>
+    <string name="deduction_disable_title">إيقاف هذا الاستقطاع؟</string>
+    <string name="deduction_disable_body">هذا الاستقطاع مستخدم في دخل محفوظ، لذلك لا يمكن حذفه. أوقفه كي لا يظهر ضمن خيارات الدخل المستقبلية.</string>
+    <string name="deduction_disable_action">إيقاف</string>
+    <string name="deduction_delete_title">حذف الاستقطاع؟</string>
+    <string name="deduction_delete_body">حذف %1$s؟ سيبقى الدخل المحفوظ.</string>
+    <string name="deduction_percent_summary">%1$s%% · %2$s</string>
+    <string name="deduction_fixed_summary">%1$s %2$s · %3$s</string>
+    <string name="msg_deduction_snapshot_invalid">راجع تفاصيل الاستقطاع وحدّدها مجددًا.</string>
+    <string name="deduction_enabled_for">تفعيل %1$s</string>
+</resources>

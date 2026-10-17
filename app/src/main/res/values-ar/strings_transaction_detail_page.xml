@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="transaction_detail_title">معاملة</string>
+    <string name="transaction_detail_recorded">التفاصيل المسجّلة</string>
+    <string name="transaction_detail_gross">المبلغ الإجمالي</string>
+    <string name="transaction_detail_movement">حركة الحساب</string>
+    <string name="transaction_detail_movement_into">إلى %1$s</string>
+    <string name="transaction_detail_fee">الرسوم</string>
+    <string name="transaction_detail_interest">الفائدة</string>
+    <string name="transaction_detail_note">ملاحظة</string>
+    <string name="transaction_detail_debt_effect">أثر الدين</string>
+    <string name="transaction_detail_debt_adds_owed_by_me">يزيد المبلغ المستحق عليك</string>
+    <string name="transaction_detail_debt_adds_owed_to_me">يزيد المبلغ المستحق لك</string>
+    <string name="transaction_detail_debt_owed_before">يسجّل دينًا كان موجودًا سابقًا</string>
+    <string name="transaction_detail_debt_reduces_owed_by_me">يقلّل المبلغ المستحق عليك</string>
+    <string name="transaction_detail_debt_reduces_owed_to_me">يقلّل المبلغ المستحق لك</string>
+    <string name="transaction_detail_debt_written_off_loss">يشطب المبلغ المستحق لك ويُحتسب خسارة</string>
+    <string name="transaction_detail_debt_written_off_forgiven">يشطب المبلغ المستحق عليك ويُحتسب دخلًا</string>
+    <string name="transaction_detail_delete">حذف المعاملة</string>
+    <string name="transaction_detail_delete_target">%1$s · %2$s · %3$s</string>
+    <string name="transaction_detail_more_actions">إجراءات إضافية لهذه المعاملة</string>
+</resources>

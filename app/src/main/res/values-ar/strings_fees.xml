@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="account_default_fee">رسوم التحويل الافتراضية</string>
+    <string name="fee_none">بلا رسوم</string>
+    <string name="fee_percent">نسبة مئوية</string>
+    <string name="fee_fixed">مبلغ ثابت</string>
+    <string name="fee_percent_value">نسبة الرسوم</string>
+    <string name="fee_fixed_value">مبلغ الرسوم</string>
+    <string name="account_default_fee_hint">تُستخدم للتحويلات من هذا الحساب. اترك الحقل فارغًا لعدم تحديد رسوم افتراضية.</string>
+    <string name="msg_fee_value_negative">أدخل رسومًا تساوي صفرًا أو أكثر.</string>
+    <string name="msg_fee_percent_above_hundred">أدخل نسبة رسوم لا تتجاوز 100.</string>
+    <string name="msg_fee_and_deductions_exceed_income">مجموع الرسوم والاستقطاعات يتجاوز الدخل. خفّض الرسوم أو الاستقطاعات.</string>
+    <string name="fee_mode">نوع الرسوم</string>
+    <string name="fee_transfer_hint">تُخصم من المبلغ المُرسَل. اترك الحقل فارغًا أو أدخل صفرًا لعدم احتساب رسوم.</string>
+    <string name="fee_expense_hint">تُضاف إلى الدفعة. اترك الحقل فارغًا أو أدخل صفرًا لعدم احتساب رسوم.</string>
+    <string name="fee_category">فئة الرسوم</string>
+    <string name="fee_uncategorized">بلا فئة</string>
+    <string name="fee_destination">الوجهة</string>
+    <string name="fee_transfer_receives">يتلقى %1$s مبلغ %2$s</string>
+    <string name="fee_expense_pays">يدفع الحساب %1$s</string>
+    <string name="fee_category_removed">لم تعد فئة الرسوم متاحة. اختر فئة أخرى أو استخدم الفئة الافتراضية.</string>
+    <string name="fee_percent_suffix" formatted="false">%</string>
+    <string name="msg_fee_whole_number">أدخل رسوم %1$s بعدد صحيح.</string>
+    <plurals name="msg_fee_too_many_decimals">
+        <item quantity="zero">أدخل رسوم %1$s بما لا يتجاوز %2$d من المنازل العشرية.</item>
+        <item quantity="one">أدخل رسوم %1$s بما لا يتجاوز %2$d من المنازل العشرية.</item>
+        <item quantity="two">أدخل رسوم %1$s بما لا يتجاوز %2$d من المنازل العشرية.</item>
+        <item quantity="few">أدخل رسوم %1$s بما لا يتجاوز %2$d من المنازل العشرية.</item>
+        <item quantity="many">أدخل رسوم %1$s بما لا يتجاوز %2$d من المنازل العشرية.</item>
+        <item quantity="other">أدخل رسوم %1$s بما لا يتجاوز %2$d من المنازل العشرية.</item>
+    </plurals>
+    <string name="fee_income_hint">تُخصم من الدخل. اترك الحقل فارغًا أو أدخل صفرًا لعدم احتساب رسوم.</string>
+    <string name="fee_income_receives">يتلقى الحساب %1$s</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="account_type_credit_card">بطاقة ائتمان</string>
+    <string name="field_credit_limit">الحد الائتماني (اختياري)</string>
+    <string name="account_opening_balance_owed_hint">المبلغ المستحق عليك الآن، بقيمة سالبة</string>
+</resources>

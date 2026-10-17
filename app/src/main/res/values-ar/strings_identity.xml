@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="identity_brand">MyWallet من Aristonis</string>
+    <string name="identity_about_body">MyWallet محفظة لتسجيل الحسابات والمعاملات يدويًا. تُحفظ سجلاتك على هذا الجهاز للاستخدام دون اتصال. قد تنطبق أيضًا إعدادات النسخ الاحتياطي للجهاز.</string>
+    <string name="identity_about_export">عند تصدير نسخة احتياطية أو ملف CSV من المتابعة، تختار مكان حفظ النسخة. احتفظ بها في مكان تثق به.</string>
+    <string name="identity_app_license_action">ترخيص التطبيق والإشعار</string>
+    <string name="identity_app_license_title">ترخيص التطبيق</string>
+    <string name="identity_app_license_notice">حقوق النشر والإشعار</string>
+    <string name="identity_privacy_title">معلومات الخصوصية</string>
+    <string name="identity_privacy_storage_heading">السجلات على جهازك</string>
+    <string name="identity_privacy_storage">تُحفظ الحسابات والمعاملات التي تدخلها في هذا التطبيق على جهازك. قد تنطبق أيضًا إعدادات النسخ الاحتياطي في Android على بيانات التطبيق.</string>
+    <string name="identity_privacy_export_heading">نسخ تختارها بنفسك</string>
+    <string name="identity_privacy_export">يمكن تصدير نسخة احتياطية للمحفظة من الإعدادات، وتصدير تقرير CSV من المتابعة. تختار مكان حفظ كل نسخة. تتحكم الوجهة التي تختارها في الملف المصدّر.</string>
+    <string name="identity_privacy_restore_heading">الاستعادة</string>
+    <string name="identity_privacy_restore">تقرأ الاستعادة ملف النسخة الاحتياطية الذي تحدده وتستبدل بيانات المحفظة الحالية. اختر ملفًا تثق به.</string>
+    <string name="identity_support_title">الدعم والأسئلة الشائعة</string>
+    <string name="identity_support_start_heading">البدء</string>
+    <string name="identity_support_start">ثبّت التطبيق، واختر عملة أساسية، ثم أضف حسابك الأول. يمكنك استخدام المحفظة دون اتصال.</string>
+    <string name="identity_support_backup_heading">النسخ الاحتياطي والاستعادة</string>
+    <string name="identity_support_backup">صدّر نسخة احتياطية من الإعدادات إلى وجهة تختارها. احتفظ بنسخة في مكان آمن. تستبدل الاستعادة المحفظة الحالية بالنسخة المحددة؛ تحقق من الملف قبل التأكيد.</string>
+    <string name="identity_support_report_heading">الإبلاغ عن مشكلة بأمان</string>
+    <string name="identity_support_report">أبلغ عن المشكلة في GitHub Issues للمشروع على https://github.com/aristonis/MyWallet/issues أو عبر البريد aristonis@outlook.com. اذكر الإصدار المثبّت الظاهر في صفحة «حول»، وخطوات تكرار المشكلة، وما حدث وما توقعته. لا تنشر نسخ المحفظة الاحتياطية أو صورًا تتضمن تفاصيل مالية شخصية في بلاغ عام.</string>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="transaction_filter_all">الكل</string>
+    <string name="transaction_filter_income">دخل</string>
+    <string name="transaction_filter_expense">مصروف</string>
+    <string name="transaction_filter_transfer">تحويل</string>
+    <string name="transaction_filter_debts">ديون</string>
+    <string name="transaction_filter_button">تصفية</string>
+    <string name="transaction_filter_account">الحساب</string>
+    <string name="transaction_filter_category">الفئة</string>
+    <string name="transaction_filter_clear">مسح الكل</string>
+    <string name="transaction_filter_matched_part">%1$s %2$s</string>
+    <string name="transaction_filter_saved_outside">حُفظت خارج هذه التصفية</string>
+    <string name="transaction_filter_empty_income">لا يوجد دخل في هذه الفترة</string>
+    <string name="transaction_filter_empty_expense">لا توجد مصروفات في هذه الفترة</string>
+    <string name="transaction_filter_empty_transfer">لا توجد تحويلات في هذه الفترة</string>
+    <string name="transaction_filter_empty_debts">لا توجد ديون في هذه الفترة</string>
+    <string name="transaction_filter_empty_named">لا توجد معاملات ضمن %1$s في هذه الفترة</string>
+    <string name="transaction_filter_empty_combined">لا توجد معاملات تطابق %1$s في هذه الفترة</string>
+    <string name="transaction_filter_category_child">%1$s › %2$s</string>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="transaction_deduction_now">%1$s: %2$s · المدفوع الآن</string>
+    <string name="transaction_deduction_later">%1$s: %2$s · المستحق لاحقًا</string>
+    <string name="transaction_fee">الرسوم: %1$s</string>
+    <string name="transaction_interest">الفائدة: %1$s</string>
+    <string name="transaction_base_amount">≈ %1$s</string>
+    <string name="transaction_deduction_summary">%1$s: %2$s · %3$s</string>
+    <plurals name="transaction_saved_deduction_count">
+        <item quantity="zero">%d من الاستقطاعات المحفوظة</item>
+        <item quantity="one">استقطاع محفوظ واحد (%d)</item>
+        <item quantity="two">استقطاعان محفوظان (%d)</item>
+        <item quantity="few">%d استقطاعات محفوظة</item>
+        <item quantity="many">%d استقطاعًا محفوظًا</item>
+        <item quantity="other">%d من الاستقطاعات المحفوظة</item>
+    </plurals>
+    <string name="transaction_paid_now_owed">المدفوع الآن %1$s · المستحق %2$s للطرف %3$s</string>
+    <string name="transaction_owed_to">المبلغ المستحق: %1$s للطرف %2$s</string>
+    <string name="transaction_paid_now">المدفوع الآن</string>
+    <string name="transaction_movement_from">من %1$s</string>
+</resources>

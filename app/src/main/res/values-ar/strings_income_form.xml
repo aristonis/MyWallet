@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="income_deductions_title">الاستقطاعات</string>
+    <string name="income_deductions_loading">جارٍ تحميل الاستقطاعات…</string>
+    <string name="income_deductions_empty">لا توجد استقطاعات مفعّلة. يمكنك إضافتها من الإعدادات.</string>
+    <string name="income_deduction_percent">نسبة مئوية</string>
+    <string name="income_deduction_fixed">مبلغ ثابت</string>
+    <string name="income_deduction_now">المدفوع الآن</string>
+    <string name="income_deduction_later">المستحق لاحقًا</string>
+    <string name="income_deduction_value">القيمة</string>
+    <string name="income_deduction_value_type">نوع القيمة</string>
+    <string name="income_deduction_currency">عملة المبلغ الثابت</string>
+    <string name="income_deduction_converted">المبلغ المحوّل (%1$s)</string>
+    <string name="income_summary_gross">الدخل</string>
+    <string name="income_summary_deductions">الاستقطاعات</string>
+    <string name="income_summary_receives">يتلقى الحساب</string>
+    <string name="income_summary_owed">المبلغ المستحق عليك</string>
+</resources>

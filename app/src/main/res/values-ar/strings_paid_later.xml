@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="msg_paid_now_not_below_amount">يجب أن يكون المدفوع الآن أقل من مبلغ المصروف. أوقف «الدفع لاحقًا» لدفع المبلغ كاملًا.</string>
+    <string name="msg_paid_later_fee_without_paid_now">أدخل مبلغًا أكبر من صفر في «المدفوع الآن» أو أزل الرسوم.</string>
+    <string name="paid_later_title">الدفع لاحقًا</string>
+    <string name="paid_later_paid_now">المدفوع الآن</string>
+    <string name="paid_later_owed">المبلغ المستحق: %1$s</string>
+    <string name="paid_later_due_date">تاريخ الاستحقاق (اختياري)</string>
+    <string name="paid_later_due_date_value">" · %1$s"</string>
+    <string name="paid_later_clear_date">إبقاء تاريخ الاستحقاق دون تغيير</string>
+</resources>

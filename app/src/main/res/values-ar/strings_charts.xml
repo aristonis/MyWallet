@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="tracking_open_spending_breakdown">تفاصيل الإنفاق</string>
+    <string name="tracking_open_spending_breakdown_hint">فئات المصروفات في مخطط وجدول</string>
+    <string name="tracking_open_net_worth">صافي الثروة</string>
+    <string name="tracking_open_net_worth_hint">الأرصدة المعاد احتسابها في مخطط خطي وجدول</string>
+    <string name="chart_parts_separator">" · "</string>
+    <string name="chart_updating">جارٍ التحديث للفترة المحددة</string>
+    <string name="spending_title">تفاصيل الإنفاق</string>
+    <string name="spending_heading">الإنفاق · %1$s</string>
+    <string name="spending_caption">الفترة المحددة</string>
+    <string name="spending_chart_title">مخطط الفئات</string>
+    <string name="spending_table_title">مبالغ الفئات الدقيقة</string>
+    <plurals name="spending_chart_description">
+        <item quantity="zero">مخطط أعمدة لعدد %1$d من فئات الإنفاق. الأكبر: %2$s، %3$s. المبالغ الدقيقة في الجدول أدناه.</item>
+        <item quantity="one">مخطط أعمدة لعدد %1$d من فئات الإنفاق. الأكبر: %2$s، %3$s. المبالغ الدقيقة في الجدول أدناه.</item>
+        <item quantity="two">مخطط أعمدة لعدد %1$d من فئات الإنفاق. الأكبر: %2$s، %3$s. المبالغ الدقيقة في الجدول أدناه.</item>
+        <item quantity="few">مخطط أعمدة لعدد %1$d من فئات الإنفاق. الأكبر: %2$s، %3$s. المبالغ الدقيقة في الجدول أدناه.</item>
+        <item quantity="many">مخطط أعمدة لعدد %1$d من فئات الإنفاق. الأكبر: %2$s، %3$s. المبالغ الدقيقة في الجدول أدناه.</item>
+        <item quantity="other">مخطط أعمدة لعدد %1$d من فئات الإنفاق. الأكبر: %2$s، %3$s. المبالغ الدقيقة في الجدول أدناه.</item>
+    </plurals>
+    <string name="spending_empty">لا توجد فئات إنفاق. لا تُعرض حصص الفئات لهذه الفترة.</string>
+    <string name="spending_refund_note">توجد مبالغ مستردة في هذه الفترة. يشير صافي المبلغ السالب للفئة إلى أثر الاسترداد، ولا يُعرض لها عمود.</string>
+    <string name="spending_refund_row">الصافي بعد الاسترداد</string>
+    <string name="spending_missing_rate">تفاصيل الإنفاق بالعملة المحوّلة غير متاحة. حدّد سعر صرف %1$s لعرض تفاصيل موثوقة.</string>
+    <string name="spending_unavailable">التفاصيل غير متاحة. لن يُعرض مخطط جزئي أو إجمالي جزئي.</string>
+    <string name="spending_loading">جارٍ تحميل الإنفاق</string>
+    <string name="net_worth_title">صافي الثروة</string>
+    <string name="net_worth_heading">صافي الثروة · %1$s</string>
+    <string name="net_worth_restated">أُعيد احتسابها من السجلات الحالية بأسعار الصرف الحالية</string>
+    <string name="net_worth_restatement_label">إعادة احتساب السجل الحالي بأسعار الصرف الحالية</string>
+    <string name="net_worth_restatement_note">هذا ليس سجلًا للأرصدة السابقة. تتغير النقاط السابقة عند تغيير المعاملات أو الأرصدة الافتتاحية أو الحسابات المؤرشفة أو أسعار الصرف.</string>
+    <string name="net_worth_chart_title">مخطط الأرصدة المعاد احتسابها</string>
+    <string name="net_worth_table_title">الأرصدة الدقيقة المعاد احتسابها</string>
+    <string name="net_worth_row_label">الرصيد المعاد احتسابه</string>
+    <string name="net_worth_chart_description">مخطط خطي لصافي الثروة المعاد احتسابه من %1$s، %2$s، إلى %3$s، %4$s. أدنى قيمة %5$s وأعلى قيمة %6$s. %7$s الأرصدة الدقيقة في الجدول أدناه.</string>
+    <string name="net_worth_trend_up">القيمة في النهاية أعلى من البداية.</string>
+    <string name="net_worth_trend_down">القيمة في النهاية أقل من البداية.</string>
+    <string name="net_worth_trend_flat">القيمة في النهاية مساوية للبداية.</string>
+    <string name="net_worth_trend_up_crossing_zero">القيمة في النهاية أعلى من البداية، ويمر الخط بالصفر.</string>
+    <string name="net_worth_trend_down_crossing_zero">القيمة في النهاية أقل من البداية، ويمر الخط بالصفر.</string>
+    <string name="net_worth_trend_flat_crossing_zero">القيمة في النهاية مساوية للبداية، ويمر الخط بالصفر.</string>
+    <string name="net_worth_label_highest">الأعلى %1$s</string>
+    <string name="net_worth_label_lowest">الأدنى %1$s</string>
+    <string name="net_worth_no_trend">الاتجاه غير متاح. %1$s</string>
+    <string name="net_worth_reason_too_few_points">لا توجد نقاط كافية للأرصدة المعاد احتسابها لرسم خط في هذه الفترة.</string>
+    <string name="net_worth_reason_start_too_old">يُرسم الخط فقط لفترة تبدأ خلال الأشهر الاثني عشر الماضية.</string>
+    <string name="net_worth_current_balance">الرصيد الحالي</string>
+    <string name="net_worth_missing_rate">الرصيد بالعملة المحوّلة غير متاح. سعر صرف %1$s غير محدد لهذه الفترة.</string>
+    <string name="net_worth_too_many_records">سجل الأرصدة غير متاح. تضم هذه الفترة سجلات أكثر من أن يُعاد احتسابها، لذلك لن يُعرض خط أو جدول جزئي. اختر فترة تبدأ بتاريخ أحدث.</string>
+    <string name="net_worth_unavailable">الأرصدة غير متاحة. لن يُعرض مخطط أو إجمالي جزئي.</string>
+    <string name="net_worth_loading">جارٍ تحميل الأرصدة</string>
+</resources>

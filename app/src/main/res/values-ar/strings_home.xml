@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="home_balance">إجمالي الرصيد</string>
+    <string name="home_in_my_pocket">في جيبي</string>
+    <string name="home_owed_to_me">لي</string>
+    <string name="home_i_owe">عليّ</string>
+    <string name="home_debts_below_zero">بعض الديون أقل من الصفر. افتح الديون لمراجعتها.</string>
+    <string name="home_credit_owed">المبلغ المستحق: %1$s</string>
+    <string name="home_credit_available">الائتمان المتاح: %1$s</string>
+    <string name="home_credit_over_limit">تجاوز الحد بمقدار %1$s</string>
+    <string name="rates_data_unreadable">تعذرت قراءة بعض بيانات المحفظة. حاول مجددًا.</string>
+</resources>

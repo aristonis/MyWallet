@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="w2_information">معلومات</string>
+    <string name="w2_about_title">حول MyWallet</string>
+    <string name="w2_settings_about_summary">المشروع والإصدار ومعلومات الاستخدام دون اتصال</string>
+    <string name="w2_about_privacy_summary">السجلات المحلية والتصدير</string>
+    <string name="w2_about_support_summary">الإعداد والنسخ الاحتياطي والإبلاغ الآمن</string>
+    <string name="w2_about_license_summary">ترخيص المشروع Apache 2.0 وملف NOTICE</string>
+    <string name="w2_license_unavailable">تعذرت قراءة ترخيص المشروع المرفق. ارجع وحاول مجددًا.</string>
+    <string name="w2_project_license_heading">ترخيص Apache، الإصدار 2.0</string>
+    <string name="w2_rates_currencies">العملات</string>
+    <string name="w2_choose_currency">اختيار العملة</string>
+</resources>

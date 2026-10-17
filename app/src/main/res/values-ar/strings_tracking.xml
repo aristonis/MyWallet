@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="tracking_manage_rates">إدارة أسعار الصرف</string>
+    <string name="tracking_empty_title">لا توجد بيانات لتتبعها في هذه الفترة</string>
+    <string name="tracking_empty_hint">اختر فترة أخرى أو سجّل معاملة.</string>
+</resources>
