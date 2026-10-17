@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -43,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.Transaction
@@ -114,13 +114,16 @@ internal fun DebtDetailContent(
             DebtOverflow(state, onDeleteDebt)
         })
     }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+        if (state.isLoading) {
+            AristonisLoader(Modifier.padding(padding).fillMaxSize())
+            return@Scaffold
+        }
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
             contentPadding = PaddingValues(WalletTheme.dimensions.screenPadding),
             verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.regionGap),
         ) {
             when {
-                state.isLoading -> item { CircularProgressIndicator() }
                 state.loadFailed -> item {
                     LoadFailedState((state.loadError ?: UiMessage.DataUnreadable).text(), onRetry)
                 }

@@ -32,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -47,6 +46,7 @@ import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.FeeMode
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.label
@@ -183,7 +183,7 @@ private fun EditTransactionContent(
             if (loaded != null && state.readOnly) {
                 ReadOnlyEntry(state = state, loaded = loaded, onDelete = onDelete)
             } else if (loaded == null || type == null) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                AristonisLoader(Modifier.fillMaxSize())
             } else {
                 EditTransactionForm(
                     state = state,

@@ -2,19 +2,16 @@ package org.aristonis.mywallet.ui.reports.charts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -22,6 +19,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.components.MoneyText
 import org.aristonis.mywallet.ui.components.StatusCard
@@ -73,20 +71,10 @@ internal fun ChartHero(heading: String, amount: String, caption: String, modifie
     }
 }
 
-/** Waiting for exact totals: nothing is drawn until they arrive. The spinner and its text are one node. */
+/** Waiting for exact totals in the bounded space below the chart controls. */
 @Composable
-internal fun ChartLoading(text: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) {}
-            .announced(),
-        horizontalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.iconContentGap),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CircularProgressIndicator()
-        Text(text, style = MaterialTheme.typography.bodyMedium)
-    }
+internal fun ChartLoading(modifier: Modifier = Modifier) {
+    AristonisLoader(modifier)
 }
 
 /** A rate is missing: say so, show no converted figure, and offer the screen that fixes it. */

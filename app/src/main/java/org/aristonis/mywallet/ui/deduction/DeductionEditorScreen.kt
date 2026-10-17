@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DeductionMode
 import org.aristonis.mywallet.domain.model.DeductionTiming
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.StatusCard
@@ -97,11 +98,14 @@ internal fun DeductionEditorContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (state.isLoading) {
+        AristonisLoader(modifier.fillMaxSize().imePadding())
+        return
+    }
     val dimensions = WalletTheme.dimensions
     Column(modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())
         .padding(dimensions.screenPadding), verticalArrangement = Arrangement.spacedBy(dimensions.sectionGap)) {
         when {
-            state.isLoading -> CircularProgressIndicator()
             state.notFound -> StatusCard(StatusTone.ERROR, stringResource(R.string.msg_deduction_item_not_found))
             state.loadFailed -> LoadFailedState(stringResource(R.string.deductions_load_failed), onRetry)
             else -> {

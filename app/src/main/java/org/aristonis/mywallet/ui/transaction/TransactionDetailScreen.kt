@@ -14,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -42,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DeductionTiming
 import org.aristonis.mywallet.ui.components.MenuAction
@@ -171,7 +171,7 @@ internal fun TransactionDetailContent(
                     message = stringResource(R.string.msg_transaction_not_found),
                     modifier = Modifier.padding(WalletTheme.dimensions.screenPadding).testTag(NOT_FOUND_TAG),
                 )
-                else -> CircularProgressIndicator(Modifier.align(Alignment.Center).testTag(LOADING_TAG))
+                else -> AristonisLoader(Modifier.fillMaxSize().testTag(LOADING_TAG))
             }
         }
     }

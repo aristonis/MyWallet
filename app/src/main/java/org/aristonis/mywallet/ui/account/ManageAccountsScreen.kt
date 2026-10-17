@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -36,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
@@ -125,7 +125,7 @@ internal fun ManageAccountsContent(
             }
 
             when {
-                state.isLoading -> CircularProgressIndicator()
+                state.isLoading -> AristonisLoader(Modifier.weight(1f).fillMaxWidth())
 
                 state.loadFailed -> LoadFailedState(
                     message = (state.loadFailure ?: UiMessage.DataUnreadable).text(),

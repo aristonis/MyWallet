@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -35,6 +34,7 @@ import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DeductionItem
 import org.aristonis.mywallet.domain.model.DeductionMode
 import org.aristonis.mywallet.domain.model.DeductionTiming
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.MenuAction
@@ -87,6 +87,10 @@ private fun DeductionsList(
     onRetry: () -> Unit,
     modifier: Modifier,
 ) {
+    if (state.isLoading) {
+        AristonisLoader(modifier.fillMaxSize())
+        return
+    }
     val dimensions = WalletTheme.dimensions
     LazyColumn(modifier.fillMaxSize().padding(horizontal = dimensions.screenPadding),
         verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap)) {
@@ -111,7 +115,6 @@ private fun DeductionsList(
 @Composable
 private fun ReadStatus(state: DeductionsUiState, onRetry: () -> Unit, onAdd: () -> Unit) {
     when {
-        state.isLoading -> CircularProgressIndicator()
         state.loadFailed -> LoadFailedState(stringResource(R.string.deductions_load_failed), onRetry)
         state.items.isEmpty() -> EmptyState(stringResource(R.string.deductions_empty),
             actionLabel = stringResource(R.string.deduction_add), onAction = onAdd)

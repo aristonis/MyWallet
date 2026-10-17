@@ -17,7 +17,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -37,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.math.BigDecimal
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.LoadFailedState
@@ -92,7 +92,7 @@ internal fun ManageRatesContent(
             when {
                 state.loadFailed -> LoadFailedState(stringResource(R.string.rates_data_unreadable), onRetry = onRetry)
 
-                state.isLoading -> CircularProgressIndicator()
+                state.isLoading -> AristonisLoader(Modifier.fillMaxSize())
 
                 state.rows.isEmpty() -> EmptyState(
                     message = stringResource(R.string.rates_not_needed),

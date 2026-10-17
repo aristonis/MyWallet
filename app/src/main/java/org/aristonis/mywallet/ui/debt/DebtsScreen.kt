@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -39,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DebtSide
 import org.aristonis.mywallet.domain.model.DebtState
@@ -87,6 +87,17 @@ internal fun DebtsContent(
 ) {
     BackHandler(onBack = onDone)
     Scaffold(topBar = { WalletTopAppBar(stringResource(R.string.debts_title), onBack = onDone) }) { padding ->
+        if (state.isLoading) {
+            Column(
+                modifier = Modifier.padding(padding).fillMaxSize()
+                    .padding(WalletTheme.dimensions.screenPadding),
+                verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.regionGap),
+            ) {
+                DebtSides(state.selectedSide, onSelectSide)
+                AristonisLoader(Modifier.weight(1f).fillMaxWidth())
+            }
+            return@Scaffold
+        }
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
             contentPadding = PaddingValues(WalletTheme.dimensions.screenPadding),
@@ -94,7 +105,6 @@ internal fun DebtsContent(
         ) {
             item { DebtSides(state.selectedSide, onSelectSide) }
             when {
-                state.isLoading -> item { CircularProgressIndicator() }
                 state.loadFailed -> item {
                     LoadFailedState((state.loadError ?: UiMessage.DataUnreadable).text(), onRetry)
                 }

@@ -21,7 +21,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.error as semanticsError
 import androidx.compose.ui.semantics.semantics
@@ -41,6 +40,7 @@ import org.aristonis.mywallet.ui.message.text
 import org.aristonis.mywallet.domain.model.Currency
 import org.aristonis.mywallet.domain.model.FeeMode
 import org.aristonis.mywallet.domain.model.Money
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.ui.components.LoadFailedState
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.theme.MyWalletTheme
@@ -113,7 +113,7 @@ private fun EditAccountContent(
                     modifier = Modifier.padding(dimensions.screenPadding),
                 )
                 state.loaded == null && error != null -> MissingAccount(message = error.text(), onCancel = onCancel)
-                state.loaded == null -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                state.loaded == null -> AristonisLoader(Modifier.fillMaxSize())
                 else -> EditAccountForm(
                     state = state,
                     onCurrencySelected = onCurrencySelected,

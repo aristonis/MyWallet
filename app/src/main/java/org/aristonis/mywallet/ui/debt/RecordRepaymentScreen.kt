@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.DebtSide
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.ui.components.LabeledDropdown
 import org.aristonis.mywallet.ui.components.WalletTopAppBar
 import org.aristonis.mywallet.ui.format.bidiIsolate
@@ -103,12 +104,15 @@ internal fun RecordRepaymentContent(
     val isEditing = state.editingRepaymentId != null
     val title = if (isEditing) R.string.repayment_title_edit else R.string.repayment_title
     Scaffold(topBar = { WalletTopAppBar(stringResource(title), onBack = onDone) }) { padding ->
+        if (state.isLoading) {
+            AristonisLoader(Modifier.padding(padding).fillMaxSize())
+            return@Scaffold
+        }
         Column(
             modifier = Modifier.padding(padding).padding(WalletTheme.dimensions.screenPadding)
                 .fillMaxSize().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.regionGap),
         ) {
-            if (state.isLoading) CircularProgressIndicator()
             if (debtCurrency != null) {
                 RepaymentIdentity(state)
                 LabeledDropdown(

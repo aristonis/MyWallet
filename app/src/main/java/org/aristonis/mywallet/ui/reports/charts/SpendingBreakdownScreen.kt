@@ -1,7 +1,9 @@
 package org.aristonis.mywallet.ui.reports.charts
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -78,6 +80,16 @@ internal fun SpendingBreakdownContent(
             )
         },
     ) { innerPadding ->
+        if (state.data == SpendingData.Loading && !state.loadFailed) {
+            Column(
+                modifier = Modifier.padding(innerPadding).fillMaxSize().padding(dimensions.screenPadding),
+                verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
+            ) {
+                DateWindowBar(window = state.window, actions = windowActions)
+                ChartLoading(Modifier.weight(1f).fillMaxWidth())
+            }
+            return@Scaffold
+        }
         LazyColumn(
             modifier = Modifier.padding(innerPadding).fillMaxSize(),
             contentPadding = PaddingValues(dimensions.screenPadding),
@@ -96,7 +108,7 @@ internal fun SpendingBreakdownContent(
                 return@LazyColumn
             }
             when (val data = state.data) {
-                SpendingData.Loading -> item(key = "loading") { ChartLoading(stringResource(R.string.spending_loading)) }
+                SpendingData.Loading -> Unit
                 is SpendingData.MissingRate -> item(key = "missing-rate") {
                     ChartMissingRate(stringResource(R.string.spending_missing_rate, data.currencyCode), onManageRates)
                 }

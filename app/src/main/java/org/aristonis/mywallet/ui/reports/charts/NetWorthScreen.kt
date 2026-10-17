@@ -3,6 +3,7 @@ package org.aristonis.mywallet.ui.reports.charts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -80,6 +81,17 @@ internal fun NetWorthContent(
             )
         },
     ) { innerPadding ->
+        if (state.data == NetWorthData.Loading && !state.loadFailed) {
+            Column(
+                modifier = Modifier.padding(innerPadding).fillMaxSize().padding(dimensions.screenPadding),
+                verticalArrangement = Arrangement.spacedBy(dimensions.relatedGap),
+            ) {
+                DateWindowBar(window = state.window, actions = windowActions)
+                RestatementLabel()
+                ChartLoading(Modifier.weight(1f).fillMaxWidth())
+            }
+            return@Scaffold
+        }
         LazyColumn(
             modifier = Modifier.padding(innerPadding).fillMaxSize(),
             contentPadding = PaddingValues(dimensions.screenPadding),
@@ -99,7 +111,7 @@ internal fun NetWorthContent(
                 return@LazyColumn
             }
             when (val data = state.data) {
-                NetWorthData.Loading -> item(key = "loading") { ChartLoading(stringResource(R.string.net_worth_loading)) }
+                NetWorthData.Loading -> Unit
                 is NetWorthData.MissingRate -> item(key = "missing-rate") {
                     ChartMissingRate(stringResource(R.string.net_worth_missing_rate, data.currencyCode), onManageRates)
                 }

@@ -40,14 +40,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.aristonis.mywallet.R
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.ui.components.EmptyState
 import org.aristonis.mywallet.ui.components.MetricCell
 import org.aristonis.mywallet.ui.components.MoneyText
@@ -198,10 +197,7 @@ internal fun AccountDetailContent(
 
 @Composable
 private fun Loading(modifier: Modifier) {
-    val label = stringResource(R.string.account_detail_loading)
-    Box(modifier.padding(WalletTheme.dimensions.screenPadding), contentAlignment = Alignment.TopCenter) {
-        CircularProgressIndicator(Modifier.testTag(TAG_LOADING).semantics { contentDescription = label })
-    }
+    AristonisLoader(modifier.testTag(TAG_LOADING))
 }
 
 /** Nothing to retry: the accounts were read, and this one is not among them. */

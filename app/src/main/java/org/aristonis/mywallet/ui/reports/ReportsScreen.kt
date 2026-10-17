@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +47,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.TrackingPeriod
 import org.aristonis.mywallet.domain.model.TrackingWindow
@@ -194,7 +194,7 @@ internal fun ReportsContent(
             }
             val showLinks = hasChartLinks(onOpenSpendingBreakdown, onOpenNetWorth)
             when (val data = state.data) {
-                ReportsData.Loading -> CircularProgressIndicator()
+                ReportsData.Loading -> AristonisLoader(Modifier.fillMaxSize())
 
                 is ReportsData.MissingRate -> {
                     MissingRateNotice(data.currencyCode, onManageRates)

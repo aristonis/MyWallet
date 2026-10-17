@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.aristonis.mywallet.ui.components.AristonisLoader
 import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.TypeGroup
 import org.aristonis.mywallet.ui.label
@@ -244,11 +245,7 @@ private fun TransactionsBody(
 ) {
     val dimensions = WalletTheme.dimensions
     when {
-        // Inline, under the date bar rather than instead of it, so the screen does not flicker
-        // between two different layouts on every refresh.
-        state.isLoading -> Column(modifier = Modifier.fillMaxSize().padding(dimensions.screenPadding)) {
-            CircularProgressIndicator()
-        }
+        state.isLoading -> AristonisLoader(Modifier.fillMaxSize())
 
         // Said in place of the list, under the date bar, so other dates can still be chosen; an empty
         // message here would claim there is nothing to show, which is not known.
