@@ -25,6 +25,7 @@ import org.aristonis.mywallet.R
 import org.aristonis.mywallet.domain.model.Account
 import org.aristonis.mywallet.domain.model.Category
 import org.aristonis.mywallet.domain.model.TransactionFilter
+import org.aristonis.mywallet.ui.format.bidiIsolate
 import org.aristonis.mywallet.ui.label
 import org.aristonis.mywallet.ui.text
 import org.aristonis.mywallet.ui.theme.WalletTheme
@@ -59,7 +60,7 @@ internal fun TransactionFilterSheet(
             categories.filter { it.parentId == null }.sortedBy { it.id }.forEach { parent ->
                 FilterOption(parent.label().text(), parent.id in filter.categoryIds) { onCategory(parent.id) }
                 categories.filter { it.parentId == parent.id }.sortedBy { it.id }.forEach { child ->
-                    FilterOption(stringResource(R.string.transaction_filter_category_child, parent.label().text(), child.label().text()),
+                    FilterOption(stringResource(R.string.transaction_filter_category_child, bidiIsolate(parent.label().text()), bidiIsolate(child.label().text())),
                         child.id in filter.categoryIds, isChild = true) { onCategory(child.id) }
                 }
             }

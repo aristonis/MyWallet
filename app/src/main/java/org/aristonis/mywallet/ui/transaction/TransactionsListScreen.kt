@@ -451,9 +451,9 @@ private fun TransactionsListPreview(
 
 @Composable
 private fun TransactionsUiState.emptyFilterText(): String {
-    val categories = filterCategories.filter { it.id in filter.categoryIds }.map { it.label().text() }
-    val accounts = filterAccounts.filter { it.id in filter.accountIds }.map { it.name }
-    val types = TypeGroup.entries.filter { it in filter.types }.map { it.filterLabel() }
+    val categories = filterCategories.filter { it.id in filter.categoryIds }.map { bidiIsolate(it.label().text()) }
+    val accounts = filterAccounts.filter { it.id in filter.accountIds }.map { bidiIsolate(it.name) }
+    val types = TypeGroup.entries.filter { it in filter.types }.map { bidiIsolate(it.filterLabel()) }
     val names = categories + accounts + types
     if (names.size > 1) return stringResource(R.string.transaction_filter_empty_combined, names.joinToString(" · "))
     if (categories.isNotEmpty() || accounts.isNotEmpty()) return stringResource(R.string.transaction_filter_empty_named, names.single())

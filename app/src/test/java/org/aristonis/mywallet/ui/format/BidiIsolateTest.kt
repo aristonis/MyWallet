@@ -53,4 +53,12 @@ class BidiIsolateTest {
         assertEquals(2, sentence.count { it == firstStrongIsolate })
         assertEquals(2, sentence.count { it == popDirectionalIsolate })
     }
+    @Test
+    fun `mixed name and money substitutions keep separate unchanged runs`() {
+        val name = "Bank حساب"
+        val amount = "−1,000.50 USD"
+        val sentence = "${bidiIsolate(name)}: ${bidiIsolate(amount)}"
+
+        assertEquals("\u2068Bank حساب\u2069: \u2068−1,000.50 USD\u2069", sentence)
+    }
 }

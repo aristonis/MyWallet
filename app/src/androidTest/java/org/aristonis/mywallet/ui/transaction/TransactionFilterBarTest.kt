@@ -80,7 +80,7 @@ class TransactionFilterBarTest {
                     {}, { filter.value = TransactionFilter() }, {})
             }
         }
-        compose.onNodeWithText("Bills › Internet").assertIsDisplayed()
+        compose.onNodeWithText("\u2068Bills\u2069 › \u2068Internet\u2069").assertIsDisplayed()
         compose.onNodeWithText("Clear all").performClick()
         compose.runOnIdle { org.junit.Assert.assertEquals(TransactionFilter(), filter.value) }
     }

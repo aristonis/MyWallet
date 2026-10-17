@@ -296,7 +296,7 @@ private fun Hero(row: TransactionRow) {
     val formatDate = rememberDateFormatter()
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WalletTheme.dimensions.grid)) {
         Text(
-            text = stringResource(R.string.transaction_headline_with_note, kindLabel(row.type), formatDate(row.date)),
+            text = stringResource(R.string.transaction_headline_with_note, kindLabel(row.type), bidiIsolate(formatDate(row.date))),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -416,7 +416,7 @@ private fun DebtRows(row: TransactionRow) {
         val base = baseLine(row.countedBaseAmountDisplay)
         val category = row.categoryLabel?.text()
         val supporting = if (category != null && base != null) {
-            stringResource(R.string.transaction_headline_with_note, category, base)
+            stringResource(R.string.transaction_headline_with_note, bidiIsolate(category), base)
         } else {
             category ?: base
         }
@@ -471,7 +471,7 @@ internal fun TransactionDeleteDialog(row: TransactionRow, onConfirm: () -> Unit,
         R.string.transaction_detail_delete_target,
         bidiIsolate(subjectOf(row)),
         bidiIsolate(signedAmount(row.type.amountRole(), row.amountDisplay)),
-        formatDate(row.date),
+        bidiIsolate(formatDate(row.date)),
     )
     AlertDialog(
         onDismissRequest = onDismiss,

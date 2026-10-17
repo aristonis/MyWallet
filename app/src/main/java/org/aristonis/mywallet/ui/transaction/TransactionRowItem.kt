@@ -131,7 +131,7 @@ private fun TrailingAmounts(row: TransactionRow, role: AmountRole, showDetails: 
 private fun AmountDetails(row: TransactionRow, role: AmountRole) {
     Column(horizontalAlignment = if (row.type == TransactionRowType.INCOME || row.owedAmount != null) Alignment.Start else Alignment.End) {
         row.matchedParts.forEach { part ->
-            Text(stringResource(R.string.transaction_filter_matched_part, part.category.text(), bidiIsolate(part.amountDisplay)))
+            Text(stringResource(R.string.transaction_filter_matched_part, bidiIsolate(part.category.text()), bidiIsolate(part.amountDisplay)))
         }
         val hasDeductionDetails = row.type == TransactionRowType.INCOME && row.deductions.isNotEmpty()
         if (hasDeductionDetails) IncomeReceiptDetails(row)
@@ -255,7 +255,7 @@ private fun headline(row: TransactionRow): String {
         -> kindLabel(row.type)
     }
     // The note is what tells two otherwise identical rows apart, so it belongs on the first line.
-    return row.note?.let { stringResource(R.string.transaction_headline_with_note, subject, it) } ?: subject
+    return row.note?.let { stringResource(R.string.transaction_headline_with_note, bidiIsolate(subject), bidiIsolate(it)) } ?: subject
 }
 
 /**
