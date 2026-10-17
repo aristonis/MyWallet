@@ -47,6 +47,45 @@ class WalletListRowLargeTextTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
+    fun supportingSlotFollowsExistingContextAtNormalScale() {
+        assertSupportingSlot(fontScale = 1f)
+    }
+
+    @Test
+    fun supportingSlotFollowsExistingContextAtLargeScale() {
+        assertSupportingSlot(fontScale = 2f)
+    }
+
+    private fun assertSupportingSlot(fontScale: Float) {
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                MyWalletTheme(dynamicColor = false) {
+                    Box(Modifier.width(360.dp)) {
+                        WalletListRow(
+                            headline = "Salary",
+                            supporting = "Income · Cash",
+                            trailing = { MoneyText("845.00 USD") },
+                            supportingContent = { Text("Paid now: 150.00 USD") },
+                        )
+                    }
+                }
+            }
+        }
+        val context = compose.onNodeWithText("Income · Cash", useUnmergedTree = true)
+            .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val details = compose.onNodeWithText("Paid now: 150.00 USD", useUnmergedTree = true)
+            .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue("Supporting details must follow the existing context", details.top >= context.bottom)
+        assertEquals("Both supporting parts share a column", context.left, details.left)
+        if (fontScale >= 2f) {
+            val amount = compose.onNodeWithText("845.00 USD", useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot
+            assertTrue("The amount must follow all supporting copy", amount.top >= details.bottom)
+        }
+    }
+
+    @Test
     fun longNameAndAmountRemainCompleteAtTwoHundredPercentInRtl() {
         val name = "Long savings account name"
         val amount = "123,456.78 KWD"

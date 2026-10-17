@@ -63,6 +63,11 @@ private fun StandardTransactionRow(row: TransactionRow, role: AmountRole, onClic
         leadingIconTint = amountColor(role),
         trailing = { TrailingAmounts(row, role) },
         onClick = onClick,
+        supportingContent = if (row.type == TransactionRowType.INCOME) {
+            { AmountDetails(row, role) }
+        } else {
+            null
+        },
     )
 }
 
@@ -100,7 +105,7 @@ private fun CompactTransferRow(row: TransactionRow, onClick: () -> Unit) {
     }
 }
 
-/** The main movement and its receipt details retain their separate accounting meanings. */
+/** Income keeps only its movement here so receipt details cannot squeeze the title. */
 @Composable
 private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
     Column(horizontalAlignment = Alignment.End) {
@@ -116,35 +121,16 @@ private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
             style = MaterialTheme.typography.titleMedium,
             color = roleColor,
         )
+        if (row.type != TransactionRowType.INCOME) AmountDetails(row, role)
+    }
+}
+
+/** Receipt, conversions and deductions retain their separate accounting meanings. */
+@Composable
+private fun AmountDetails(row: TransactionRow, role: AmountRole) {
+    Column(horizontalAlignment = if (row.type == TransactionRowType.INCOME) Alignment.Start else Alignment.End) {
         val hasDeductionDetails = row.type == TransactionRowType.INCOME && row.deductions.isNotEmpty()
-        if (hasDeductionDetails) {
-            Text(
-                text = stringResource(R.string.income_summary_receives),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            row.grossAmountDisplay?.let { gross ->
-                DetailAmount(
-                    stringResource(
-                        R.string.transaction_headline_with_note,
-                        stringResource(R.string.income_summary_gross),
-                        bidiIsolate(gross),
-                    ),
-                    AmountRole.INCOME,
-                )
-            }
-            row.countedBaseAmountDisplay?.let { base ->
-                Text(
-                    text = stringResource(
-                        R.string.transaction_headline_with_note,
-                        stringResource(R.string.income_summary_gross),
-                        stringResource(R.string.transaction_base_amount, bidiIsolate(base)),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        if (hasDeductionDetails) IncomeReceiptDetails(row)
         if (role != AmountRole.NEUTRAL && !hasDeductionDetails) BaseAmount(row.countedBaseAmountDisplay)
         if (role == AmountRole.NEUTRAL) {
             row.countedAmountDisplay?.let { interest ->
@@ -155,30 +141,65 @@ private fun TrailingAmounts(row: TransactionRow, role: AmountRole) {
                 BaseAmount(row.countedBaseAmountDisplay)
             }
         }
-        row.deductionSummaries.forEach { summary ->
-            val timing = if (summary.timing == DeductionTiming.NOW) {
-                R.string.income_deduction_now
-            } else {
-                R.string.income_deduction_later
-            }
-            DetailAmount(
-                stringResource(
-                    R.string.transaction_deduction_summary,
-                    stringResource(timing),
-                    bidiIsolate(summary.amountDisplay),
-                    pluralStringResource(
-                        R.plurals.transaction_saved_deduction_count,
-                        summary.snapshotCount,
-                        summary.snapshotCount,
-                    ),
-                ),
-                AmountRole.EXPENSE,
-            )
-        }
+        DeductionDetails(row)
         row.feeDisplay?.let { fee ->
             DetailAmount(stringResource(R.string.transaction_fee, bidiIsolate(fee)), AmountRole.EXPENSE)
             BaseAmount(row.feeBaseAmountDisplay)
         }
+    }
+}
+
+@Composable
+private fun IncomeReceiptDetails(row: TransactionRow) {
+    Text(
+        text = stringResource(R.string.income_summary_receives),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    row.grossAmountDisplay?.let { gross ->
+        DetailAmount(
+            stringResource(
+                R.string.transaction_headline_with_note,
+                stringResource(R.string.income_summary_gross),
+                bidiIsolate(gross),
+            ),
+            AmountRole.INCOME,
+        )
+    }
+    row.countedBaseAmountDisplay?.let { base ->
+        Text(
+            text = stringResource(
+                R.string.transaction_headline_with_note,
+                stringResource(R.string.income_summary_gross),
+                stringResource(R.string.transaction_base_amount, bidiIsolate(base)),
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun DeductionDetails(row: TransactionRow) {
+    row.deductionSummaries.forEach { summary ->
+        val timing = if (summary.timing == DeductionTiming.NOW) {
+            R.string.income_deduction_now
+        } else {
+            R.string.income_deduction_later
+        }
+        DetailAmount(
+            stringResource(
+                R.string.transaction_deduction_summary,
+                stringResource(timing),
+                bidiIsolate(summary.amountDisplay),
+                pluralStringResource(
+                    R.plurals.transaction_saved_deduction_count,
+                    summary.snapshotCount,
+                    summary.snapshotCount,
+                ),
+            ),
+            AmountRole.EXPENSE,
+        )
     }
 }
 

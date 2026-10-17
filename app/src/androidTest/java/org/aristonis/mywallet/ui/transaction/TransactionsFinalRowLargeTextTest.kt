@@ -43,15 +43,16 @@ class TransactionsFinalRowLargeTextTest {
             TransactionRow(
                 id = id,
                 date = day,
-                type = TransactionRowType.EXPENSE,
+                type = if (id == 12L) TransactionRowType.INCOME else TransactionRowType.EXPENSE,
                 accountName = "Long savings account name",
                 destAccountName = null,
-                categoryLabel = CategoryLabel.Named(if (id == 12L) "Final groceries" else "Groceries $id"),
+                categoryLabel = CategoryLabel.Named(if (id == 12L) "Final salary" else "Groceries $id"),
                 amount = Money.of(if (id == 12L) "123456.78" else id.toString(), "KWD"),
                 destAmount = null,
                 amountDisplay = if (id == 12L) "123,456.78 KWD" else "$id.00 KWD",
                 destAmountDisplay = null,
                 note = null,
+                feeDisplay = if (id == 12L) "5.00 KWD" else null,
             )
         }
         compose.setContent {
@@ -91,7 +92,11 @@ class TransactionsFinalRowLargeTextTest {
             "The last amount must clear Add transaction",
             amount.bottom <= add.top || amount.top >= add.bottom || amount.right <= add.left || amount.left >= add.right,
         )
-        compose.onNodeWithText("Final groceries").performClick()
+        val fee = compose.onNodeWithText("Fee", substring = true, useUnmergedTree = true)
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue("The final income details precede its stacked amount", fee.bottom <= amount.top)
+        assertTrue("The final income details stay inside the viewport", fee.top >= viewport.top)
+        compose.onNodeWithText("Final salary").performClick()
         assertEquals(12L, edited)
     }
 }

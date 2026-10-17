@@ -73,7 +73,8 @@ fun SectionHeader(
  * One record in a list: a leading type icon, a name, a quieter second line, and whatever belongs at
  * the end (usually a [MoneyText]). Built on Material's `ListItem` so height, padding and the touch
  * target follow the platform rather than being re-guessed per screen. At compact widths with large
- * text, trailing content moves below wrapped copy instead of sharing its line.
+ * text, trailing content moves below wrapped copy instead of sharing its line. [supportingContent]
+ * adds formatted details below the optional [supporting] context.
  */
 @Composable
 fun WalletListRow(
@@ -85,6 +86,7 @@ fun WalletListRow(
     leadingIconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     trailing: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
+    supportingContent: @Composable (() -> Unit)? = null,
 ) {
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints {
@@ -104,13 +106,7 @@ fun WalletListRow(
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(headline, style = MaterialTheme.typography.titleMedium)
-                        if (supporting != null) {
-                            Text(
-                                text = supporting,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        RowSupportingContent(supporting, supportingContent)
                     }
                 }
                 Row(
@@ -128,6 +124,7 @@ fun WalletListRow(
             WalletListItemBody(
                 headline = headline,
                 supporting = supporting,
+                supportingContent = supportingContent,
                 leadingIcon = leadingIcon,
                 leadingIconDescription = leadingIconDescription,
                 leadingIconTint = leadingIconTint,
@@ -142,6 +139,7 @@ fun WalletListRow(
 private fun WalletListItemBody(
     headline: String,
     supporting: String?,
+    supportingContent: @Composable (() -> Unit)?,
     leadingIcon: ImageVector?,
     leadingIconDescription: String?,
     leadingIconTint: Color,
@@ -151,19 +149,29 @@ private fun WalletListItemBody(
     ListItem(
         modifier = modifier,
         headlineContent = { Text(headline, style = MaterialTheme.typography.titleMedium) },
-        supportingContent = supporting?.let {
-            {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        supportingContent = if (supporting != null || supportingContent != null) {
+            { RowSupportingContent(supporting, supportingContent) }
+        } else {
+            null
         },
         leadingContent = leadingIcon?.let { { LeadingBadge(it, leadingIconDescription, leadingIconTint) } },
         trailingContent = trailing,
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
     )
+}
+
+@Composable
+private fun RowSupportingContent(supporting: String?, supportingContent: @Composable (() -> Unit)?) {
+    Column {
+        if (supporting != null) {
+            Text(
+                text = supporting,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        supportingContent?.invoke()
+    }
 }
 
 /**
